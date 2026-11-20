@@ -1,0 +1,204 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Private user account profile for Waynote cross-device sync and theme preferences.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID matching the document owner.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Publicly formatted user display name.",
+          "maxLength": 100
+        },
+        "providerId": {
+          "type": "string",
+          "description": "Authentication provider identifier such as google.com or apple.com.",
+          "maxLength": 40
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the account profile was initialized."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the latest profile update."
+        }
+      },
+      "required": ["uid", "displayName", "providerId", "createdAt", "updatedAt"]
+    },
+    "UserTrip": {
+      "title": "UserTrip",
+      "description": "Private cloud-synced trip record scoped strictly under the authenticated owner.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique trip identifier.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Authenticated owner UID.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "syncId": {
+          "type": "string",
+          "description": "Optional companion sync room code.",
+          "maxLength": 32,
+          "pattern": "^[A-Z0-9\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Trip title.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "destination": {
+          "type": "string",
+          "description": "Destination city or multi-stop route summary.",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "startDate": {
+          "type": "string",
+          "description": "Departure date in YYYY-MM-DD.",
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "endDate": {
+          "type": "string",
+          "description": "Return date in YYYY-MM-DD.",
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["Single", "Multi"],
+          "description": "Single destination or multi-city route."
+        },
+        "archived": {
+          "type": "boolean",
+          "description": "Whether the trip is archived."
+        },
+        "revision": {
+          "type": "number",
+          "description": "Monotonic sync revision number."
+        },
+        "clientUpdatedAt": {
+          "type": "number",
+          "description": "Client millisecond timestamp used for CRDT merge."
+        },
+        "metaUpdatedAt": {
+          "type": "number",
+          "description": "Metadata modification timestamp."
+        },
+        "budgetUpdatedAt": {
+          "type": "number",
+          "description": "Budget modification timestamp."
+        },
+        "stops": {
+          "type": "array",
+          "description": "Multi-city stops array."
+        },
+        "hotels": {
+          "type": "array",
+          "description": "Hotel accommodation bookings."
+        },
+        "activities": {
+          "type": "object",
+          "description": "Daily itinerary activities keyed by YYYY-MM-DD."
+        },
+        "activitiesOrderUpdatedAt": {
+          "type": "object",
+          "description": "Per-day reorder timestamps."
+        },
+        "themes": {
+          "type": "object",
+          "description": "Per-day itinerary titles keyed by YYYY-MM-DD."
+        },
+        "themesUpdatedAt": {
+          "type": "object",
+          "description": "Per-day theme timestamps."
+        },
+        "expenses": {
+          "type": "array",
+          "description": "Pre-trip and on-trip expense records."
+        },
+        "packingList": {
+          "type": "array",
+          "description": "User toolbox packing checklist items."
+        },
+        "documents": {
+          "type": "array",
+          "description": "Travel bookings, vouchers, and references."
+        },
+        "budget": {
+          "type": "object",
+          "description": "Trip budget configuration and base currency."
+        },
+        "tombstones": {
+          "type": "object",
+          "description": "Deleted entity IDs mapped to deletion timestamps."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of document creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of latest update."
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "syncId",
+        "name",
+        "destination",
+        "startDate",
+        "endDate",
+        "type",
+        "archived",
+        "revision",
+        "clientUpdatedAt",
+        "metaUpdatedAt",
+        "budgetUpdatedAt",
+        "stops",
+        "hotels",
+        "activities",
+        "activitiesOrderUpdatedAt",
+        "themes",
+        "themesUpdatedAt",
+        "expenses",
+        "packingList",
+        "documents",
+        "budget",
+        "tombstones",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user account profile document isolated per authenticated UID."
+    },
+    "/users/{userId}/trips/{tripId}": {
+      "schema": { "$ref": "#/entities/UserTrip" },
+      "description": "Private trips owned by a user, synced in real time across their signed-in devices."
+    }
+  }
+}

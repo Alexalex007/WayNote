@@ -1,0 +1,549 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Trip, Activity } from '../types';
+import { generateUniqueId } from '../shared/syncMerge';
+import { LiquidModal, SlidingSegmentedControl } from './LiquidPrimitives';
+import {
+  SparklesIcon,
+  MapIcon,
+  CameraIcon,
+  DiningIcon,
+  BusIcon,
+  NavigationArrowIcon,
+  CalendarIcon,
+  CheckIcon,
+  ClockIcon,
+  RefreshIcon,
+} from './Icons';
+
+export interface AiPlannedStop {
+  time: string;
+  title: string;
+  location: string;
+  duration: string;
+  type: 'sightseeing' | 'food' | 'transport';
+  description: string;
+}
+
+export interface AiPlannedDay {
+  dayNumber: number;
+  theme: string;
+  stops: AiPlannedStop[];
+}
+
+export interface AiPlanResult {
+  summary: string;
+  routeTip: string;
+  days: AiPlannedDay[];
+}
+
+interface AiPlannerModalProps {
+  open: boolean;
+  onClose: () => void;
+  trip: Trip;
+  dates: string[];
+  selectedDate: string;
+  onApplyPlan: (options: {
+    startDate: string;
+    mode: 'single_day' | 'multi_day';
+    applyStrategy: 'append' | 'replace';
+    days: AiPlannedDay[];
+  }) => void;
+  onOpenRouteForStops: (stops: Activity[]) => void;
+}
+
+const QUICK_INTEREST_CHIPS = [
+  '經典必去地標',
+  '在地人美食',
+  '高質感咖啡廳',
+  '文青逛街散策',
+  '夜景與攝影',
+  '親子輕鬆漫遊',
+];
+
+function addDaysUtcIso(dateStr: string, offset: number): string {
+  const ms = Date.parse(`${dateStr}T00:00:00Z`);
+  if (Number.isNaN(ms)) return dateStr;
+  const d = new Date(ms);
+  d.setUTCDate(d.getUTCDate() + offset);
+  return d.toISOString().slice(0, 10);
+}
+
+export const AiPlannerModal: React.FC<AiPlannerModalProps> = ({
+  open,
+  onClose,
+  trip,
+  dates,
+  selectedDate,
+  onApplyPlan,
+  onOpenRouteForStops,
+}) => {
+  const [mode, setMode] = useState<'single_day' | 'multi_day'>('single_day');
+  const [pace, setPace] = useState<'relaxed' | 'balanced' | 'packed'>('balanced');
+  const [targetStartDate, setTargetStartDate] = useState<string>(selectedDate || trip.startDate);
+  const [daysCount, setDaysCount] = useState<number>(Math.min(Math.max(dates.length || 3, 2), 5));
+  const [destinationInput, setDestinationInput] = useState<string>(trip.destination);
+  const [userPrompt, setUserPrompt] = useState<string>('');
+  const [applyStrategy, setApplyStrategy] = useState<'append' | 'replace'>('replace');
+
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [result, setResult] = useState<AiPlanResult | null>(null);
+  const [previewDayIdx, setPreviewDayIdx] = useState(0);
+
+  useEffect(() => {
+    if (open) {
+      setTargetStartDate(selectedDate || trip.startDate);
+      setDestinationInput((prev) => prev || trip.destination);
+      setErrorMsg(null);
+    }
+  }, [open, selectedDate, trip.startDate, trip.destination]);
+
+  const effectiveEndDate = useMemo(() => {
+    const count = mode === 'single_day' ? 1 : daysCount;
+    return addDaysUtcIso(targetStartDate, count - 1);
+  }, [mode, daysCount, targetStartDate]);
+
+  const willExtendTripEnd = useMemo(() => {
+    return Boolean(effectiveEndDate && trip.endDate && effectiveEndDate > trip.endDate);
+  }, [effectiveEndDate, trip.endDate]);
+
+  const toggleQuickInterest = (chip: string) => {
+    setUserPrompt((prev) => {
+      const trimmed = prev.trim();
+      if (trimmed.includes(chip)) return prev;
+      return trimmed ? `${trimmed}、${chip}` : chip;
+    });
+  };
+
+  const handleGenerate = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    setLoading(true);
+    setErrorMsg(null);
+
+    try {
+      const hotelsList = (trip.hotels || []).slice(0, 4).map((h) => `${h.name} (${h.checkIn}~${h.checkOut})`);
+      const existingActivities = trip.activities?.[targetStartDate] || [];
+      const existingSummary =
+        existingActivities.length > 0
+          ? `該日目前已有：${existingActivities
+              .slice(0, 6)
+              .map((a) => `${a.time} ${a.title}`)
+              .join('、')}`.slice(0, 260)
+          : '';
+
+      const res = await fetch('/api/ai/plan-itinerary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          destination: destinationInput.trim() || trip.destination,
+          userPrompt: userPrompt.trim(),
+          mode,
+          daysCount: mode === 'single_day' ? 1 : daysCount,
+          startDate: targetStartDate,
+          pace,
+          hotels: hotelsList,
+          existingSummary,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'AI 行程規劃失敗，請稍後再試。');
+      }
+
+      if (!Array.isArray(data?.days) || data.days.length === 0) {
+        throw new Error('AI 未能產生有效的每日行程，請補充目的地或景點描述再試一次。');
+      }
+
+      setResult(data as AiPlanResult);
+      setPreviewDayIdx(0);
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'AI 行程規劃請求發生錯誤。');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const activePreviewDay = result?.days?.[previewDayIdx] || result?.days?.[0] || null;
+
+  const previewActivities = useMemo<Activity[]>(() => {
+    if (!activePreviewDay) return [];
+    return activePreviewDay.stops.map((s) => ({
+      id: generateUniqueId('ai_preview'),
+      time: s.time,
+      title: s.title,
+      location: s.location || s.title,
+      completed: false,
+      type: s.type,
+      duration: s.duration,
+      description: s.description,
+    }));
+  }, [activePreviewDay]);
+
+  const googleMapsDayRouteUrl = useMemo(() => {
+    if (!activePreviewDay || activePreviewDay.stops.length === 0) return '#';
+    const stops = activePreviewDay.stops;
+    const getQ = (s: AiPlannedStop) => encodeURIComponent(s.location || s.title);
+    const origin = getQ(stops[0]);
+    const dest = getQ(stops[stops.length - 1]);
+    const mid = stops.slice(1, -1).map(getQ);
+    const waypoints = mid.length > 0 ? `&waypoints=${mid.join('|')}` : '';
+    return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}${waypoints}&travelmode=transit`;
+  }, [activePreviewDay]);
+
+  const handleApply = () => {
+    if (!result || result.days.length === 0) return;
+    onApplyPlan({
+      startDate: targetStartDate,
+      mode,
+      applyStrategy,
+      days: result.days,
+    });
+    onClose();
+  };
+
+  return (
+    <LiquidModal
+      open={open}
+      onClose={onClose}
+      bottomSheetOnMobile
+      maxWidthClass="max-w-3xl"
+      title={
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-xl bg-[var(--tab-accent-soft)] text-[var(--tab-accent)] flex items-center justify-center shrink-0">
+            <SparklesIcon className="w-4 h-4" />
+          </div>
+          <span>AI 智慧行程與路線規劃</span>
+        </div>
+      }
+    >
+      <div className="flex-1 min-h-0 flex flex-col gap-4 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar pr-0.5 space-y-4">
+          {!result ? (
+            <form onSubmit={handleGenerate} className="space-y-4">
+              {/* Top Configuration Row: Mode + Pace */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 block px-0.5">
+                    規劃天數模式
+                  </label>
+                  <SlidingSegmentedControl
+                    fullWidth
+                    value={mode}
+                    onChange={(val) => setMode(val)}
+                    options={[
+                      { id: 'single_day', label: '單日行程' },
+                      { id: 'multi_day', label: '多日行程' },
+                    ]}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 block px-0.5">
+                    每日節奏步調
+                  </label>
+                  <SlidingSegmentedControl
+                    fullWidth
+                    value={pace}
+                    onChange={(val) => setPace(val)}
+                    options={[
+                      { id: 'relaxed', label: '悠閒' },
+                      { id: 'balanced', label: '適中' },
+                      { id: 'packed', label: '充實' },
+                    ]}
+                  />
+                </div>
+              </div>
+
+              {/* Destination & Target Dates */}
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                <div className="sm:col-span-6 space-y-1.5">
+                  <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 block px-0.5">
+                    主要城市或區域
+                  </label>
+                  <div className="bg-zinc-100 dark:bg-white/[0.05] border border-zinc-200/70 dark:border-white/10 rounded-2xl px-3.5 h-11 flex items-center gap-2">
+                    <MapIcon className="w-4 h-4 text-[var(--tab-accent)] shrink-0" />
+                    <input
+                      type="text"
+                      value={destinationInput}
+                      onChange={(e) => setDestinationInput(e.target.value)}
+                      placeholder="例如：京都、嵐山與宇治"
+                      className="bg-transparent w-full text-sm font-semibold text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className={`${mode === 'multi_day' ? 'sm:col-span-3' : 'sm:col-span-6'} space-y-1.5`}>
+                  <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 block px-0.5">
+                    {mode === 'single_day' ? '套用日期' : '起始日期'}
+                  </label>
+                  <div className="bg-zinc-100 dark:bg-white/[0.05] border border-zinc-200/70 dark:border-white/10 rounded-2xl px-3 h-11 flex items-center gap-2">
+                    <CalendarIcon className="w-4 h-4 text-zinc-400 shrink-0" />
+                    <select
+                      value={targetStartDate}
+                      onChange={(e) => setTargetStartDate(e.target.value)}
+                      className="bg-transparent w-full text-xs sm:text-sm font-num font-semibold text-zinc-900 dark:text-white focus:outline-none"
+                    >
+                      {dates.map((d, i) => (
+                        <option key={d} value={d} className="bg-white dark:bg-zinc-900">
+                          Day {i + 1} · {d.slice(5)}
+                        </option>
+                      ))}
+                      {!dates.includes(targetStartDate) && targetStartDate && (
+                        <option value={targetStartDate} className="bg-white dark:bg-zinc-900">
+                          {targetStartDate}
+                        </option>
+                      )}
+                    </select>
+                  </div>
+                </div>
+
+                {mode === 'multi_day' && (
+                  <div className="sm:col-span-3 space-y-1.5">
+                    <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 block px-0.5">
+                      規劃天數
+                    </label>
+                    <div className="bg-zinc-100 dark:bg-white/[0.05] border border-zinc-200/70 dark:border-white/10 rounded-2xl px-2.5 h-11 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => setDaysCount((d) => Math.max(1, d - 1))}
+                        className="w-7 h-7 rounded-full bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 font-bold text-sm cursor-pointer"
+                      >
+                        -
+                      </button>
+                      <span className="font-num font-bold text-sm text-zinc-900 dark:text-white">
+                        {daysCount} 天
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setDaysCount((d) => Math.min(10, d + 1))}
+                        className="w-7 h-7 rounded-full bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 font-bold text-sm cursor-pointer"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {willExtendTripEnd && (
+                <div className="px-3.5 py-2 rounded-2xl bg-[var(--tab-accent-soft)] text-[var(--tab-accent)] text-xs font-medium">
+                  套用此多日規劃時，將自動把旅程結束日延展至 {effectiveEndDate} 以容納全部天數。
+                </div>
+              )}
+
+              {/* Free Prompt + Quick Interest Tags */}
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 block px-0.5">
+                  想去的地點、餐廳或主題想法（自由填寫）
+                </label>
+                <textarea
+                  value={userPrompt}
+                  onChange={(e) => setUserPrompt(e.target.value)}
+                  placeholder="例如：想去清水寺、花見小路、錦市場吃午餐，傍晚去鴨川散步，想找安靜有特色的抹茶咖啡廳..."
+                  rows={3}
+                  className="w-full rounded-2xl bg-zinc-100 dark:bg-white/[0.05] border border-zinc-200/70 dark:border-white/10 p-3.5 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[var(--tab-accent)]/35 resize-none"
+                />
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  {QUICK_INTEREST_CHIPS.map((chip) => {
+                    const selected = userPrompt.includes(chip);
+                    return (
+                      <button
+                        key={chip}
+                        type="button"
+                        onClick={() => toggleQuickInterest(chip)}
+                        className={`h-7 px-3 rounded-full text-[11px] font-semibold transition-colors cursor-pointer ${
+                          selected
+                            ? 'bg-[var(--tab-accent)] text-white'
+                            : 'bg-zinc-100 dark:bg-white/[0.06] text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200/70 dark:hover:bg-white/10'
+                        }`}
+                      >
+                        + {chip}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {errorMsg && (
+                <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/25 text-xs font-medium text-red-600 dark:text-red-400">
+                  {errorMsg}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading || (!destinationInput.trim() && !userPrompt.trim())}
+                className="w-full min-h-[48px] rounded-full bg-[var(--tab-accent)] hover:bg-[var(--tab-accent-hover)] text-white font-semibold text-sm flex items-center justify-center gap-2 shadow-sm disabled:opacity-45 cursor-pointer transition-all active:scale-[0.99]"
+              >
+                <SparklesIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                <span>{loading ? '正在為您規劃最佳順路行程...' : '開始 AI 規劃行程與路線'}</span>
+              </button>
+            </form>
+          ) : (
+            <div className="space-y-4">
+              {/* Summary & Route Tip Card */}
+              <div className="ink-card rounded-2xl p-4 space-y-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <span className="text-[11px] font-semibold text-white/65">
+                      AI 動線推薦 · 共 {result.days.length} 天行程
+                    </span>
+                    <p className="text-sm font-semibold text-white mt-0.5 leading-relaxed">
+                      {result.summary}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setResult(null)}
+                    className="h-8 px-3 rounded-full bg-white/12 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1 shrink-0 cursor-pointer"
+                  >
+                    <RefreshIcon className="w-3.5 h-3.5" />
+                    <span>重新調整</span>
+                  </button>
+                </div>
+                {result.routeTip && (
+                  <div className="pt-2 border-t border-white/10 text-xs text-white/80 flex items-start gap-2">
+                    <NavigationArrowIcon className="w-3.5 h-3.5 text-[#FF9E7B] shrink-0 mt-0.5" />
+                    <span>{result.routeTip}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Multi-day Preview Tab Strip */}
+              {result.days.length > 1 && (
+                <div className="overflow-x-auto no-scrollbar">
+                  <SlidingSegmentedControl
+                    value={String(previewDayIdx)}
+                    onChange={(v) => setPreviewDayIdx(Number(v))}
+                    options={result.days.map((d, idx) => ({
+                      id: String(idx),
+                      label: `第 ${d.dayNumber} 天 (${addDaysUtcIso(targetStartDate, idx).slice(5)})`,
+                    }))}
+                  />
+                </div>
+              )}
+
+              {/* Day Preview Stops */}
+              <AnimatePresence mode="wait">
+                {activePreviewDay && (
+                  <motion.div
+                    key={previewDayIdx}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.18 }}
+                    className="space-y-2.5"
+                  >
+                    <div className="flex items-center justify-between gap-2 px-1">
+                      <div>
+                        <span className="text-[11px] font-num text-zinc-400">
+                          {addDaysUtcIso(targetStartDate, previewDayIdx)}
+                        </span>
+                        <h4 className="font-display font-bold text-sm sm:text-base text-zinc-900 dark:text-white">
+                          {activePreviewDay.theme}
+                        </h4>
+                      </div>
+                      <a
+                        href={googleMapsDayRouteUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-semibold text-[var(--tab-accent)] hover:underline inline-flex items-center gap-1 shrink-0"
+                      >
+                        <MapIcon className="w-3.5 h-3.5" />
+                        <span>Google Maps 路線</span>
+                      </a>
+                    </div>
+
+                    <div className="space-y-2">
+                      {activePreviewDay.stops.map((stop, idx) => {
+                        const TypeIcon =
+                          stop.type === 'food'
+                            ? DiningIcon
+                            : stop.type === 'transport'
+                              ? BusIcon
+                              : CameraIcon;
+                        return (
+                          <div
+                            key={`${idx}_${stop.title}`}
+                            className="rounded-2xl p-3.5 bg-zinc-100/80 dark:bg-white/[0.045] border border-zinc-200/70 dark:border-white/[0.08] flex items-start gap-3"
+                          >
+                            <div className="w-8 h-8 rounded-full bg-[var(--tab-accent-soft)] text-[var(--tab-accent)] flex items-center justify-center shrink-0 mt-0.5">
+                              <TypeIcon className="w-4 h-4" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-display font-bold text-sm text-zinc-900 dark:text-white truncate">
+                                  {idx + 1}. {stop.title}
+                                </span>
+                                <span className="text-xs font-num font-semibold text-[var(--tab-accent)] shrink-0 flex items-center gap-1">
+                                  <ClockIcon className="w-3 h-3" />
+                                  {stop.time} · {stop.duration}
+                                </span>
+                              </div>
+                              <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
+                                {stop.location}
+                              </p>
+                              {stop.description && (
+                                <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-1 leading-relaxed">
+                                  {stop.description}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Apply Strategy Toggle */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-zinc-200/70 dark:border-white/10">
+                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                  套用方式（從 {targetStartDate} 開始）：
+                </span>
+                <SlidingSegmentedControl
+                  size="sm"
+                  value={applyStrategy}
+                  onChange={(v) => setApplyStrategy(v)}
+                  options={[
+                    { id: 'replace', label: '覆蓋所選日期' },
+                    { id: 'append', label: '加入現有行程' },
+                  ]}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Result Footer Actions */}
+        {result && (
+          <div className="pt-3 border-t border-zinc-200/70 dark:border-white/10 flex flex-col sm:flex-row gap-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => onOpenRouteForStops(previewActivities)}
+              className="sm:flex-1 min-h-[46px] px-4 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200/80 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white font-semibold text-xs sm:text-sm flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+            >
+              <NavigationArrowIcon className="w-4 h-4 text-[var(--tab-accent)]" />
+              <span>預覽互動路線圖</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleApply}
+              className="sm:flex-1 min-h-[46px] px-5 rounded-full bg-[var(--tab-accent)] hover:bg-[var(--tab-accent-hover)] text-white font-semibold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-sm cursor-pointer transition-colors"
+            >
+              <CheckIcon className="w-4 h-4" />
+              <span>
+                {result.days.length > 1
+                  ? `滿意，套用這 ${result.days.length} 天完整行程`
+                  : `滿意，套用到 ${targetStartDate.slice(5)}`}
+              </span>
+            </button>
+          </div>
+        )}
+      </div>
+    </LiquidModal>
+  );
+};

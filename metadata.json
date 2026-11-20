@@ -1,5 +1,8 @@
 {
   "name": "Sky Travel 2.0",
   "description": "Your personal travel planner. Manage itineraries, expenses, and packing lists manually and efficiently.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

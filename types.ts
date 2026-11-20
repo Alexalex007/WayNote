@@ -1,4 +1,3 @@
-
 export type TripType = 'Single' | 'Multi';
 
 export interface Stop {
@@ -10,32 +9,25 @@ export interface Stop {
 
 export interface Budget {
   amount: number;
-  currency: string; // e.g., 'HKD', 'JPY'
-  type: 'total' | 'cash_only'; // 'total' = Cash + Card, 'cash_only' = Cash only
+  currency: string;
+  type: 'total' | 'cash_only';
+  updatedAt?: number;
 }
+
+export type DocumentCategory = 'flight' | 'hotel' | 'ticket' | 'insurance' | 'other';
 
 export interface DocumentItem {
   id: string;
   title: string;
   type: 'link' | 'note' | 'file';
+  docCategory?: DocumentCategory;
+  note?: string;
+  fileName?: string;
+  fileSize?: number;
+  mimeType?: string;
   content: string;
   createdAt: string;
-}
-
-export interface Trip {
-  id: string;
-  name: string;
-  destination: string;
-  startDate: string; // YYYY-MM-DD
-  endDate: string;   // YYYY-MM-DD
-  type: TripType;
-  stops?: Stop[]; // Array of stops for Multi-city trips
-  activities: Record<string, Activity[]>; // Date string key -> Activities
-  themes?: Record<string, string>; // Date string key -> Theme Name
-  expenses: Expense[];
-  packingList: PackingItem[];
-  budget?: Budget;
-  documents?: DocumentItem[]; // New field for Toolbox documents
+  updatedAt?: number;
 }
 
 export interface FlightInfo {
@@ -62,17 +54,20 @@ export interface Activity {
   duration?: string;
   description?: string;
   flightInfo?: FlightInfo;
+  updatedAt?: number;
 }
 
 export interface Expense {
   id: string;
   title: string;
   amount: number;
-  currency: string; // The currency this expense was paid in
+  currency: string;
   category: string;
   date: string;
-  isPreTrip: boolean; // true = Pre-trip, false = On-trip
+  isPreTrip: boolean;
   paymentMethod: 'cash' | 'card' | 'other';
+  splitCount?: number;
+  updatedAt?: number;
 }
 
 export interface PackingItem {
@@ -80,14 +75,59 @@ export interface PackingItem {
   name: string;
   checked: boolean;
   category: string;
+  updatedAt?: number;
 }
+
+export interface HotelBooking {
+  id: string;
+  name: string;
+  address?: string;
+  checkIn: string;
+  checkOut: string;
+  updatedAt?: number;
+}
+
+export interface Trip {
+  id: string;
+  syncId?: string;
+  revision?: number;
+  updatedAt?: number;
+  metaUpdatedAt?: number;
+  budgetUpdatedAt?: number;
+  activitiesOrderUpdatedAt?: Record<string, number>;
+  themesUpdatedAt?: Record<string, number>;
+  tombstones?: Record<string, number>;
+  name: string;
+  destination: string;
+  startDate: string;
+  endDate: string;
+  type: TripType;
+  stops?: Stop[];
+  hotels?: HotelBooking[];
+  activities: Record<string, Activity[]>;
+  themes?: Record<string, string>;
+  expenses: Expense[];
+  packingList: PackingItem[];
+  budget?: Budget;
+  documents?: DocumentItem[];
+}
+
+export type ThemeMode = 'system' | 'light' | 'dark';
 
 export enum Tab {
   ITINERARY = 'ITINERARY',
   EXPENSES = 'EXPENSES',
   PACKING = 'PACKING',
   TOOLBOX = 'TOOLBOX',
-  SETTINGS = 'SETTINGS'
+  SETTINGS = 'SETTINGS',
+}
+
+export type SyncConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'offline';
+
+export interface SyncDevice {
+  clientId: string;
+  deviceName: string;
+  connectedAt: number;
 }
 
 export interface ItineraryActivity {

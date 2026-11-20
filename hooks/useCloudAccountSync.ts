@@ -1,0 +1,373 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { onAuthStateChanged, type User } from 'firebase/auth';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import {
+  auth,
+  db,
+  FIREBASE_DATABASE_ID,
+  FIREBASE_PROJECT_ID,
+  ensureUserProfile,
+  upsertCloudTrip,
+  updateCloudTripArchived,
+  deleteCloudTrip,
+  signInWithGooglePopup,
+  signInWithApplePopup,
+  signOutFirebase,
+  sanitizeValidId,
+  handleFirestoreError,
+  isFirestoreQuotaError,
+  OperationType,
+} from '../services/firebaseClient';
+import { mergeTrips } from '../shared/syncMerge';
+import type { Trip } from '../types';
+
+export type CloudSyncState = 'signed-out' | 'connecting' | 'synced' | 'syncing' | 'error';
+
+interface UseCloudAccountSyncOptions {
+  tripsList: Trip[];
+  archivedTrips: Trip[];
+  onApplyCloudSnapshot: (nextActiveTrips: Trip[], nextArchivedTrips: Trip[]) => void;
+  onNotify?: (text: string, tone?: 'info' | 'success' | 'error') => void;
+}
+
+function docToTrip(raw: Record<string, unknown>): Trip {
+  return {
+    id: String(raw.id || ''),
+    syncId: String(raw.syncId || ''),
+    revision: Number(raw.revision || 0),
+    updatedAt: Number(raw.clientUpdatedAt || Date.now()),
+    metaUpdatedAt: Number(raw.metaUpdatedAt || raw.clientUpdatedAt || Date.now()),
+    budgetUpdatedAt: Number(raw.budgetUpdatedAt || raw.clientUpdatedAt || Date.now()),
+    activitiesOrderUpdatedAt: (raw.activitiesOrderUpdatedAt as Record<string, number>) || {},
+    themesUpdatedAt: (raw.themesUpdatedAt as Record<string, number>) || {},
+    tombstones: (raw.tombstones as Record<string, number>) || {},
+    name: String(raw.name || '我的旅程'),
+    destination: String(raw.destination || ''),
+    startDate: String(raw.startDate || ''),
+    endDate: String(raw.endDate || ''),
+    type: raw.type === 'Multi' ? 'Multi' : 'Single',
+    stops: Array.isArray(raw.stops) && raw.stops.length > 0 ? (raw.stops as Trip['stops']) : undefined,
+    hotels: Array.isArray(raw.hotels) ? (raw.hotels as Trip['hotels']) : [],
+    activities: (raw.activities as Trip['activities']) || {},
+    themes: (raw.themes as Trip['themes']) || {},
+    expenses: Array.isArray(raw.expenses) ? (raw.expenses as Trip['expenses']) : [],
+    packingList: Array.isArray(raw.packingList) ? (raw.packingList as Trip['packingList']) : [],
+    documents: Array.isArray(raw.documents) ? (raw.documents as Trip['documents']) : [],
+    budget: (raw.budget as Trip['budget']) || { amount: 0, currency: 'JPY', type: 'total' },
+  };
+}
+
+export function useCloudAccountSync({
+  tripsList,
+  archivedTrips,
+  onApplyCloudSnapshot,
+  onNotify,
+}: UseCloudAccountSyncOptions) {
+  const [user, setUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [cloudStatus, setCloudStatus] = useState<CloudSyncState>('signed-out');
+  const [lastCloudSyncAt, setLastCloudSyncAt] = useState<number | null>(null);
+  const [cloudError, setCloudError] = useState<string | null>(null);
+  const [quotaUpgradeUrl, setQuotaUpgradeUrl] = useState<string | null>(null);
+
+  const tripsListRef = useRef<Trip[]>(tripsList);
+  const archivedTripsRef = useRef<Trip[]>(archivedTrips);
+  const knownCloudIdsRef = useRef<Set<string>>(new Set());
+  const profileReadyUidRef = useRef<string | null>(null);
+  const onApplyRef = useRef(onApplyCloudSnapshot);
+  const onNotifyRef = useRef(onNotify);
+
+  useEffect(() => {
+    tripsListRef.current = tripsList;
+  }, [tripsList]);
+
+  useEffect(() => {
+    archivedTripsRef.current = archivedTrips;
+  }, [archivedTrips]);
+
+  useEffect(() => {
+    onApplyRef.current = onApplyCloudSnapshot;
+  }, [onApplyCloudSnapshot]);
+
+  useEffect(() => {
+    onNotifyRef.current = onNotify;
+  }, [onNotify]);
+
+  // Observe Firebase Auth state
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (nextUser) => {
+      setUser(nextUser);
+      setAuthReady(true);
+      if (!nextUser) {
+        knownCloudIdsRef.current = new Set();
+        profileReadyUidRef.current = null;
+        setCloudStatus('signed-out');
+        setCloudError(null);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  // Attach private Firestore listener when signed in and verified
+  useEffect(() => {
+    if (!authReady || !user) return;
+
+    let cancelled = false;
+    let unsubSnapshot: (() => void) | null = null;
+    const uid = sanitizeValidId(user.uid);
+    const collectionPath = `users/${uid}/trips`;
+
+    const initAndSubscribe = async () => {
+      setCloudStatus('connecting');
+      setCloudError(null);
+
+      try {
+        if (!user.emailVerified) {
+          setCloudStatus('error');
+          setCloudError('帳號電子郵件尚未完成驗證');
+          return;
+        }
+
+        await ensureUserProfile(user);
+        if (cancelled) return;
+        profileReadyUidRef.current = uid;
+
+        const q = query(collection(db, 'users', uid, 'trips'), where('ownerId', '==', uid));
+        unsubSnapshot = onSnapshot(
+          q,
+          (snapshot) => {
+            if (cancelled) return;
+            const cloudIds = new Set<string>();
+            const cloudActiveMap = new Map<string, Trip>();
+            const cloudArchivedMap = new Map<string, Trip>();
+
+            snapshot.forEach((docSnap) => {
+              const data = docSnap.data() as Record<string, unknown>;
+              const parsed = docToTrip(data);
+              const safeId = sanitizeValidId(parsed.id || docSnap.id);
+              parsed.id = safeId;
+              cloudIds.add(safeId);
+              if (data.archived === true) {
+                cloudArchivedMap.set(safeId, parsed);
+              } else {
+                cloudActiveMap.set(safeId, parsed);
+              }
+            });
+
+            knownCloudIdsRef.current = cloudIds;
+
+            // Merge local active trips with cloud active trips
+            const localActive = tripsListRef.current;
+            const localArchived = archivedTripsRef.current;
+
+            const mergedActiveMap = new Map<string, Trip>();
+            const localPendingUploads: { trip: Trip; archived: boolean }[] = [];
+
+            for (const cTrip of cloudActiveMap.values()) {
+              mergedActiveMap.set(cTrip.id, cTrip);
+            }
+
+            for (const lTrip of localActive) {
+              const safeId = sanitizeValidId(lTrip.id);
+              const lNormalized = { ...lTrip, id: safeId };
+
+              if (cloudArchivedMap.has(safeId)) {
+                // Respect cloud archived state if cloud record is newer
+                const cArch = cloudArchivedMap.get(safeId)!;
+                if ((lNormalized.updatedAt || 0) > (cArch.updatedAt || 0)) {
+                  mergedActiveMap.set(safeId, mergeTrips(cArch, lNormalized));
+                }
+                continue;
+              }
+
+              const existingCloud = mergedActiveMap.get(safeId);
+              if (existingCloud) {
+                const merged = mergeTrips(existingCloud, lNormalized);
+                mergedActiveMap.set(safeId, merged);
+                if ((lNormalized.updatedAt || 0) > (existingCloud.updatedAt || 0)) {
+                  localPendingUploads.push({ trip: merged, archived: false });
+                }
+              } else {
+                // Local-only trip created before login -> keep and upload to cloud once
+                mergedActiveMap.set(safeId, lNormalized);
+                localPendingUploads.push({ trip: lNormalized, archived: false });
+              }
+            }
+
+            const mergedArchivedMap = new Map<string, Trip>(cloudArchivedMap);
+            for (const lArch of localArchived) {
+              const safeId = sanitizeValidId(lArch.id);
+              if (!mergedActiveMap.has(safeId) && !mergedArchivedMap.has(safeId)) {
+                const lNorm = { ...lArch, id: safeId };
+                mergedArchivedMap.set(safeId, lNorm);
+                localPendingUploads.push({ trip: lNorm, archived: true });
+              }
+            }
+
+            const nextActive = Array.from(mergedActiveMap.values()).sort(
+              (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)
+            );
+            const nextArchived = Array.from(mergedArchivedMap.values()).sort(
+              (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)
+            );
+
+            onApplyRef.current(nextActive, nextArchived);
+            setLastCloudSyncAt(Date.now());
+            setCloudStatus('synced');
+
+            // Upload local-only trips from pre-login session
+            if (localPendingUploads.length > 0 && profileReadyUidRef.current === uid) {
+              for (const pending of localPendingUploads) {
+                const exists = knownCloudIdsRef.current.has(pending.trip.id);
+                void upsertCloudTrip(uid, pending.trip, exists, pending.archived).catch((err) => {
+                  console.error('Background upload sync error:', err);
+                });
+              }
+            }
+          },
+          (error) => {
+            if (cancelled) return;
+            setCloudStatus('error');
+            if (isFirestoreQuotaError(error)) {
+              const url = `https://console.firebase.google.com/project/${FIREBASE_PROJECT_ID}/firestore/databases/${FIREBASE_DATABASE_ID}/data?openUpgradeDialog=true`;
+              setQuotaUpgradeUrl(url);
+              setCloudError('今日雲端資料庫免費額度已達上限');
+              onNotifyRef.current?.('雲端免費額度已達上限，將於明日重置', 'error');
+            } else {
+              setCloudError('雲端同步權限或連線發生問題');
+              handleFirestoreError(error, OperationType.LIST, collectionPath);
+            }
+          }
+        );
+      } catch (err) {
+        if (cancelled) return;
+        setCloudStatus('error');
+        if (isFirestoreQuotaError(err)) {
+          setCloudError('今日雲端資料庫免費額度已達上限');
+        } else {
+          setCloudError(err instanceof Error ? err.message : '雲端初始化失敗');
+        }
+      }
+    };
+
+    void initAndSubscribe();
+
+    return () => {
+      cancelled = true;
+      if (unsubSnapshot) unsubSnapshot();
+    };
+  }, [authReady, user]);
+
+  const pushTripToCloud = useCallback(
+    async (trip: Trip, archived = false) => {
+      if (!user || !user.emailVerified) return;
+      const uid = sanitizeValidId(user.uid);
+      if (profileReadyUidRef.current !== uid) {
+        await ensureUserProfile(user);
+        profileReadyUidRef.current = uid;
+      }
+      const safeId = sanitizeValidId(trip.id);
+      const knownExists = knownCloudIdsRef.current.has(safeId);
+      setCloudStatus('syncing');
+      try {
+        await upsertCloudTrip(uid, trip, knownExists, archived);
+        knownCloudIdsRef.current.add(safeId);
+        setLastCloudSyncAt(Date.now());
+        setCloudStatus('synced');
+      } catch (err) {
+        setCloudStatus('error');
+        if (isFirestoreQuotaError(err)) {
+          setCloudError('今日雲端資料庫免費額度已達上限');
+        }
+        throw err;
+      }
+    },
+    [user]
+  );
+
+  const syncArchiveStateToCloud = useCallback(
+    async (trip: Trip, archived: boolean) => {
+      if (!user || !user.emailVerified) return;
+      const uid = sanitizeValidId(user.uid);
+      const safeId = sanitizeValidId(trip.id);
+      if (profileReadyUidRef.current !== uid) {
+        await ensureUserProfile(user);
+        profileReadyUidRef.current = uid;
+      }
+      setCloudStatus('syncing');
+      if (knownCloudIdsRef.current.has(safeId)) {
+        await updateCloudTripArchived(uid, safeId, archived);
+      } else {
+        await upsertCloudTrip(uid, trip, false, archived);
+        knownCloudIdsRef.current.add(safeId);
+      }
+      setLastCloudSyncAt(Date.now());
+      setCloudStatus('synced');
+    },
+    [user]
+  );
+
+  const removeTripFromCloud = useCallback(
+    async (tripId: string) => {
+      if (!user || !user.emailVerified) return;
+      const uid = sanitizeValidId(user.uid);
+      const safeId = sanitizeValidId(tripId);
+      if (!knownCloudIdsRef.current.has(safeId)) return;
+      await deleteCloudTrip(uid, safeId);
+      knownCloudIdsRef.current.delete(safeId);
+      setLastCloudSyncAt(Date.now());
+    },
+    [user]
+  );
+
+  const forceSyncAllLocalToCloud = useCallback(async () => {
+    if (!user || !user.emailVerified) return;
+    const uid = sanitizeValidId(user.uid);
+    setCloudStatus('syncing');
+    if (profileReadyUidRef.current !== uid) {
+      await ensureUserProfile(user);
+      profileReadyUidRef.current = uid;
+    }
+    for (const t of tripsListRef.current) {
+      const safeId = sanitizeValidId(t.id);
+      await upsertCloudTrip(uid, t, knownCloudIdsRef.current.has(safeId), false);
+      knownCloudIdsRef.current.add(safeId);
+    }
+    setLastCloudSyncAt(Date.now());
+    setCloudStatus('synced');
+    onNotifyRef.current?.('已完成雲端同步', 'success');
+  }, [user]);
+
+  const signInWithGoogle = useCallback(async () => {
+    const signedUser = await signInWithGooglePopup();
+    onNotifyRef.current?.(`已登入：${signedUser.displayName || signedUser.email || 'Google 帳號'}`, 'success');
+    return signedUser;
+  }, []);
+
+  const signInWithApple = useCallback(async () => {
+    const signedUser = await signInWithApplePopup();
+    onNotifyRef.current?.(`已登入：${signedUser.displayName || signedUser.email || 'Apple 帳號'}`, 'success');
+    return signedUser;
+  }, []);
+
+  const handleSignOut = useCallback(async () => {
+    await signOutFirebase();
+    onNotifyRef.current?.('已登出雲端帳號', 'info');
+  }, []);
+
+  return {
+    user,
+    authReady,
+    cloudStatus,
+    lastCloudSyncAt,
+    cloudError,
+    quotaUpgradeUrl,
+    signInWithGoogle,
+    signInWithApple,
+    signOut: handleSignOut,
+    pushTripToCloud,
+    syncArchiveStateToCloud,
+    removeTripFromCloud,
+    forceSyncAllLocalToCloud,
+  };
+}
