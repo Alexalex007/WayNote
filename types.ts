@@ -88,6 +88,24 @@ export interface HotelBooking {
   updatedAt?: number;
 }
 
+export type SavedPlaceCategory = 'sightseeing' | 'food' | 'cafe' | 'shopping' | 'other';
+
+export interface SavedPlace {
+  id: string;
+  name: string;
+  category: SavedPlaceCategory;
+  area?: string;
+  note?: string;
+  mapUrl?: string;
+  estimatedCost?: number;
+  mustGo?: boolean;
+  visited?: boolean;
+  scheduledDate?: string;
+  scheduledActivityId?: string;
+  createdAt: string;
+  updatedAt?: number;
+}
+
 export interface Trip {
   id: string;
   syncId?: string;
@@ -111,12 +129,14 @@ export interface Trip {
   packingList: PackingItem[];
   budget?: Budget;
   documents?: DocumentItem[];
+  savedPlaces?: SavedPlace[];
 }
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 
 export enum Tab {
   ITINERARY = 'ITINERARY',
+  EXPLORE = 'EXPLORE',
   EXPENSES = 'EXPENSES',
   PACKING = 'PACKING',
   TOOLBOX = 'TOOLBOX',

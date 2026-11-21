@@ -7,7 +7,7 @@
     <meta id="waynote-apple-bar" name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta id="waynote-color-scheme" name="color-scheme" content="light" />
-    <meta id="waynote-theme-color" name="theme-color" content="#FDF0EB" />
+    <meta id="waynote-theme-color" name="theme-color" content="#CFE4FC" />
     <script>
       (function () {
         try {
@@ -18,7 +18,7 @@
           }
           var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
           var isDark = mode === 'dark' || (mode === 'system' && prefersDark);
-          var topTint = isDark ? '#0B0D14' : '#FDF0EB';
+          var topTint = isDark ? '#080D1B' : '#CFE4FC';
           var root = document.documentElement;
           if (isDark) {
             root.classList.add('dark');
@@ -46,9 +46,9 @@
     <meta property="og:description" content="簡約現代的跨裝置旅程規劃工具，整合行程時間軸、AI 路線規劃、即時天氣、開支預算與百寶箱。" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;900&family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,400&family=Noto+Sans+TC:wght@400;500;600;700;900&display=swap" rel="stylesheet" />
   </head>
-  <body class="antialiased min-h-[100dvh] selection:bg-indigo-600 selection:text-white">
+  <body class="antialiased min-h-[100dvh] selection:bg-sky-600 selection:text-white">
     <div id="root" class="min-h-[100dvh] w-full"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

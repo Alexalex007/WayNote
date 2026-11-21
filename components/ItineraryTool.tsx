@@ -38,6 +38,7 @@ interface Props {
   onUpdateTrip: (trip: Trip) => void;
   onToggleFullScreen?: (isOpen: boolean) => void;
   onShowToast: (text: string, tone?: 'info' | 'success' | 'error') => void;
+  focusDateSignal?: { date: string; nonce: number } | null;
 }
 
 function formatGmtOffset(offset: number): string {
@@ -357,7 +358,7 @@ const TimelineRow: React.FC<{
   );
 };
 
-const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
+const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focusDateSignal }) => {
   const [selectedDate, setSelectedDate] = useState<string>(trip.startDate);
   const [dates, setDates] = useState<string[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -487,6 +488,13 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => 
       setSelectedDate(dateArray[0]);
     }
   }, [trip.startDate, trip.endDate]);
+
+  useEffect(() => {
+    if (!focusDateSignal?.date) return;
+    if (dates.includes(focusDateSignal.date)) {
+      setSelectedDate(focusDateSignal.date);
+    }
+  }, [focusDateSignal, dates]);
 
   const currentActivities = trip.activities[selectedDate] || [];
   const canSort = currentActivities.length > 1;

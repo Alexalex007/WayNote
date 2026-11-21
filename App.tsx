@@ -7,8 +7,10 @@ import { fetchDestinationPhotoFast } from './hooks/useDestinationPhoto';
 import { mergeTrips, generateSyncCode, normalizeSyncCode } from './shared/syncMerge';
 import { detectDestinationIntel, getDestinationLocalTime } from './shared/destinationIntel';
 import ItineraryTool from './components/ItineraryTool';
+import ExploreTool from './components/ExploreTool';
 import ExpensesTool from './components/FoodTool';
 import PrepToolboxTool from './components/PrepToolboxTool';
+import { GlobeBackdrop } from './components/GlobeBackdrop';
 import { DateRangeCalendar, getTodayLocalIso, addDaysUtc, getDaySpanUtc } from './components/DateRangeCalendar';
 import { SyncHubModal } from './components/SyncHubModal';
 import { AuthModal } from './components/AuthModal';
@@ -28,6 +30,7 @@ import {
   WalletIcon,
   SuitcaseIcon,
   GridIcon,
+  CompassIcon,
   CogIcon,
   ChevronLeftIcon,
   MoonIcon,
@@ -54,9 +57,20 @@ import {
   UserCircleIcon,
 } from './components/Icons';
 
-const APP_VERSION = 'v5.8.0';
+const APP_VERSION = 'v6.0.0';
 
 const CHANGELOG_DATA = [
+  {
+    version: 'v6.0.0',
+    date: '2026-11-21',
+    items: [
+      '全新統一「晴空雲霧（日光）／宇宙星光（夜間）」全域雙背景架構與統一頂部狀態列色系，徹底解決 iPhone 動態島與電腦頂部橫向斷層',
+      '背景內建低調 3D 向量地球儀：依目前檢視或編輯的城市自動旋轉聚焦國家與城市位置（例如東京即居中鎖定日本與東京座標）',
+      '新增第 5 大核心分頁「探索口袋名單」：收藏必去景點、餐廳、咖啡館與購物清單，支援 AI 智慧推薦靈感及一鍵排入每日行程時間軸',
+      '徹底修復進入行程頁面時底部 Dock「行程」按鈕偶發消失的顯示異常',
+      '全新設計首頁旅程卡片視覺：大字距英文月份與日期排版搭配清晰目的地與天氣資訊，全站英數字升級乾淨幾何無襯線字體',
+    ],
+  },
   {
     version: 'v5.8.0',
     date: '2026-11-20',
@@ -190,7 +204,7 @@ const SHOWCASE_CITIES = [
 ];
 const QUICK_DURATIONS = [3, 4, 5, 7, 10];
 
-type TabThemeKey = 'ITINERARY' | 'EXPENSES' | 'TOOLBOX' | 'SETTINGS';
+type TabThemeKey = 'ITINERARY' | 'EXPLORE' | 'EXPENSES' | 'TOOLBOX' | 'SETTINGS';
 
 const TAB_THEME_PALETTES: Record<
   TabThemeKey,
@@ -199,51 +213,49 @@ const TAB_THEME_PALETTES: Record<
     toLight: string;
     fromDark: string;
     toDark: string;
-    lightTop: string;
-    darkTop: string;
     shadowLight: string;
     shadowDark: string;
   }
 > = {
   ITINERARY: {
-    fromLight: '#F26B3A',
-    toLight: '#FB923C',
-    fromDark: '#F47A4D',
-    toDark: '#FB923C',
-    lightTop: '#FCEEE6',
-    darkTop: '#0E0C12',
-    shadowLight: '0 8px 20px -6px rgba(242, 107, 58, 0.56)',
-    shadowDark: '0 8px 22px -6px rgba(244, 122, 77, 0.5)',
+    fromLight: '#2563EB',
+    toLight: '#0EA5E9',
+    fromDark: '#3B82F6',
+    toDark: '#38BDF8',
+    shadowLight: '0 8px 20px -6px rgba(37, 99, 235, 0.52)',
+    shadowDark: '0 8px 22px -6px rgba(56, 189, 248, 0.48)',
+  },
+  EXPLORE: {
+    fromLight: '#0D9488',
+    toLight: '#06B6D4',
+    fromDark: '#14B8A6',
+    toDark: '#22D3EE',
+    shadowLight: '0 8px 20px -6px rgba(13, 148, 136, 0.5)',
+    shadowDark: '0 8px 22px -6px rgba(34, 211, 238, 0.45)',
   },
   EXPENSES: {
-    fromLight: '#4F5DF5',
-    toLight: '#60A5FA',
-    fromDark: '#6D79FF',
-    toDark: '#60A5FA',
-    lightTop: '#EBF0FE',
-    darkTop: '#0A0E19',
-    shadowLight: '0 8px 20px -6px rgba(79, 93, 245, 0.54)',
-    shadowDark: '0 8px 22px -6px rgba(109, 121, 255, 0.5)',
+    fromLight: '#4F46E5',
+    toLight: '#6366F1',
+    fromDark: '#6366F1',
+    toDark: '#818CF8',
+    shadowLight: '0 8px 20px -6px rgba(79, 70, 229, 0.5)',
+    shadowDark: '0 8px 22px -6px rgba(129, 140, 248, 0.46)',
   },
   TOOLBOX: {
-    fromLight: '#0E9F76',
-    toLight: '#2DD4BF',
+    fromLight: '#059669',
+    toLight: '#10B981',
     fromDark: '#10B981',
-    toDark: '#2DD4BF',
-    lightTop: '#E6F6EF',
-    darkTop: '#091211',
-    shadowLight: '0 8px 20px -6px rgba(14, 159, 118, 0.52)',
-    shadowDark: '0 8px 22px -6px rgba(16, 185, 129, 0.48)',
+    toDark: '#34D399',
+    shadowLight: '0 8px 20px -6px rgba(5, 150, 105, 0.48)',
+    shadowDark: '0 8px 22px -6px rgba(52, 211, 153, 0.44)',
   },
   SETTINGS: {
-    fromLight: '#8B5CF6',
-    toLight: '#C084FC',
-    fromDark: '#9370F7',
-    toDark: '#C084FC',
-    lightTop: '#F1EAFD',
-    darkTop: '#0E0B17',
-    shadowLight: '0 8px 20px -6px rgba(139, 92, 246, 0.52)',
-    shadowDark: '0 8px 22px -6px rgba(147, 112, 247, 0.48)',
+    fromLight: '#7C3AED',
+    toLight: '#8B5CF6',
+    fromDark: '#8B5CF6',
+    toDark: '#A78BFA',
+    shadowLight: '0 8px 20px -6px rgba(124, 58, 237, 0.48)',
+    shadowDark: '0 8px 22px -6px rgba(167, 139, 250, 0.44)',
   },
 };
 
@@ -260,6 +272,7 @@ function ensureSyncFields(trip: Trip): Trip {
     updatedAt: trip.updatedAt || Date.now(),
     hotels: trip.hotels || [],
     activities: trip.activities || {},
+    savedPlaces: trip.savedPlaces || [],
     expenses: trip.expenses || [],
     packingList: trip.packingList || [],
     documents: trip.documents || [],
@@ -389,6 +402,349 @@ const HomeTripWeatherPill: React.FC<{
 
 HomeTripWeatherPill.displayName = 'HomeTripWeatherPill';
 
+const MONTH_NAMES_EN = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+function formatHomeCardDateParts(isoDate: string): { day: string; month: string } {
+  const parts = (isoDate || '').split('-');
+  const monthIdx = Math.max(0, Math.min(11, parseInt(parts[1] || '1', 10) - 1));
+  const dayNum = parseInt(parts[2] || '1', 10) || 1;
+  return {
+    day: String(dayNum),
+    month: MONTH_NAMES_EN[monthIdx] || 'January',
+  };
+}
+
+interface WorkspaceNavItem {
+  id: Tab;
+  themeKey: TabThemeKey;
+  label: string;
+  shortLabel: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+interface WorkspaceNavSharedProps {
+  navItems: WorkspaceNavItem[];
+  activeTab: Tab;
+  activeNavIndex: number;
+  navCurrentFrom: string;
+  navCurrentTo: string;
+  navCurrentShadow: string;
+  navGradCycle: {
+    fromA: string;
+    fromB: string;
+    toA: string;
+    toB: string;
+    tick: number;
+  };
+  onSelectTab: (tab: Tab) => void;
+  isHidden: boolean;
+}
+
+const WorkspaceSidebar: React.FC<
+  WorkspaceNavSharedProps & {
+    tripData: Trip;
+    syncBadge: { dotClass: string; text: string };
+    onGoHome: () => void;
+    onOpenSyncHub: () => void;
+  }
+> = ({
+  tripData,
+  navItems,
+  activeTab,
+  activeNavIndex,
+  navCurrentFrom,
+  navCurrentTo,
+  navCurrentShadow,
+  navGradCycle,
+  syncBadge,
+  onGoHome,
+  onSelectTab,
+  onOpenSyncHub,
+  isHidden,
+}) => {
+  const navRef = useRef<HTMLElement | null>(null);
+  const btnRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const [thumb, setThumb] = useState<{ top: number; height: number } | null>(null);
+
+  useLayoutEffect(() => {
+    if (isHidden) return;
+    const measure = () => {
+      const btn = btnRefs.current[activeNavIndex];
+      if (btn && navRef.current && btn.offsetHeight > 0) {
+        setThumb({
+          top: btn.offsetTop,
+          height: btn.offsetHeight,
+        });
+      }
+    };
+    measure();
+    const raf = requestAnimationFrame(measure);
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    if (ro && navRef.current) ro.observe(navRef.current);
+    window.addEventListener('resize', measure);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [activeNavIndex, navItems.length, isHidden]);
+
+  return (
+    <aside
+      aria-hidden={isHidden}
+      className={`hidden ${
+        isHidden ? 'lg:hidden' : 'lg:flex'
+      } w-64 shrink-0 flex-col justify-between pl-[max(1rem,env(safe-area-inset-left))] pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] pr-0 z-20`}
+    >
+      <div className="surface-elevated rounded-3xl h-full flex flex-col justify-between p-4">
+        <div className="space-y-5">
+          <div className="flex items-center justify-between gap-2 pb-3 border-b border-zinc-200/70 dark:border-white/[0.08]">
+            <button
+              type="button"
+              onClick={onGoHome}
+              className="flex items-center gap-2.5 text-left group cursor-pointer min-w-0"
+            >
+              <div
+                className="w-9 h-9 rounded-xl text-white flex items-center justify-center shrink-0 shadow-sm transition-colors duration-300"
+                style={{ background: `linear-gradient(135deg, ${navCurrentFrom}, ${navCurrentTo})` }}
+              >
+                <WaynoteLogoIcon className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[11px] font-medium text-zinc-400">Waynote</div>
+                <div className="text-sm font-bold text-zinc-900 dark:text-white truncate">
+                  {tripData.name}
+                </div>
+              </div>
+            </button>
+          </div>
+
+          <div className="px-1 space-y-0.5">
+            <div className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate">
+              {tripData.destination}
+            </div>
+            <div className="text-[11px] font-num text-zinc-500 dark:text-zinc-400">
+              {tripData.startDate} ~ {tripData.endDate}
+            </div>
+          </div>
+
+          <nav ref={navRef} className="relative space-y-1">
+            {thumb && (
+              <motion.div
+                aria-hidden="true"
+                initial={false}
+                animate={{
+                  y: thumb.top,
+                  height: thumb.height,
+                  backgroundImage:
+                    navGradCycle.tick > 0
+                      ? [
+                          `linear-gradient(135deg, ${navGradCycle.fromA}, ${navGradCycle.fromB})`,
+                          `linear-gradient(135deg, ${navGradCycle.fromA}, ${navGradCycle.toA})`,
+                          `linear-gradient(135deg, ${navGradCycle.toA}, ${navGradCycle.toB})`,
+                        ]
+                      : `linear-gradient(135deg, ${navCurrentFrom}, ${navCurrentTo})`,
+                  boxShadow: navCurrentShadow,
+                }}
+                transition={{
+                  y: { type: 'spring', stiffness: 440, damping: 33, mass: 0.82 },
+                  height: { type: 'spring', stiffness: 440, damping: 33, mass: 0.82 },
+                  backgroundImage: { duration: 0.45, ease: 'easeInOut' },
+                }}
+                className="absolute inset-x-0 top-0 rounded-xl pointer-events-none z-0"
+              />
+            )}
+            {navItems.map((item, idx) => {
+              const Icon = item.icon;
+              const isActive =
+                activeTab === item.id || (item.id === Tab.TOOLBOX && activeTab === Tab.PACKING);
+              return (
+                <button
+                  type="button"
+                  key={item.id}
+                  ref={(el) => {
+                    btnRefs.current[idx] = el;
+                  }}
+                  onClick={() => onSelectTab(item.id)}
+                  style={
+                    !thumb && isActive
+                      ? {
+                          background: `linear-gradient(135deg, ${navCurrentFrom}, ${navCurrentTo})`,
+                          boxShadow: navCurrentShadow,
+                        }
+                      : undefined
+                  }
+                  className={`relative z-10 w-full min-h-[42px] px-3.5 rounded-xl flex items-center gap-3 font-semibold text-sm transition-colors duration-200 cursor-pointer ${
+                    isActive
+                      ? 'text-white'
+                      : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-900/5 dark:hover:bg-white/5'
+                  }`}
+                >
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
+        <button
+          type="button"
+          onClick={onOpenSyncHub}
+          className="w-full p-3.5 rounded-2xl bg-zinc-100/90 dark:bg-white/[0.04] border border-zinc-200/70 dark:border-white/[0.08] text-left hover:bg-zinc-200/60 dark:hover:bg-white/[0.08] transition-colors cursor-pointer space-y-1.5"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs font-semibold text-zinc-900 dark:text-white">
+              <span className={`w-2 h-2 rounded-full ${syncBadge.dotClass}`} />
+              <span>{syncBadge.text}</span>
+            </div>
+            <QrCodeIcon className="w-4 h-4 text-[var(--tab-accent)] transition-colors" />
+          </div>
+          <div className="flex items-center justify-between text-[11px] font-num text-zinc-500 dark:text-zinc-400">
+            <span>{tripData.syncId}</span>
+            <span>同步設定 →</span>
+          </div>
+        </button>
+      </div>
+    </aside>
+  );
+};
+
+const WorkspaceDock: React.FC<WorkspaceNavSharedProps> = ({
+  navItems,
+  activeTab,
+  activeNavIndex,
+  navCurrentFrom,
+  navCurrentTo,
+  navCurrentShadow,
+  navGradCycle,
+  onSelectTab,
+  isHidden,
+}) => {
+  const navRef = useRef<HTMLElement | null>(null);
+  const btnRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const [thumb, setThumb] = useState<{ left: number; width: number; top: number; height: number } | null>(null);
+
+  useLayoutEffect(() => {
+    if (isHidden) return;
+    const measure = () => {
+      const btn = btnRefs.current[activeNavIndex];
+      if (btn && navRef.current && btn.offsetWidth > 0) {
+        setThumb({
+          left: btn.offsetLeft,
+          width: btn.offsetWidth,
+          top: btn.offsetTop,
+          height: btn.offsetHeight,
+        });
+      }
+    };
+    measure();
+    const raf = requestAnimationFrame(measure);
+    const t = window.setTimeout(measure, 160);
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    if (ro && navRef.current) ro.observe(navRef.current);
+    window.addEventListener('resize', measure);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(t);
+      ro?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [activeNavIndex, navItems.length, isHidden]);
+
+  return (
+    <div
+      aria-hidden={isHidden}
+      className={`${
+        isHidden ? 'hidden' : 'lg:hidden fixed'
+      } bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-3 right-3 z-40 pointer-events-none flex justify-center`}
+    >
+      <nav
+        ref={navRef}
+        aria-label="主導航列"
+        className="pointer-events-auto surface-dock relative w-full max-w-md h-[62px] rounded-[30px] p-1.5 grid grid-cols-5 items-center gap-0.5"
+      >
+        {thumb && (
+          <motion.div
+            aria-hidden="true"
+            initial={false}
+            animate={{
+              x: thumb.left,
+              width: thumb.width,
+              backgroundImage:
+                navGradCycle.tick > 0
+                  ? [
+                      `linear-gradient(135deg, ${navGradCycle.fromA}, ${navGradCycle.fromB})`,
+                      `linear-gradient(135deg, ${navGradCycle.fromA}, ${navGradCycle.toA})`,
+                      `linear-gradient(135deg, ${navGradCycle.toA}, ${navGradCycle.toB})`,
+                    ]
+                  : `linear-gradient(135deg, ${navCurrentFrom}, ${navCurrentTo})`,
+              boxShadow: navCurrentShadow,
+            }}
+            transition={{
+              x: { type: 'spring', stiffness: 450, damping: 34, mass: 0.82 },
+              width: { type: 'spring', stiffness: 450, damping: 34, mass: 0.82 },
+              backgroundImage: { duration: 0.45, ease: 'easeInOut' },
+            }}
+            style={{
+              top: thumb.top,
+              height: thumb.height,
+            }}
+            className="absolute left-0 rounded-[24px] pointer-events-none z-0"
+          />
+        )}
+        {navItems.map((item, idx) => {
+          const Icon = item.icon;
+          const isActive =
+            activeTab === item.id || (item.id === Tab.TOOLBOX && activeTab === Tab.PACKING);
+          return (
+            <button
+              type="button"
+              key={item.id}
+              ref={(el) => {
+                btnRefs.current[idx] = el;
+              }}
+              onClick={() => onSelectTab(item.id)}
+              aria-label={item.label}
+              style={
+                !thumb && isActive
+                  ? {
+                      background: `linear-gradient(135deg, ${navCurrentFrom}, ${navCurrentTo})`,
+                      boxShadow: navCurrentShadow,
+                    }
+                  : undefined
+              }
+              className={`relative z-10 h-full min-w-0 px-1 rounded-[24px] flex flex-col items-center justify-center gap-0.5 transition-colors duration-200 cursor-pointer select-none ${
+                isActive
+                  ? 'text-white'
+                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
+              }`}
+            >
+              <Icon className="w-4 h-4 shrink-0" />
+              <span className="text-[10px] font-semibold leading-none whitespace-nowrap">
+                {item.shortLabel}
+              </span>
+            </button>
+          );
+        })}
+      </nav>
+    </div>
+  );
+};
+
 function App() {
   const isAnyModalOpen = useAnyModalOpen();
   const [view, setView] = useState<'HOME' | 'CREATE' | 'TRIP'>('HOME');
@@ -407,6 +763,7 @@ function App() {
   const [homeSyncCode, setHomeSyncCode] = useState('');
   const [isHomeJoining, setIsHomeJoining] = useState(false);
   const [isHomeWeatherOpen, setIsHomeWeatherOpen] = useState(false);
+  const [focusDateSignal, setFocusDateSignal] = useState<{ date: string; nonce: number } | null>(null);
 
   // Modals State
   const [isSyncHubOpen, setIsSyncHubOpen] = useState(false);
@@ -509,19 +866,15 @@ function App() {
   const isDarkResolved = themeMode === 'dark' || (themeMode === 'system' && systemPrefersDark);
 
   const activeThemeKey: TabThemeKey = useMemo(() => {
+    if (activeTab === Tab.EXPLORE) return 'EXPLORE';
     if (activeTab === Tab.EXPENSES) return 'EXPENSES';
     if (activeTab === Tab.TOOLBOX || activeTab === Tab.PACKING) return 'TOOLBOX';
     if (activeTab === Tab.SETTINGS) return 'SETTINGS';
     return 'ITINERARY';
   }, [activeTab]);
 
-  const currentTopTint = useMemo(() => {
-    const palette = TAB_THEME_PALETTES[activeThemeKey];
-    if (view === 'TRIP') {
-      return isDarkResolved ? palette.darkTop : palette.lightTop;
-    }
-    return isDarkResolved ? '#0B0D14' : '#FDF0EB';
-  }, [activeThemeKey, view, isDarkResolved]);
+  // Unified static Safe-Area top tint per appearance mode (Sky-Blue #CFE4FC for Light / Cosmos #080D1B for Dark)
+  const currentTopTint = isDarkResolved ? '#080D1B' : '#CFE4FC';
 
   useLayoutEffect(() => {
     const root = window.document.documentElement;
@@ -532,12 +885,7 @@ function App() {
       root.classList.remove('dark');
       root.style.colorScheme = 'light';
     }
-
-    if (view === 'TRIP') {
-      root.setAttribute('data-tab-theme', activeThemeKey);
-    } else {
-      root.removeAttribute('data-tab-theme');
-    }
+    root.removeAttribute('data-tab-theme');
 
     root.style.backgroundColor = currentTopTint;
     if (document.body) {
@@ -558,11 +906,17 @@ function App() {
       appleBarMeta.setAttribute('content', isDarkResolved ? 'black-translucent' : 'default');
     }
 
-    const themeMeta =
+    const existingThemeMeta =
       document.getElementById('waynote-theme-color') ||
       document.querySelector('meta[name="theme-color"]');
-    if (themeMeta) {
-      themeMeta.setAttribute('content', currentTopTint);
+    if (existingThemeMeta) {
+      if (existingThemeMeta.getAttribute('content') !== currentTopTint) {
+        const replacement = existingThemeMeta.cloneNode() as HTMLMetaElement;
+        replacement.id = 'waynote-theme-color';
+        replacement.name = 'theme-color';
+        replacement.content = currentTopTint;
+        existingThemeMeta.replaceWith(replacement);
+      }
     } else {
       const created = document.createElement('meta');
       created.id = 'waynote-theme-color';
@@ -572,7 +926,7 @@ function App() {
     }
 
     localStorage.setItem(STORAGE_THEME_MODE_KEY, themeMode);
-  }, [isDarkResolved, themeMode, view, activeThemeKey, currentTopTint]);
+  }, [isDarkResolved, themeMode, currentTopTint]);
 
   const resetScrollDrift = useCallback(() => {
     if (typeof window === 'undefined') return;
@@ -1467,6 +1821,7 @@ function App() {
       stops: tripType === 'Multi' ? stops.filter((s) => s.destination.trim()) : undefined,
       hotels: [],
       activities: {},
+      savedPlaces: [],
       themes: {},
       expenses: [],
       packingList: [],
@@ -1524,24 +1879,22 @@ function App() {
     return { dotClass: 'bg-zinc-400', text: '同步待命' };
   }, [syncStatus, effectiveDeviceCount, cloudAuth.user, cloudAuth.cloudStatus]);
 
-  // Unified 4-Tab Navigation
-  const navItems: {
-    id: Tab;
-    themeKey: TabThemeKey;
-    label: string;
-    shortLabel: string;
-    icon: React.ComponentType<{ className?: string }>;
-  }[] = [
-    { id: Tab.ITINERARY, themeKey: 'ITINERARY', label: '行程規劃', shortLabel: '行程', icon: GridIcon },
-    { id: Tab.EXPENSES, themeKey: 'EXPENSES', label: '開支預算', shortLabel: '開支', icon: WalletIcon },
-    { id: Tab.TOOLBOX, themeKey: 'TOOLBOX', label: '百寶箱', shortLabel: '百寶箱', icon: SuitcaseIcon },
-    { id: Tab.SETTINGS, themeKey: 'SETTINGS', label: '設定', shortLabel: '設定', icon: CogIcon },
-  ];
+  // Unified 5-Tab Navigation
+  const navItems: WorkspaceNavItem[] = useMemo(
+    () => [
+      { id: Tab.ITINERARY, themeKey: 'ITINERARY', label: '行程規劃', shortLabel: '行程', icon: GridIcon },
+      { id: Tab.EXPLORE, themeKey: 'EXPLORE', label: '探索口袋名單', shortLabel: '探索', icon: CompassIcon },
+      { id: Tab.EXPENSES, themeKey: 'EXPENSES', label: '開支預算', shortLabel: '開支', icon: WalletIcon },
+      { id: Tab.TOOLBOX, themeKey: 'TOOLBOX', label: '百寶箱', shortLabel: '百寶箱', icon: SuitcaseIcon },
+      { id: Tab.SETTINGS, themeKey: 'SETTINGS', label: '設定', shortLabel: '設定', icon: CogIcon },
+    ],
+    []
+  );
 
   const activeNavIndex = useMemo(() => {
     const idx = navItems.findIndex((item) => item.themeKey === activeThemeKey);
     return idx >= 0 ? idx : 0;
-  }, [activeThemeKey]);
+  }, [navItems, activeThemeKey]);
 
   const activeNavPalette = TAB_THEME_PALETTES[activeThemeKey];
   const navCurrentFrom = isDarkResolved ? activeNavPalette.fromDark : activeNavPalette.fromLight;
@@ -1580,55 +1933,25 @@ function App() {
     }
   }, [navCurrentFrom, navCurrentTo]);
 
-  const dockNavRef = useRef<HTMLElement | null>(null);
-  const dockBtnRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const [dockThumb, setDockThumb] = useState<{ left: number; width: number; top: number; height: number } | null>(null);
+  const handleOpenItineraryDate = useCallback((date: string) => {
+    setFocusDateSignal((prev) => ({ date, nonce: (prev?.nonce || 0) + 1 }));
+    setActiveTab(Tab.ITINERARY);
+  }, []);
 
-  const sidebarNavRef = useRef<HTMLElement | null>(null);
-  const sidebarBtnRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const [sidebarThumb, setSidebarThumb] = useState<{ top: number; height: number } | null>(null);
-
-  useLayoutEffect(() => {
-    if (view !== 'TRIP') {
-      setDockThumb(null);
-      setSidebarThumb(null);
-      return;
+  const globeFocusCity = useMemo(() => {
+    if (view === 'TRIP') {
+      return tripData?.destination || selectedHomeTrip?.destination || '東京';
     }
-
-    const measure = () => {
-      const dockBtn = dockBtnRefs.current[activeNavIndex];
-      if (dockBtn && dockNavRef.current && dockBtn.offsetWidth > 0) {
-        setDockThumb({
-          left: dockBtn.offsetLeft,
-          width: dockBtn.offsetWidth,
-          top: dockBtn.offsetTop,
-          height: dockBtn.offsetHeight,
-        });
-      }
-      const sideBtn = sidebarBtnRefs.current[activeNavIndex];
-      if (sideBtn && sidebarNavRef.current && sideBtn.offsetHeight > 0) {
-        setSidebarThumb({
-          top: sideBtn.offsetTop,
-          height: sideBtn.offsetHeight,
-        });
-      }
-    };
-
-    measure();
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
-    if (ro) {
-      if (dockNavRef.current) ro.observe(dockNavRef.current);
-      if (sidebarNavRef.current) ro.observe(sidebarNavRef.current);
+    if (view === 'CREATE') {
+      return createPreviewCity || rotatingShowcaseCity;
     }
-    window.addEventListener('resize', measure);
-    return () => {
-      ro?.disconnect();
-      window.removeEventListener('resize', measure);
-    };
-  }, [view, activeNavIndex, isAnyModalOpen]);
+    return selectedHomeTrip?.destination || exploreCity || rotatingShowcaseCity;
+  }, [view, tripData?.destination, selectedHomeTrip?.destination, createPreviewCity, exploreCity, rotatingShowcaseCity]);
 
   const activePageTitle = useMemo(() => {
     switch (activeTab) {
+      case Tab.EXPLORE:
+        return '探索';
       case Tab.EXPENSES:
         return '開支';
       case Tab.TOOLBOX:
@@ -1642,9 +1965,9 @@ function App() {
   }, [activeTab]);
 
   const renderThemeIcon = () => {
-    if (themeMode === 'system') return <ComputerDesktopIcon className="w-4 h-4 text-indigo-500" />;
-    if (themeMode === 'dark') return <MoonIcon className="w-4 h-4 text-amber-400" />;
-    return <SunIcon className="w-4 h-4 text-[#F26B3A]" />;
+    if (themeMode === 'system') return <ComputerDesktopIcon className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />;
+    if (themeMode === 'dark') return <MoonIcon className="w-4 h-4 text-sky-300" />;
+    return <SunIcon className="w-4 h-4 text-[#2563EB]" />;
   };
 
   const activeDurationDays = tripType === 'Single' ? singleSpan?.days : activeStopSpan?.days;
@@ -1659,7 +1982,9 @@ function App() {
           aria-hidden="true"
           className="app-backdrop pointer-events-none z-0"
           style={{ backgroundColor: currentTopTint }}
-        />
+        >
+          <GlobeBackdrop focusCity={globeFocusCity} isDark={isDarkResolved} />
+        </div>
         <input
           ref={importInputRef}
           type="file"
@@ -1678,6 +2003,7 @@ function App() {
             if (!b.targetTab) return;
             const tabMap: Record<string, Tab> = {
               ITINERARY: Tab.ITINERARY,
+              EXPLORE: Tab.EXPLORE,
               EXPENSES: Tab.EXPENSES,
               TOOLBOX: Tab.TOOLBOX,
               SETTINGS: Tab.SETTINGS,
@@ -1736,7 +2062,7 @@ function App() {
                   {/* Top Bar */}
                   <header className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-xl bg-[#F26B3A] text-white flex items-center justify-center shadow-[0_8px_18px_-6px_rgba(242,107,58,0.65)]">
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#2563EB] to-[#0EA5E9] text-white flex items-center justify-center shadow-[0_8px_18px_-6px_rgba(37,99,235,0.58)]">
                         <WaynoteLogoIcon className="w-5 h-5" />
                       </div>
                       <span className="text-lg font-display font-bold tracking-tight text-zinc-900 dark:text-white">
@@ -1778,7 +2104,7 @@ function App() {
                           </>
                         ) : (
                           <>
-                            <UserCircleIcon className="w-4 h-4 text-[#F26B3A] shrink-0" />
+                            <UserCircleIcon className="w-4 h-4 text-[#2563EB] dark:text-sky-400 shrink-0" />
                             <span className="text-xs font-semibold">登入</span>
                           </>
                         )}
@@ -1865,7 +2191,7 @@ function App() {
                                             {arch.destination} · {arch.startDate}
                                           </p>
                                         </div>
-                                        <RefreshIcon className="w-4 h-4 text-zinc-400 group-hover:text-[#F26B3A] shrink-0" />
+                                        <RefreshIcon className="w-4 h-4 text-zinc-400 group-hover:text-[#2563EB] dark:group-hover:text-sky-400 shrink-0" />
                                       </button>
                                     ))
                                   )}
@@ -1882,12 +2208,17 @@ function App() {
                   <div className="my-auto space-y-5">
                     {tripsList.length > 0 && selectedHomeTrip && homeStats ? (
                       <>
-                        {/* My Trips Header & Sliding Gradient Filter Tabs */}
+                        {/* Planned Journeys Header & Filter Tabs */}
                         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
-                          <div className="flex items-end justify-between gap-3">
-                            <h1 className="text-2xl sm:text-3xl font-display font-bold text-zinc-900 dark:text-white tracking-tight">
-                              我的旅程
-                            </h1>
+                          <div className="flex items-baseline justify-between gap-3">
+                            <div className="flex items-baseline gap-2.5">
+                              <h1 className="text-2xl sm:text-3xl font-display font-bold text-zinc-900 dark:text-white tracking-tight">
+                                我的旅程
+                              </h1>
+                              <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 tracking-wide">
+                                Planned Journeys
+                              </span>
+                            </div>
                             <span className="text-xs font-num font-semibold text-zinc-500 dark:text-zinc-400">
                               共 {tripsList.length} 趟
                             </span>
@@ -1899,22 +2230,22 @@ function App() {
                             value={homeFilter}
                             onChange={setHomeFilter}
                             options={[
-                              { id: 'ALL', label: '全部', accentFrom: '#F26B3A', accentTo: '#FB923C' },
-                              { id: 'ACTIVE', label: '進行中', accentFrom: '#0E9F76', accentTo: '#34D399' },
-                              { id: 'UPCOMING', label: '即將出發', accentFrom: '#4F5DF5', accentTo: '#60A5FA' },
-                              { id: 'PAST', label: '已結束', accentFrom: '#8B5CF6', accentTo: '#C084FC' },
+                              { id: 'ALL', label: '全部', accentFrom: '#2563EB', accentTo: '#0EA5E9' },
+                              { id: 'ACTIVE', label: '進行中', accentFrom: '#059669', accentTo: '#10B981' },
+                              { id: 'UPCOMING', label: '即將出發', accentFrom: '#0D9488', accentTo: '#06B6D4' },
+                              { id: 'PAST', label: '已結束', accentFrom: '#4F46E5', accentTo: '#818CF8' },
                             ]}
                           />
                         </div>
 
-                        {/* Trips Grid on Wide Screens / Horizontal Snap Carousel on Portrait */}
+                        {/* Scenic Top-Typography Home Cards (IMG_7270 Reference: No trip name, no avatars, no dock) */}
                         {filteredHomeTrips.length === 0 ? (
                           <div className="surface-elevated rounded-3xl p-8 text-center space-y-3">
                             <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">此分類尚無旅程</p>
                             <button
                               type="button"
                               onClick={() => setHomeFilter('ALL')}
-                              className="text-xs font-semibold text-[#F26B3A] cursor-pointer"
+                              className="text-xs font-semibold text-[#2563EB] dark:text-sky-400 cursor-pointer"
                             >
                               顯示全部旅程
                             </button>
@@ -1929,9 +2260,10 @@ function App() {
                           >
                             {filteredHomeTrips.map((item) => {
                               const span = getDaySpanUtc(item.startDate, item.endDate);
+                              const dateParts = formatHomeCardDateParts(item.startDate);
                               const cardWidthClass =
                                 filteredHomeTrips.length > 1
-                                  ? 'w-[84%] sm:w-[340px] lg:w-full shrink-0'
+                                  ? 'w-[86%] sm:w-[340px] lg:w-full shrink-0'
                                   : 'w-full lg:col-span-7';
                               return (
                                 <div
@@ -1939,37 +2271,46 @@ function App() {
                                   role="button"
                                   tabIndex={0}
                                   onClick={() => handleOpenTrip(item)}
+                                  onMouseEnter={() => setSelectedHomeTripId(item.id)}
                                   onKeyDown={(e) => {
                                     if (e.key === 'Enter' || e.key === ' ') {
                                       e.preventDefault();
                                       handleOpenTrip(item);
                                     }
                                   }}
-                                  className={`${cardWidthClass} snap-start rounded-3xl overflow-hidden cursor-pointer transition-opacity duration-150 active:opacity-95 surface-elevated shadow-[0_14px_30px_-14px_rgba(15,23,42,0.22)] focus:outline-none focus:ring-2 focus:ring-[#F26B3A]`}
+                                  className={`${cardWidthClass} snap-start rounded-[28px] overflow-hidden cursor-pointer transition-transform duration-150 active:scale-[0.99] surface-elevated shadow-[0_18px_36px_-16px_rgba(15,34,74,0.28)] focus:outline-none focus:ring-2 focus:ring-[#2563EB]`}
                                 >
                                   <DestinationCover
                                     city={item.destination}
                                     debounceMs={0}
-                                    className="h-44 sm:h-48 lg:h-52 w-full"
+                                    className="h-52 sm:h-56 w-full"
+                                    scrimClassName="bg-gradient-to-b from-black/58 via-black/14 to-black/18"
                                   >
-                                    <div className="h-full p-5 flex flex-col justify-between text-white">
-                                      <div className="flex items-center justify-between gap-2">
-                                        <span className="text-xs font-num font-semibold text-white/95 drop-shadow-sm">
+                                    <div className="h-full p-5 sm:p-6 flex items-start justify-between gap-3 text-white">
+                                      <div className="min-w-0 space-y-2.5">
+                                        <h2 className="text-[22px] sm:text-[25px] font-display font-bold text-white leading-tight truncate tracking-tight drop-shadow-sm">
+                                          {item.destination}
+                                        </h2>
+                                        <div className="inline-flex">
+                                          <HomeTripWeatherPill
+                                            city={item.destination}
+                                            tripId={item.id}
+                                            onOpenWeather={handleOpenHomeWeather}
+                                          />
+                                        </div>
+                                      </div>
+
+                                      <div className="text-right shrink-0 flex flex-col items-end">
+                                        <span className="text-[36px] sm:text-[42px] font-display font-light leading-none tracking-tight text-white font-num drop-shadow-sm">
+                                          {dateParts.day}
+                                        </span>
+                                        <span className="text-xs sm:text-[13px] font-display font-medium text-white/95 mt-0.5 drop-shadow-sm">
+                                          {dateParts.month}
+                                        </span>
+                                        <span className="text-[11px] font-num font-medium text-white/80 mt-1.5 drop-shadow-sm">
                                           {item.startDate.slice(5)} ~ {item.endDate.slice(5)}
                                           {span ? ` · ${span.days}天` : ''}
                                         </span>
-
-                                        <HomeTripWeatherPill
-                                          city={item.destination}
-                                          tripId={item.id}
-                                          onOpenWeather={handleOpenHomeWeather}
-                                        />
-                                      </div>
-
-                                      <div className="min-w-0">
-                                        <h2 className="text-2xl sm:text-[26px] font-display font-bold text-white truncate tracking-tight drop-shadow-sm">
-                                          {item.destination}
-                                        </h2>
                                       </div>
                                     </div>
                                   </DestinationCover>
@@ -1979,7 +2320,7 @@ function App() {
 
                             {/* On Wide Screen with Single Trip: Companion Quick Sync & New Trip Card right beside it */}
                             {filteredHomeTrips.length === 1 && (
-                              <div className="hidden lg:flex lg:col-span-5 surface-elevated rounded-3xl p-5 flex-col justify-between gap-4">
+                              <div className="hidden lg:flex lg:col-span-5 surface-elevated rounded-[28px] p-5 flex-col justify-between gap-4">
                                 <div className="space-y-2">
                                   <div className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
                                     快速加入協作或建立新旅程
@@ -2005,7 +2346,7 @@ function App() {
                                 <button
                                   type="button"
                                   onClick={() => openCreateFlow()}
-                                  className="w-full min-h-[48px] px-6 rounded-full bg-gradient-to-r from-[#F26B3A] to-[#FB923C] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 active:scale-[0.985] transition-all cursor-pointer shadow-[0_10px_24px_-8px_rgba(242,107,58,0.58)]"
+                                  className="w-full min-h-[48px] px-6 rounded-full bg-gradient-to-r from-[#2563EB] to-[#0EA5E9] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 active:scale-[0.985] transition-all cursor-pointer shadow-[0_10px_24px_-8px_rgba(37,99,235,0.52)]"
                                 >
                                   <PlusIcon className="w-4 h-4" />
                                   <span>新旅程</span>
@@ -2048,7 +2389,7 @@ function App() {
                             <button
                               type="button"
                               onClick={() => openCreateFlow()}
-                              className="min-h-[48px] lg:w-full px-7 rounded-full bg-gradient-to-r from-[#F26B3A] to-[#FB923C] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer shadow-[0_10px_24px_-8px_rgba(242,107,58,0.6)]"
+                              className="min-h-[48px] lg:w-full px-7 rounded-full bg-gradient-to-r from-[#2563EB] to-[#0EA5E9] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer shadow-[0_10px_24px_-8px_rgba(37,99,235,0.54)]"
                             >
                               <PlusIcon className="w-4 h-4" />
                               <span>新旅程</span>
@@ -2086,7 +2427,7 @@ function App() {
                                   onClick={() => handleOpenTrip(entry.trip)}
                                   className={`surface-elevated rounded-3xl p-4 sm:p-5 flex items-center justify-between gap-3.5 cursor-pointer hover:bg-white dark:hover:bg-zinc-800/80 transition-colors ${
                                     isHighlighted && homeCountdownList.length > 1
-                                      ? 'ring-1 ring-[#F26B3A]/45'
+                                      ? 'ring-1 ring-[#2563EB]/45 dark:ring-sky-400/45'
                                       : ''
                                   }`}
                                 >
@@ -2108,7 +2449,13 @@ function App() {
                                           fill="none"
                                           strokeWidth="4.5"
                                           strokeLinecap="round"
-                                          stroke={entry.status === 'PAST' ? '#10b981' : '#F26B3A'}
+                                          stroke={
+                                            entry.status === 'PAST'
+                                              ? '#10b981'
+                                              : isDarkResolved
+                                                ? '#38BDF8'
+                                                : '#2563EB'
+                                          }
                                           strokeDasharray={circumference}
                                           strokeDashoffset={strokeDashoffset}
                                           className="transition-all duration-500"
@@ -2126,7 +2473,7 @@ function App() {
 
                                     <div className="min-w-0">
                                       <div className="flex items-center gap-1.5 flex-wrap">
-                                        <span className="text-xs font-semibold text-[#F26B3A]">
+                                        <span className="text-xs font-semibold text-[#2563EB] dark:text-sky-400">
                                           {entry.countdownLabel}
                                         </span>
                                         <span className="text-[11px] font-num text-zinc-400 dark:text-zinc-500">
@@ -2176,9 +2523,11 @@ function App() {
                         <div className="p-6 lg:p-7 space-y-5 lg:col-span-6 flex flex-col justify-between">
                           <div className="space-y-4">
                             <div className="hidden lg:block space-y-1">
-                              <div className="text-xs font-semibold text-[#F26B3A]">探索全球 40 座精選城市</div>
+                              <div className="text-xs font-semibold text-[#2563EB] dark:text-sky-400">
+                                探索全球 40 座精選城市
+                              </div>
                               <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                                點選城市搶先預覽實景，或直接建立行程並啟用 AI 智慧路線規劃。
+                                點選城市搶先預覽實景與旋轉地球儀定位，或直接建立行程並啟用 AI 智慧路線規劃。
                               </p>
                             </div>
 
@@ -2192,7 +2541,7 @@ function App() {
                                     onClick={() => setExploreCity((prev) => (prev === city ? null : city))}
                                     className={`h-8 px-3.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                                       active
-                                        ? 'bg-gradient-to-r from-[#F26B3A] to-[#FB923C] text-white shadow-sm'
+                                        ? 'bg-gradient-to-r from-[#2563EB] to-[#0EA5E9] text-white shadow-sm'
                                         : 'bg-zinc-100 dark:bg-white/[0.06] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200/70 dark:hover:bg-white/10'
                                     }`}
                                   >
@@ -2207,7 +2556,7 @@ function App() {
                             <button
                               type="button"
                               onClick={() => openCreateFlow(exploreCity || undefined)}
-                              className="w-full min-h-[50px] rounded-full bg-gradient-to-r from-[#F26B3A] to-[#FB923C] text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.985] transition-all cursor-pointer shadow-[0_10px_24px_-8px_rgba(242,107,58,0.58)]"
+                              className="w-full min-h-[50px] rounded-full bg-gradient-to-r from-[#2563EB] to-[#0EA5E9] text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.985] transition-all cursor-pointer shadow-[0_10px_24px_-8px_rgba(37,99,235,0.52)]"
                             >
                               <PlusIcon className="w-4 h-4" />
                               <span>{exploreCity ? `規劃「${exploreCity}」旅程` : '開始規劃旅程'}</span>
@@ -2291,7 +2640,7 @@ function App() {
               </motion.div>
             )}
 
-            {/* ==================== 2. CREATE TRIP VIEW (With Embedded Drag Calendar & Working Duration Chips) ==================== */}
+            {/* ==================== 2. CREATE TRIP VIEW ==================== */}
             {view === 'CREATE' && (
               <motion.div
                 key="CREATE"
@@ -2318,7 +2667,7 @@ function App() {
                   </div>
 
                   {((tripType === 'Single' && singleSpan) || (tripType === 'Multi' && activeStopSpan)) && (
-                    <span className="text-xs font-num font-bold text-[#F26B3A]">
+                    <span className="text-xs font-num font-bold text-[#2563EB] dark:text-sky-400">
                       {tripType === 'Single'
                         ? `共 ${singleSpan!.days} 天 ${singleSpan!.nights} 夜`
                         : `第 ${activeStop?.id || 1} 站 · ${activeStopSpan!.days} 天 ${activeStopSpan!.nights} 夜`}
@@ -2368,15 +2717,15 @@ function App() {
                             id: 'Single',
                             label: '單一城市',
                             icon: <MapIcon className="w-4 h-4" />,
-                            accentFrom: '#F26B3A',
-                            accentTo: '#FB923C',
+                            accentFrom: '#2563EB',
+                            accentTo: '#0EA5E9',
                           },
                           {
                             id: 'Multi',
                             label: '多城市行程',
                             icon: <GlobeIcon className="w-4 h-4" />,
-                            accentFrom: '#4F5DF5',
-                            accentTo: '#60A5FA',
+                            accentFrom: '#4F46E5',
+                            accentTo: '#6366F1',
                           },
                         ]}
                       />
@@ -2397,7 +2746,7 @@ function App() {
                                 onClick={() => handleQuickCitySelect(city)}
                                 className={`h-8 px-3.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                                   isPicked
-                                    ? 'bg-gradient-to-r from-[#F26B3A] to-[#FB923C] text-white shadow-sm'
+                                    ? 'bg-gradient-to-r from-[#2563EB] to-[#0EA5E9] text-white shadow-sm'
                                     : 'surface-elevated text-zinc-700 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-800'
                                 }`}
                               >
@@ -2414,7 +2763,7 @@ function App() {
                             目的地
                           </label>
                           <div className="surface-elevated px-4 h-12 rounded-2xl flex items-center gap-3">
-                            <MapIcon className="w-4 h-4 text-[#F26B3A] shrink-0" />
+                            <MapIcon className="w-4 h-4 text-[#2563EB] dark:text-sky-400 shrink-0" />
                             <input
                               required
                               type="text"
@@ -2558,13 +2907,13 @@ function App() {
                         <>
                           {/* Selected Dates Display Summary Pills */}
                           <div className="grid grid-cols-2 gap-3">
-                            <div className="surface-pastel-peach px-4 py-2.5 rounded-2xl">
+                            <div className="surface-pastel-sky px-4 py-2.5 rounded-2xl">
                               <div className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">出發日期</div>
                               <div className="font-num font-bold text-sm text-zinc-900 dark:text-white mt-0.5">
                                 {singleStartDate || '未選擇'}
                               </div>
                             </div>
-                            <div className="surface-pastel-rose px-4 py-2.5 rounded-2xl">
+                            <div className="surface-pastel-sky px-4 py-2.5 rounded-2xl">
                               <div className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">回程日期</div>
                               <div className="font-num font-bold text-sm text-zinc-900 dark:text-white mt-0.5">
                                 {singleEndDate || '未選擇'}
@@ -2584,7 +2933,7 @@ function App() {
                                   onClick={() => handleQuickDuration(d)}
                                   className={`h-8 px-3.5 rounded-full text-xs font-num font-semibold transition-all shrink-0 cursor-pointer ${
                                     active
-                                      ? 'bg-gradient-to-r from-[#F26B3A] to-[#FB923C] text-white shadow-sm'
+                                      ? 'bg-gradient-to-r from-[#2563EB] to-[#0EA5E9] text-white shadow-sm'
                                       : 'surface-elevated text-zinc-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-800'
                                   }`}
                                 >
@@ -2619,7 +2968,7 @@ function App() {
                                   onClick={() => handleQuickDuration(d)}
                                   className={`h-8 px-3 rounded-full text-xs font-num font-semibold transition-all shrink-0 cursor-pointer ${
                                     active
-                                      ? 'bg-gradient-to-r from-[#4F5DF5] to-[#60A5FA] text-white shadow-sm'
+                                      ? 'bg-gradient-to-r from-[#4F46E5] to-[#6366F1] text-white shadow-sm'
                                       : 'surface-elevated text-zinc-600 dark:text-zinc-300'
                                   }`}
                                 >
@@ -2642,7 +2991,7 @@ function App() {
                       <div className="pt-1">
                         <button
                           type="submit"
-                          className="w-full min-h-[50px] bg-gradient-to-r from-[#F26B3A] to-[#FB923C] text-white rounded-full font-semibold text-sm active:scale-[0.985] transition-all flex items-center justify-center gap-2 cursor-pointer shadow-[0_10px_24px_-8px_rgba(242,107,58,0.65)]"
+                          className="w-full min-h-[50px] bg-gradient-to-r from-[#2563EB] to-[#0EA5E9] text-white rounded-full font-semibold text-sm active:scale-[0.985] transition-all flex items-center justify-center gap-2 cursor-pointer shadow-[0_10px_24px_-8px_rgba(37,99,235,0.54)]"
                         >
                           <span>開始規劃</span>
                           <ChevronRightIcon className="w-4 h-4" />
@@ -2665,116 +3014,21 @@ function App() {
                 className="h-full min-h-0 w-full flex flex-col lg:flex-row overflow-clip relative"
               >
                 {/* DESKTOP / TABLET LEFT SIDEBAR (Temporarily hidden while editing / modals open) */}
-                <aside
-                  aria-hidden={isAnyModalOpen}
-                  className={`hidden ${
-                    isAnyModalOpen ? 'lg:hidden' : 'lg:flex'
-                  } w-64 shrink-0 flex-col justify-between pl-[max(1rem,env(safe-area-inset-left))] pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] pr-0 z-20`}
-                >
-                  <div className="surface-elevated rounded-3xl h-full flex flex-col justify-between p-4">
-                    <div className="space-y-5">
-                      <div className="flex items-center justify-between gap-2 pb-3 border-b border-zinc-200/70 dark:border-white/[0.08]">
-                        <button
-                          type="button"
-                          onClick={() => setView('HOME')}
-                          className="flex items-center gap-2.5 text-left group cursor-pointer min-w-0"
-                        >
-                          <div
-                            className="w-9 h-9 rounded-xl text-white flex items-center justify-center shrink-0 shadow-sm transition-colors duration-300"
-                            style={{ background: `linear-gradient(135deg, ${navCurrentFrom}, ${navCurrentTo})` }}
-                          >
-                            <WaynoteLogoIcon className="w-5 h-5" />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="text-[11px] font-medium text-zinc-400">Waynote</div>
-                            <div className="text-sm font-bold text-zinc-900 dark:text-white truncate">
-                              {tripData.name}
-                            </div>
-                          </div>
-                        </button>
-                      </div>
-
-                      <div className="px-1 space-y-0.5">
-                        <div className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate">
-                          {tripData.destination}
-                        </div>
-                        <div className="text-[11px] font-num text-zinc-500 dark:text-zinc-400">
-                          {tripData.startDate} ~ {tripData.endDate}
-                        </div>
-                      </div>
-
-                      <nav ref={sidebarNavRef} className="relative space-y-1">
-                        {sidebarThumb && (
-                          <motion.div
-                            aria-hidden="true"
-                            initial={false}
-                            animate={{
-                              y: sidebarThumb.top,
-                              height: sidebarThumb.height,
-                              backgroundImage:
-                                navGradCycle.tick > 0
-                                  ? [
-                                      `linear-gradient(135deg, ${navGradCycle.fromA}, ${navGradCycle.fromB})`,
-                                      `linear-gradient(135deg, ${navGradCycle.fromA}, ${navGradCycle.toA})`,
-                                      `linear-gradient(135deg, ${navGradCycle.toA}, ${navGradCycle.toB})`,
-                                    ]
-                                  : `linear-gradient(135deg, ${navCurrentFrom}, ${navCurrentTo})`,
-                              boxShadow: navCurrentShadow,
-                            }}
-                            transition={{
-                              y: { type: 'spring', stiffness: 440, damping: 33, mass: 0.82 },
-                              height: { type: 'spring', stiffness: 440, damping: 33, mass: 0.82 },
-                              backgroundImage: { duration: 0.45, ease: 'easeInOut' },
-                            }}
-                            className="absolute inset-x-0 top-0 rounded-xl pointer-events-none z-0"
-                          />
-                        )}
-                        {navItems.map((item, idx) => {
-                          const Icon = item.icon;
-                          const isActive =
-                            activeTab === item.id || (item.id === Tab.TOOLBOX && activeTab === Tab.PACKING);
-                          return (
-                            <button
-                              type="button"
-                              key={item.id}
-                              ref={(el) => {
-                                sidebarBtnRefs.current[idx] = el;
-                              }}
-                              onClick={() => setActiveTab(item.id)}
-                              className={`relative z-10 w-full min-h-[42px] px-3.5 rounded-xl flex items-center gap-3 font-semibold text-sm transition-colors duration-200 cursor-pointer ${
-                                isActive
-                                  ? 'text-white'
-                                  : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-900/5 dark:hover:bg-white/5'
-                              }`}
-                            >
-                              <Icon className="w-4 h-4 shrink-0" />
-                              <span>{item.label}</span>
-                            </button>
-                          );
-                        })}
-                      </nav>
-                    </div>
-
-                    {/* Sync Button Card */}
-                    <button
-                      type="button"
-                      onClick={() => setIsSyncHubOpen(true)}
-                      className="w-full p-3.5 rounded-2xl bg-zinc-100/90 dark:bg-white/[0.04] border border-zinc-200/70 dark:border-white/[0.08] text-left hover:bg-zinc-200/60 dark:hover:bg-white/[0.08] transition-colors cursor-pointer space-y-1.5"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-xs font-semibold text-zinc-900 dark:text-white">
-                          <span className={`w-2 h-2 rounded-full ${syncBadge.dotClass}`} />
-                          <span>{syncBadge.text}</span>
-                        </div>
-                        <QrCodeIcon className="w-4 h-4 text-[var(--tab-accent)] transition-colors" />
-                      </div>
-                      <div className="flex items-center justify-between text-[11px] font-num text-zinc-500 dark:text-zinc-400">
-                        <span>{tripData.syncId}</span>
-                        <span>同步設定 →</span>
-                      </div>
-                    </button>
-                  </div>
-                </aside>
+                <WorkspaceSidebar
+                  tripData={tripData}
+                  navItems={navItems}
+                  activeTab={activeTab}
+                  activeNavIndex={activeNavIndex}
+                  navCurrentFrom={navCurrentFrom}
+                  navCurrentTo={navCurrentTo}
+                  navCurrentShadow={navCurrentShadow}
+                  navGradCycle={navGradCycle}
+                  syncBadge={syncBadge}
+                  onGoHome={() => setView('HOME')}
+                  onSelectTab={setActiveTab}
+                  onOpenSyncHub={() => setIsSyncHubOpen(true)}
+                  isHidden={isAnyModalOpen}
+                />
 
                 {/* MAIN WORKSPACE CONTENT */}
                 <main
@@ -2821,6 +3075,15 @@ function App() {
                         trip={tripData}
                         onUpdateTrip={handleLocalUpdateTrip}
                         onShowToast={showToast}
+                        focusDateSignal={focusDateSignal}
+                      />
+                    )}
+                    {activeTab === Tab.EXPLORE && (
+                      <ExploreTool
+                        trip={tripData}
+                        onUpdateTrip={handleLocalUpdateTrip}
+                        onShowToast={showToast}
+                        onOpenItineraryDate={handleOpenItineraryDate}
                       />
                     )}
                     {activeTab === Tab.EXPENSES && (
@@ -2951,22 +3214,22 @@ function App() {
                                       id: 'system',
                                       label: '跟隨系統',
                                       icon: <ComputerDesktopIcon className="w-3.5 h-3.5" />,
-                                      accentFrom: '#4F5DF5',
-                                      accentTo: '#60A5FA',
+                                      accentFrom: '#4F46E5',
+                                      accentTo: '#6366F1',
                                     },
                                     {
                                       id: 'light',
                                       label: '日光模式',
                                       icon: <SunIcon className="w-3.5 h-3.5" />,
-                                      accentFrom: '#F26B3A',
-                                      accentTo: '#FB923C',
+                                      accentFrom: '#2563EB',
+                                      accentTo: '#0EA5E9',
                                     },
                                     {
                                       id: 'dark',
                                       label: '夜間模式',
                                       icon: <MoonIcon className="w-3.5 h-3.5" />,
-                                      accentFrom: '#8B5CF6',
-                                      accentTo: '#C084FC',
+                                      accentFrom: '#7C3AED',
+                                      accentTo: '#8B5CF6',
                                     },
                                   ]}
                                 />
@@ -3126,73 +3389,18 @@ function App() {
                     )}
                   </div>
 
-                  {/* MOBILE & PORTRAIT TABLET FLOATING BOTTOM DOCK (Gradient Sliding Pill, Auto-hides during modals) */}
-                  <div
-                    aria-hidden={isAnyModalOpen}
-                    className={`${
-                      isAnyModalOpen ? 'hidden' : 'lg:hidden fixed'
-                    } bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-3.5 right-3.5 z-40 pointer-events-none flex justify-center`}
-                  >
-                    <nav
-                      ref={dockNavRef}
-                      aria-label="主導航列"
-                      className="pointer-events-auto surface-dock relative w-full max-w-md h-[62px] rounded-[30px] p-1.5 flex items-center justify-between gap-1"
-                    >
-                      {dockThumb && (
-                        <motion.div
-                          aria-hidden="true"
-                          initial={false}
-                          animate={{
-                            x: dockThumb.left,
-                            width: dockThumb.width,
-                            backgroundImage:
-                              navGradCycle.tick > 0
-                                ? [
-                                    `linear-gradient(135deg, ${navGradCycle.fromA}, ${navGradCycle.fromB})`,
-                                    `linear-gradient(135deg, ${navGradCycle.fromA}, ${navGradCycle.toA})`,
-                                    `linear-gradient(135deg, ${navGradCycle.toA}, ${navGradCycle.toB})`,
-                                  ]
-                                : `linear-gradient(135deg, ${navCurrentFrom}, ${navCurrentTo})`,
-                            boxShadow: navCurrentShadow,
-                          }}
-                          transition={{
-                            x: { type: 'spring', stiffness: 450, damping: 34, mass: 0.82 },
-                            width: { type: 'spring', stiffness: 450, damping: 34, mass: 0.82 },
-                            backgroundImage: { duration: 0.45, ease: 'easeInOut' },
-                          }}
-                          style={{
-                            top: dockThumb.top,
-                            height: dockThumb.height,
-                          }}
-                          className="absolute left-0 rounded-[24px] pointer-events-none z-0"
-                        />
-                      )}
-                      {navItems.map((item, idx) => {
-                        const Icon = item.icon;
-                        const isActive =
-                          activeTab === item.id || (item.id === Tab.TOOLBOX && activeTab === Tab.PACKING);
-                        return (
-                          <button
-                            type="button"
-                            key={item.id}
-                            ref={(el) => {
-                              dockBtnRefs.current[idx] = el;
-                            }}
-                            onClick={() => setActiveTab(item.id)}
-                            aria-label={item.label}
-                            className={`relative z-10 flex-1 h-full rounded-[24px] flex flex-col items-center justify-center gap-0.5 transition-colors duration-200 cursor-pointer select-none ${
-                              isActive
-                                ? 'text-white'
-                                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
-                            }`}
-                          >
-                            <Icon className="w-4 h-4" />
-                            <span className="text-[10px] font-semibold leading-none">{item.shortLabel}</span>
-                          </button>
-                        );
-                      })}
-                    </nav>
-                  </div>
+                  {/* MOBILE & PORTRAIT TABLET FLOATING BOTTOM DOCK (5-Tab Self-Measured Sliding Gradient Pill) */}
+                  <WorkspaceDock
+                    navItems={navItems}
+                    activeTab={activeTab}
+                    activeNavIndex={activeNavIndex}
+                    navCurrentFrom={navCurrentFrom}
+                    navCurrentTo={navCurrentTo}
+                    navCurrentShadow={navCurrentShadow}
+                    navGradCycle={navGradCycle}
+                    onSelectTab={setActiveTab}
+                    isHidden={isAnyModalOpen}
+                  />
                 </main>
               </motion.div>
             )}
@@ -3321,7 +3529,7 @@ function App() {
                     className="p-3.5 rounded-2xl border border-zinc-200/70 dark:border-white/10 bg-zinc-100/70 dark:bg-white/[0.04] space-y-2.5"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-semibold text-[#F26B3A] font-num">
+                      <span className="text-[11px] font-semibold text-[#2563EB] dark:text-sky-400 font-num">
                         第 {idx + 1} 站
                       </span>
                       {editStops.length > 1 && (
@@ -3361,7 +3569,7 @@ function App() {
                   <button
                     type="button"
                     onClick={handleAddEditStop}
-                    className="w-full min-h-[42px] border border-dashed border-zinc-300 dark:border-white/15 rounded-full text-zinc-500 dark:text-zinc-400 font-semibold text-xs hover:border-[#F26B3A] transition-colors cursor-pointer"
+                    className="w-full min-h-[42px] border border-dashed border-zinc-300 dark:border-white/15 rounded-full text-zinc-500 dark:text-zinc-400 font-semibold text-xs hover:border-[#2563EB] transition-colors cursor-pointer"
                   >
                     + 增加站點
                   </button>
@@ -3429,7 +3637,7 @@ function App() {
                 onClick={handleCopyToClipboard}
                 className={`min-h-[44px] px-3 rounded-full font-semibold text-xs transition-colors cursor-pointer ${
                   copySuccess
-                    ? 'bg-[#F26B3A] text-white'
+                    ? 'bg-[#2563EB] text-white'
                     : 'bg-zinc-100 dark:bg-white/10 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200/80'
                 }`}
               >

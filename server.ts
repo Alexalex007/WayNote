@@ -1883,6 +1883,140 @@ async function startServer() {
     }
   });
 
+  app.post('/api/ai/explore-spots', async (req, res) => {
+    const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
+    if (!apiKey) {
+      res.status(503).json({ error: '伺服器尚未設定 GEMINI_API_KEY，無法使用 AI 探索推薦功能。' });
+      return;
+    }
+
+    const body = (req.body || {}) as {
+      destination?: string;
+      focusCategory?: string;
+      excludeNames?: string[];
+    };
+
+    const destination = String(body.destination || '').trim().slice(0, 200);
+    if (!destination) {
+      res.status(400).json({ error: '缺少目的地城市資訊。' });
+      return;
+    }
+
+    const focusCategory = String(body.focusCategory || 'all').trim();
+    const excludeNames = Array.isArray(body.excludeNames)
+      ? body.excludeNames.map((n) => String(n).trim()).filter(Boolean).slice(0, 25)
+      : [];
+
+    const ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        },
+      },
+    });
+
+    const responseSchema = {
+      type: Type.OBJECT,
+      properties: {
+        spots: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              name: { type: Type.STRING, description: '實際存在且具體的景點、餐廳、咖啡廳或商店名稱（繁體中文）' },
+              category: { type: Type.STRING, enum: ['sightseeing', 'food', 'cafe', 'shopping'] },
+              area: { type: Type.STRING, description: '所在區域或地鐵站周邊（如 新宿、淺草、聖日耳曼）' },
+              note: { type: Type.STRING, description: '特色亮點、推薦品項或避開人潮小提示（35字以內）' },
+              estimatedCost: { type: Type.NUMBER, description: '當地幣別大致一人預估花費（免費填 0）' },
+            },
+            required: ['name', 'category', 'area', 'note', 'estimatedCost'],
+          },
+        },
+      },
+      required: ['spots'],
+    };
+
+    const categoryHint =
+      focusCategory === 'food'
+        ? '只推薦在地人氣美食與必吃名店'
+        : focusCategory === 'cafe'
+          ? '只推薦特色咖啡廳、甜點與下午茶'
+          : focusCategory === 'shopping'
+            ? '只推薦質感選物店、商場與伴手禮名產'
+            : focusCategory === 'sightseeing'
+              ? '只推薦經典必訪地標與深度風景秘境'
+              : '均衡包含經典景點、在地美食、特色咖啡與逛街好去處';
+
+    const prompt = [
+      `目的地：${destination}`,
+      `推薦類型：${categoryHint}`,
+      `請精選 6 個真實存在且評價極高的具體地點。`,
+      excludeNames.length > 0 ? `請避開以下已收錄地點：${excludeNames.join('、')}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const callExploreModel = (model: string, thinkingLevel: ThinkingLevel, timeoutMs: number) =>
+      ai.models.generateContent({
+        model,
+        contents: prompt,
+        config: {
+          systemInstruction:
+            '你是熟門熟路的台灣旅遊顧問，一律以台灣繁體中文簡潔精準推薦真實存在的地點，絕不編造不存在的店名。',
+          responseMimeType: 'application/json',
+          responseSchema,
+          thinkingConfig: { thinkingLevel },
+          abortSignal: AbortSignal.timeout(timeoutMs),
+        },
+      });
+
+    try {
+      let response;
+      try {
+        response = await callExploreModel('gemini-3.1-flash-lite', ThinkingLevel.MINIMAL, 20000);
+      } catch {
+        response = await callExploreModel('gemini-4-hydrogen', ThinkingLevel.LOW, 22000);
+      }
+
+      const rawText = (response.text || '')
+        .trim()
+        .replace(/^```json\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim();
+
+      const jsonBodyMatch = rawText.match(/\{[\s\S]*\}/);
+      const parsed = JSON.parse(jsonBodyMatch ? jsonBodyMatch[0] : rawText) as {
+        spots?: Array<{
+          name?: string;
+          category?: string;
+          area?: string;
+          note?: string;
+          estimatedCost?: number;
+        }>;
+      };
+
+      const spots = (parsed.spots || []).slice(0, 8).map((s) => {
+        const rawCat = String(s.category || '').toLowerCase();
+        const cat =
+          rawCat === 'food' || rawCat === 'cafe' || rawCat === 'shopping' ? rawCat : 'sightseeing';
+        return {
+          name: String(s.name || '').trim(),
+          category: cat as 'sightseeing' | 'food' | 'cafe' | 'shopping',
+          area: String(s.area || destination).trim(),
+          note: String(s.note || '').trim(),
+          estimatedCost: Math.max(0, Number(s.estimatedCost) || 0),
+        };
+      }).filter((s) => s.name.length > 0);
+
+      res.json({ spots });
+    } catch (err: unknown) {
+      console.error('[Waynote AI Explore] Error:', err);
+      res.status(502).json({ error: '目前無法取得 AI 探索推薦，請稍後再試。' });
+    }
+  });
+
   const server = http.createServer(app);
   const wss = new WebSocketServer({ server, path: '/ws' });
 

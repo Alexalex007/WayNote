@@ -519,3 +519,25 @@ export const UserCircleIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+export const CompassIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.55} strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <circle cx="12" cy="12" r="9" />
+    <polygon points="15.8 8.2 13.7 13.7 8.2 15.8 10.3 10.3 15.8 8.2" />
+  </svg>
+);
+
+export const StarIcon = ({ className, filled = false }: { className?: string; filled?: boolean }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill={filled ? 'currentColor' : 'none'}
+    stroke="currentColor"
+    strokeWidth={1.6}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M12 3.5l2.65 5.38 5.93.86-4.29 4.18 1.01 5.91L12 17.04l-5.3 2.79 1.01-5.91-4.29-4.18 5.93-.86L12 3.5z" />
+  </svg>
+);
+
+

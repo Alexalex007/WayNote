@@ -1,4 +1,4 @@
-import type { Trip, Activity, Expense, PackingItem, DocumentItem, HotelBooking } from '../types.ts';
+import type { Trip, Activity, Expense, PackingItem, DocumentItem, HotelBooking, SavedPlace } from '../types.ts';
 
 export function generateUniqueId(prefix = 'id'): string {
   if (typeof globalThis !== 'undefined' && globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') {
@@ -204,6 +204,17 @@ export function mergeTrips(base: Trip, incoming: Trip): Trip {
       : [...baseHotelOrder, ...incHotelOrder]
   );
 
+  const baseSavedOrder = (base.savedPlaces || []).map((s) => s.id);
+  const incSavedOrder = (incoming.savedPlaces || []).map((s) => s.id);
+  const mergedSavedPlaces = mergeEntityArray<SavedPlace>(
+    base.savedPlaces || [],
+    incoming.savedPlaces || [],
+    tombstones,
+    (incoming.updatedAt || 0) >= (base.updatedAt || 0)
+      ? [...incSavedOrder, ...baseSavedOrder]
+      : [...baseSavedOrder, ...incSavedOrder]
+  );
+
   const now = Date.now();
   const maxUpdated = Math.max(base.updatedAt || 0, incoming.updatedAt || 0, now);
 
@@ -230,5 +241,6 @@ export function mergeTrips(base: Trip, incoming: Trip): Trip {
     expenses: mergedExpenses,
     packingList: mergedPacking,
     documents: mergedDocs,
+    savedPlaces: mergedSavedPlaces,
   };
 }

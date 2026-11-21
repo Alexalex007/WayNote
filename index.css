@@ -4,164 +4,63 @@
 @layer base {
   :root {
     color-scheme: light;
-    --bg-canvas: #FAF7F5;
-    --safe-top-tint: #FDF0EB;
-    --bg-surface: rgba(255, 255, 255, 0.88);
+    --bg-canvas: #EEF5FF;
+    --safe-top-tint: #CFE4FC;
+    --bg-surface: rgba(255, 255, 255, 0.86);
     --bg-surface-solid: #FFFFFF;
-    --bg-subtle: rgba(24, 24, 27, 0.045);
-    --text-primary: #17171C;
-    --text-secondary: #535565;
-    --text-muted: #7F8294;
-    --border-hairline: rgba(23, 23, 28, 0.075);
-    --border-strong: rgba(23, 23, 28, 0.14);
-    --accent: #F26B3A;
+    --bg-subtle: rgba(15, 23, 42, 0.05);
+    --text-primary: #0F172A;
+    --text-secondary: #475569;
+    --text-muted: #64748B;
+    --border-hairline: rgba(15, 23, 42, 0.08);
+    --border-strong: rgba(15, 23, 42, 0.14);
+
+    /* Unified Horizon Sky Accent (constant cohesive canvas across all tabs) */
+    --accent: #2563EB;
     --accent-indigo: #4F46E5;
-    --accent-soft: rgba(242, 107, 58, 0.12);
+    --accent-soft: rgba(37, 99, 235, 0.12);
+    --tab-accent: #2563EB;
+    --tab-accent-hover: #1D4ED8;
+    --tab-accent-soft: rgba(37, 99, 235, 0.12);
 
-    /* Tab Theme Variables (Default / Home: Warm Coral Peach) */
-    --tab-accent: #F26B3A;
-    --tab-accent-hover: #E15A2A;
-    --tab-accent-soft: rgba(242, 107, 58, 0.12);
-    --tab-glow-1: rgba(255, 210, 192, 0.52);
-    --tab-glow-2: rgba(255, 228, 212, 0.48);
-    --tab-glow-3: rgba(226, 236, 255, 0.34);
+    --pastel-rose: rgba(254, 226, 236, 0.78);
+    --pastel-peach: rgba(255, 237, 219, 0.78);
+    --pastel-sky: rgba(219, 238, 255, 0.82);
+    --pastel-mint: rgba(214, 246, 234, 0.76);
+    --surface-shadow: 0 12px 32px -14px rgba(15, 34, 74, 0.12), 0 1px 3px rgba(15, 23, 42, 0.04);
+    --dock-shadow: 0 18px 40px -12px rgba(15, 34, 74, 0.2), 0 2px 8px -2px rgba(15, 23, 42, 0.07);
 
-    --pastel-rose: rgba(255, 224, 234, 0.72);
-    --pastel-peach: rgba(255, 232, 214, 0.75);
-    --pastel-sky: rgba(219, 235, 255, 0.72);
-    --pastel-mint: rgba(216, 247, 233, 0.68);
-    --surface-shadow: 0 12px 32px -14px rgba(34, 30, 54, 0.09), 0 1px 3px rgba(23, 23, 28, 0.03);
-    --dock-shadow: 0 18px 40px -12px rgba(28, 24, 42, 0.16), 0 2px 8px -2px rgba(23, 23, 28, 0.06);
-    --font-display: 'Plus Jakarta Sans', 'Outfit', 'Noto Sans TC', sans-serif;
-    --font-sans: 'Plus Jakarta Sans', 'Noto Sans TC', sans-serif;
-    --font-num: 'Outfit', 'Plus Jakarta Sans', 'Noto Sans TC', sans-serif;
-  }
-
-  /* Tab 1: 行程 (Soft Apricot Coral) */
-  :root[data-tab-theme="ITINERARY"] {
-    --bg-canvas: #FBF7F4;
-    --safe-top-tint: #FCEEE6;
-    --tab-accent: #F26B3A;
-    --tab-accent-hover: #E15A2A;
-    --tab-accent-soft: rgba(242, 107, 58, 0.13);
-    --tab-glow-1: rgba(255, 206, 182, 0.52);
-    --tab-glow-2: rgba(255, 225, 208, 0.50);
-    --tab-glow-3: rgba(254, 215, 226, 0.36);
-  }
-
-  /* Tab 2: 開支 (Soft Mist Periwinkle / Sky Blue) */
-  :root[data-tab-theme="EXPENSES"] {
-    --bg-canvas: #F5F7FC;
-    --safe-top-tint: #EBF0FE;
-    --tab-accent: #4F5DF5;
-    --tab-accent-hover: #3F4DE3;
-    --tab-accent-soft: rgba(79, 93, 245, 0.12);
-    --tab-glow-1: rgba(196, 212, 255, 0.55);
-    --tab-glow-2: rgba(214, 230, 255, 0.50);
-    --tab-glow-3: rgba(224, 218, 255, 0.38);
-  }
-
-  /* Tab 3: 百寶箱 (Soft Eucalyptus Mint / Sage) */
-  :root[data-tab-theme="TOOLBOX"] {
-    --bg-canvas: #F3FAF7;
-    --safe-top-tint: #E6F6EF;
-    --tab-accent: #0E9F76;
-    --tab-accent-hover: #0B8764;
-    --tab-accent-soft: rgba(14, 159, 118, 0.12);
-    --tab-glow-1: rgba(186, 240, 218, 0.54);
-    --tab-glow-2: rgba(206, 245, 232, 0.50);
-    --tab-glow-3: rgba(210, 238, 250, 0.36);
-  }
-
-  /* Tab 4: 設定 (Soft Lavender Plum) */
-  :root[data-tab-theme="SETTINGS"] {
-    --bg-canvas: #F8F5FC;
-    --safe-top-tint: #F1EAFD;
-    --tab-accent: #8B5CF6;
-    --tab-accent-hover: #7C3AED;
-    --tab-accent-soft: rgba(139, 92, 246, 0.12);
-    --tab-glow-1: rgba(222, 205, 255, 0.55);
-    --tab-glow-2: rgba(239, 215, 255, 0.48);
-    --tab-glow-3: rgba(214, 224, 255, 0.36);
+    --font-display: 'DM Sans', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-sans: 'DM Sans', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-num: 'DM Sans', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
   }
 
   html.dark {
     color-scheme: dark;
-    --bg-canvas: #0B0D14;
-    --safe-top-tint: #0B0D14;
-    --bg-surface: rgba(22, 25, 38, 0.88);
-    --bg-surface-solid: #161926;
-    --bg-subtle: rgba(255, 255, 255, 0.065);
-    --text-primary: #F5F5FA;
-    --text-secondary: #AEB3C4;
-    --text-muted: #7A8094;
-    --border-hairline: rgba(255, 255, 255, 0.09);
-    --border-strong: rgba(255, 255, 255, 0.16);
-    --accent: #F47A4D;
-    --accent-indigo: #7275F6;
-    --accent-soft: rgba(244, 122, 77, 0.18);
+    --bg-canvas: #080D1B;
+    --safe-top-tint: #080D1B;
+    --bg-surface: rgba(15, 23, 42, 0.84);
+    --bg-surface-solid: #111A2E;
+    --bg-subtle: rgba(255, 255, 255, 0.07);
+    --text-primary: #F8FAFC;
+    --text-secondary: #CBD5E1;
+    --text-muted: #8B9BB4;
+    --border-hairline: rgba(255, 255, 255, 0.10);
+    --border-strong: rgba(255, 255, 255, 0.18);
 
-    --tab-accent: #F47A4D;
-    --tab-accent-hover: #E56A3D;
-    --tab-accent-soft: rgba(244, 122, 77, 0.18);
-    --tab-glow-1: rgba(244, 122, 77, 0.12);
-    --tab-glow-2: rgba(244, 114, 182, 0.09);
-    --tab-glow-3: rgba(99, 102, 241, 0.11);
+    --accent: #38BDF8;
+    --accent-indigo: #818CF8;
+    --accent-soft: rgba(56, 189, 248, 0.18);
+    --tab-accent: #38BDF8;
+    --tab-accent-hover: #0EA5E9;
+    --tab-accent-soft: rgba(56, 189, 248, 0.18);
 
-    --pastel-rose: rgba(244, 114, 182, 0.11);
-    --pastel-peach: rgba(244, 122, 77, 0.12);
-    --pastel-sky: rgba(56, 189, 248, 0.11);
-    --pastel-mint: rgba(52, 211, 153, 0.10);
-    --surface-shadow: 0 16px 38px -12px rgba(0, 0, 0, 0.58), 0 1px 2px rgba(0, 0, 0, 0.35);
-    --dock-shadow: 0 20px 44px -10px rgba(0, 0, 0, 0.72), 0 2px 8px -2px rgba(0, 0, 0, 0.45);
-  }
-
-  /* Dark Tab 1: 行程 (Deep Warm Charcoal + Soft Coral Glow) */
-  html.dark[data-tab-theme="ITINERARY"] {
-    --bg-canvas: #0E0C12;
-    --safe-top-tint: #0E0C12;
-    --tab-accent: #F47A4D;
-    --tab-accent-hover: #E56A3D;
-    --tab-accent-soft: rgba(244, 122, 77, 0.18);
-    --tab-glow-1: rgba(244, 122, 77, 0.15);
-    --tab-glow-2: rgba(251, 146, 60, 0.10);
-    --tab-glow-3: rgba(244, 114, 182, 0.09);
-  }
-
-  /* Dark Tab 2: 開支 (Deep Midnight Navy + Soft Indigo Glow) */
-  html.dark[data-tab-theme="EXPENSES"] {
-    --bg-canvas: #0A0E19;
-    --safe-top-tint: #0A0E19;
-    --tab-accent: #7B86FF;
-    --tab-accent-hover: #6A76F8;
-    --tab-accent-soft: rgba(123, 134, 255, 0.18);
-    --tab-glow-1: rgba(99, 102, 241, 0.16);
-    --tab-glow-2: rgba(56, 189, 248, 0.11);
-    --tab-glow-3: rgba(139, 92, 246, 0.10);
-  }
-
-  /* Dark Tab 3: 百寶箱 (Deep Slate Pine + Soft Mint Glow) */
-  html.dark[data-tab-theme="TOOLBOX"] {
-    --bg-canvas: #091211;
-    --safe-top-tint: #091211;
-    --tab-accent: #34D399;
-    --tab-accent-hover: #10B981;
-    --tab-accent-soft: rgba(52, 211, 153, 0.17);
-    --tab-glow-1: rgba(16, 185, 129, 0.15);
-    --tab-glow-2: rgba(45, 212, 191, 0.10);
-    --tab-glow-3: rgba(56, 189, 248, 0.09);
-  }
-
-  /* Dark Tab 4: 設定 (Deep Velvet Aubergine + Soft Lavender Glow) */
-  html.dark[data-tab-theme="SETTINGS"] {
-    --bg-canvas: #0E0B17;
-    --safe-top-tint: #0E0B17;
-    --tab-accent: #A78BFA;
-    --tab-accent-hover: #9370F7;
-    --tab-accent-soft: rgba(167, 139, 250, 0.18);
-    --tab-glow-1: rgba(139, 92, 246, 0.16);
-    --tab-glow-2: rgba(192, 132, 252, 0.10);
-    --tab-glow-3: rgba(99, 102, 241, 0.09);
+    --pastel-rose: rgba(244, 114, 182, 0.12);
+    --pastel-peach: rgba(251, 146, 60, 0.12);
+    --pastel-sky: rgba(56, 189, 248, 0.14);
+    --pastel-mint: rgba(52, 211, 153, 0.12);
+    --surface-shadow: 0 18px 40px -14px rgba(0, 0, 0, 0.65), 0 1px 2px rgba(0, 0, 0, 0.35);
+    --dock-shadow: 0 22px 46px -10px rgba(0, 0, 0, 0.78), 0 2px 10px -2px rgba(0, 0, 0, 0.5);
   }
 
   html {
@@ -208,7 +107,7 @@
   .font-num, .tabular-nums {
     font-family: var(--font-num);
     font-variant-numeric: tabular-nums lining-nums;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.015em;
   }
 }
 
@@ -226,43 +125,53 @@
   background: transparent;
 }
 
-/* Seamless full-bleed backdrop matching --safe-top-tint right at y=0 to eliminate iOS Dynamic Island cutoff */
+/* Unified Daylight Sky & Clouds / Cosmic Night Starlight Backdrop */
 .app-backdrop {
   position: fixed;
   inset: 0;
   background-color: var(--safe-top-tint);
   background-image:
-    linear-gradient(180deg, var(--safe-top-tint) 0px, var(--safe-top-tint) calc(env(safe-area-inset-top, 0px) + 8px), transparent calc(env(safe-area-inset-top, 0px) + 180px)),
-    radial-gradient(60% 46% at 12% 14%, var(--tab-glow-1) 0%, transparent 72%),
-    radial-gradient(56% 42% at 88% 16%, var(--tab-glow-2) 0%, transparent 70%),
-    radial-gradient(62% 46% at 22% 88%, var(--tab-glow-3) 0%, transparent 72%),
-    linear-gradient(180deg, var(--safe-top-tint) 0%, var(--bg-canvas) 260px);
+    linear-gradient(
+      180deg,
+      #CFE4FC 0%,
+      #D9EBFF calc(env(safe-area-inset-top, 0px) + 120px),
+      #EBF4FF 58%,
+      #F6FAFF 100%
+    );
 }
 
 html.dark .app-backdrop {
   background-color: var(--safe-top-tint);
   background-image:
-    linear-gradient(180deg, var(--safe-top-tint) 0px, var(--safe-top-tint) calc(env(safe-area-inset-top, 0px) + 8px), transparent calc(env(safe-area-inset-top, 0px) + 180px)),
-    radial-gradient(60% 46% at 14% 14%, var(--tab-glow-1) 0%, transparent 72%),
-    radial-gradient(56% 42% at 86% 16%, var(--tab-glow-2) 0%, transparent 70%),
-    radial-gradient(62% 46% at 24% 88%, var(--tab-glow-3) 0%, transparent 72%),
-    linear-gradient(180deg, var(--safe-top-tint) 0%, var(--bg-canvas) 260px);
+    radial-gradient(64% 52% at 22% 18%, rgba(30, 64, 175, 0.24) 0%, transparent 72%),
+    radial-gradient(56% 48% at 84% 26%, rgba(14, 165, 233, 0.12) 0%, transparent 72%),
+    radial-gradient(60% 48% at 48% 92%, rgba(79, 70, 229, 0.16) 0%, transparent 75%),
+    linear-gradient(180deg, #080D1B 0%, #0A1124 55%, #0D162E 100%);
 }
 
 .surface-card {
-  background: rgba(255, 255, 255, 0.94);
+  background: rgba(255, 255, 255, 0.90);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
   border: 1px solid var(--border-hairline);
   box-shadow: var(--surface-shadow);
 }
 
 html.dark .surface-card {
-  background: rgba(22, 25, 38, 0.94);
+  background: rgba(15, 23, 42, 0.86);
 }
 
 .surface-elevated {
-  background: var(--bg-surface-solid);
-  border: 1px solid var(--border-hairline);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.72);
   box-shadow: var(--surface-shadow);
+}
+
+html.dark .surface-elevated {
+  background: rgba(16, 25, 45, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.11);
 }
 
 .surface-pastel-rose {
@@ -293,36 +202,44 @@ html.dark .surface-pastel-rose,
 html.dark .surface-pastel-peach,
 html.dark .surface-pastel-sky,
 html.dark .surface-pastel-mint {
-  background: var(--bg-surface-solid);
+  background: rgba(17, 26, 46, 0.88);
 }
 
 .surface-dock {
-  background: rgba(255, 255, 255, 0.93);
-  backdrop-filter: blur(22px) saturate(160%);
-  -webkit-backdrop-filter: blur(22px) saturate(160%);
-  border: 1px solid rgba(23, 23, 28, 0.08);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(24px) saturate(165%);
+  -webkit-backdrop-filter: blur(24px) saturate(165%);
+  border: 1px solid rgba(255, 255, 255, 0.75);
   box-shadow: var(--dock-shadow);
 }
 
 html.dark .surface-dock {
-  background: rgba(22, 25, 38, 0.93);
-  border: 1px solid rgba(255, 255, 255, 0.11);
+  background: rgba(15, 23, 42, 0.90);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: var(--dock-shadow);
 }
 
 /* Deep Slate Card for Flight Boarding Pass & Dark Highlight Surfaces */
 .ink-card {
-  background: linear-gradient(155deg, #1E2030 0%, #131521 100%);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  box-shadow: 0 18px 40px -14px rgba(17, 19, 28, 0.42);
+  background: linear-gradient(155deg, #16223C 0%, #0D1528 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 18px 40px -14px rgba(10, 20, 44, 0.45);
   color: #FAFAFA;
 }
 
 html.dark .ink-card {
-  background: linear-gradient(155deg, #1E2336 0%, #141826 100%);
-  border: 1px solid rgba(255, 255, 255, 0.11);
-  box-shadow: 0 20px 46px -14px rgba(0, 0, 0, 0.65);
-  color: #F5F5FA;
+  background: linear-gradient(155deg, #182542 0%, #0E172C 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 20px 46px -14px rgba(0, 0, 0, 0.68);
+  color: #F8FAFC;
+}
+
+@keyframes star-twinkle {
+  0%, 100% { opacity: 0.32; }
+  50% { opacity: 0.92; }
+}
+.animate-star-twinkle {
+  animation: star-twinkle 4.2s ease-in-out infinite;
 }
 
 @keyframes marquee-scroll {
@@ -334,7 +251,8 @@ html.dark .ink-card {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-marquee-scroll {
+  .animate-marquee-scroll,
+  .animate-star-twinkle {
     animation: none !important;
   }
 }

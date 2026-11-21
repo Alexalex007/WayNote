@@ -30,7 +30,7 @@ function getDeviceLabel(): string {
   return 'Web 裝置';
 }
 
-export type RemoteSyncSectionTarget = 'ITINERARY' | 'EXPENSES' | 'TOOLBOX' | 'SETTINGS';
+export type RemoteSyncSectionTarget = 'ITINERARY' | 'EXPLORE' | 'EXPENSES' | 'TOOLBOX' | 'SETTINGS';
 
 export interface RemoteChangeNotification {
   deviceName: string;
@@ -54,6 +54,9 @@ export function detectEditedSection(
     JSON.stringify(prev.activitiesOrderUpdatedAt || {}) !== JSON.stringify(next.activitiesOrderUpdatedAt || {})
   ) {
     return { sectionLabel: '行程規劃', targetTab: 'ITINERARY' };
+  }
+  if (JSON.stringify(prev.savedPlaces || []) !== JSON.stringify(next.savedPlaces || [])) {
+    return { sectionLabel: '探索口袋名單', targetTab: 'EXPLORE' };
   }
   if (JSON.stringify(prev.expenses || []) !== JSON.stringify(next.expenses || [])) {
     return { sectionLabel: '開支紀錄', targetTab: 'EXPENSES' };

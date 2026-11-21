@@ -509,7 +509,7 @@ export interface SyncBubbleMessage {
   id: number;
   deviceName: string;
   sectionLabel: string;
-  targetTab?: 'ITINERARY' | 'EXPENSES' | 'TOOLBOX' | 'SETTINGS';
+  targetTab?: 'ITINERARY' | 'EXPLORE' | 'EXPENSES' | 'TOOLBOX' | 'SETTINGS';
 }
 
 export const TopSyncBubble: React.FC<{
