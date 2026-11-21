@@ -40,12 +40,27 @@ interface Props {
   onShowToast: (text: string, tone?: 'info' | 'success' | 'error') => void;
 }
 
-const timezones = Array.from({ length: 27 }, (_, i) => {
-  const offset = i - 12;
+function formatGmtOffset(offset: number): string {
   const sign = offset >= 0 ? '+' : '-';
-  const absOffset = Math.abs(offset);
-  return { value: offset, label: `GMT${sign}${absOffset.toString().padStart(2, '0')}:00` };
-});
+  const abs = Math.abs(offset);
+  const h = Math.floor(abs);
+  const m = Math.round((abs - h) * 60);
+  return `GMT${sign}${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function parseGmtOffsetLabel(label?: string): number | null {
+  if (!label) return null;
+  const m = label.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/i);
+  if (!m) return null;
+  const sign = m[1] === '-' ? -1 : 1;
+  return sign * (Number(m[2]) + Number(m[3] || 0) / 60);
+}
+
+const BASE_TIMEZONE_OFFSETS = Array.from({ length: 27 }, (_, i) => i - 12);
+const EXTRA_HALF_OFFSETS = [-3.5, 3.5, 4.5, 5.5, 5.75, 6.5, 9.5, 10.5];
+const timezones = Array.from(new Set([...BASE_TIMEZONE_OFFSETS, ...EXTRA_HALF_OFFSETS]))
+  .sort((a, b) => a - b)
+  .map((offset) => ({ value: offset, label: formatGmtOffset(offset) }));
 
 const getTypeMeta = (type: string) => {
   switch (type) {
@@ -200,6 +215,16 @@ const TimelineRow: React.FC<{
   const isFlight = activity.type === 'flight' && Boolean(activity.flightInfo);
   const flightInfo = activity.flightInfo;
   const displayTime = isFlight && flightInfo ? flightInfo.departureTime : activity.time;
+  const isNextDayArrival = Boolean(
+    isFlight &&
+      flightInfo?.arrivalDate &&
+      flightInfo?.departureDate &&
+      flightInfo.arrivalDate > flightInfo.departureDate
+  );
+  const flightTimeRange =
+    isFlight && flightInfo
+      ? `${flightInfo.departureTime} → ${flightInfo.arrivalTime}${isNextDayArrival ? ' (+1)' : ''}`
+      : '';
   const mapQuery = encodeURIComponent(activity.location || activity.title);
 
   const subtitle = isFlight && flightInfo
@@ -309,8 +334,8 @@ const TimelineRow: React.FC<{
         <div className="shrink-0 text-right pt-0.5 flex flex-col items-end gap-1">
           {!isLocked ? (
             <div className="flex items-center gap-1.5 text-[#F26B3A] py-1">
-              <span className="text-[11px] font-num font-semibold text-zinc-400">
-                {formatTime12h(displayTime)}
+              <span className="text-[11px] font-num font-semibold text-zinc-400 whitespace-nowrap">
+                {isFlight ? flightTimeRange : formatTime12h(displayTime)}
               </span>
               <span className="w-8 h-8 rounded-xl bg-[#F26B3A]/12 text-[#F26B3A] flex items-center justify-center">
                 <GripVerticalIcon className="w-4 h-4" />
@@ -318,8 +343,8 @@ const TimelineRow: React.FC<{
             </div>
           ) : (
             <>
-              <span className="text-xs font-num font-semibold text-zinc-500 dark:text-zinc-400">
-                ({formatTime12h(displayTime)})
+              <span className="text-xs font-num font-semibold text-zinc-600 dark:text-zinc-300 whitespace-nowrap">
+                {isFlight ? flightTimeRange : `(${formatTime12h(displayTime)})`}
               </span>
               <span className="text-[11px] font-bold tracking-wide text-[#F26B3A] group-hover:underline">
                 查看詳情
@@ -383,7 +408,6 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => 
 
   const [newFlight, setNewFlight] = useState<FlightInfo>({
     flightNumber: '',
-    planeType: '',
     departureCode: '',
     arrivalCode: '',
     departureDate: trip.startDate || new Date().toISOString().slice(0, 10),
@@ -396,6 +420,8 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => 
   });
   const [flightLookupLoading, setFlightLookupLoading] = useState(false);
   const [flightLookupNote, setFlightLookupNote] = useState<string | null>(null);
+  const flightLookupSeedRef = useRef<string | null>(null);
+  const flightLookupAbortRef = useRef<AbortController | null>(null);
 
   const isFormValid =
     modalMode === 'PLAN'
@@ -423,9 +449,9 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => 
 
   useEffect(() => {
     const getUTC = (dateStr: string, timeStr: string, offset: number) => {
-      const d = new Date(`${dateStr}T${timeStr}:00Z`);
-      d.setUTCHours(d.getUTCHours() - offset);
-      return d.getTime();
+      const baseMs = Date.parse(`${dateStr}T${timeStr}:00Z`);
+      if (Number.isNaN(baseMs)) return NaN;
+      return baseMs - offset * 3600000;
     };
     const startUTC = getUTC(newFlight.departureDate, newFlight.departureTime, depTz);
     const endUTC = getUTC(newFlight.arrivalDate, newFlight.arrivalTime, arrTz);
@@ -435,8 +461,8 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => 
       const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
       setNewFlight((prev) => ({
         ...prev,
-        departureTimezone: timezones.find((t) => t.value === depTz)?.label || prev.departureTimezone,
-        arrivalTimezone: timezones.find((t) => t.value === arrTz)?.label || prev.arrivalTimezone,
+        departureTimezone: formatGmtOffset(depTz),
+        arrivalTimezone: formatGmtOffset(arrTz),
         duration: `${hours}h ${minutes}m`,
       }));
     }
@@ -566,6 +592,11 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => 
   }, [trip.activities, selectedDate]);
 
   const closeModal = () => {
+    if (flightLookupAbortRef.current) {
+      flightLookupAbortRef.current.abort();
+      flightLookupAbortRef.current = null;
+    }
+    flightLookupSeedRef.current = null;
     setShowAddModal(false);
     setEditingActivityId(null);
     setModalMode('PLAN');
@@ -581,7 +612,6 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => 
     });
     setNewFlight({
       flightNumber: '',
-      planeType: '',
       departureCode: '',
       arrivalCode: '',
       departureDate: selectedDate || new Date().toISOString().slice(0, 10),
@@ -596,26 +626,41 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => 
     setFlightLookupLoading(false);
   };
 
-  const handleLookupFlight = async () => {
-    const code = newFlight.flightNumber.trim().toUpperCase().replace(/\s+/g, '');
+  const handleLookupFlight = async (overrideCode?: string, overrideDate?: string, silent = false) => {
+    const code = (overrideCode ?? newFlight.flightNumber).trim().toUpperCase().replace(/\s+/g, '');
+    const depDate = (overrideDate ?? newFlight.departureDate).trim();
     if (code.length < 3) {
-      onShowToast('請先輸入航班編號（例如 BR198、CX504）', 'error');
+      if (!silent) onShowToast('請先輸入航班編號（例如 BR198、CX504）', 'error');
       return;
     }
+
+    if (flightLookupAbortRef.current) {
+      flightLookupAbortRef.current.abort();
+    }
+    const controller = new AbortController();
+    flightLookupAbortRef.current = controller;
+
+    flightLookupSeedRef.current = `${code}::${depDate}`;
     setFlightLookupLoading(true);
-    setFlightLookupNote(null);
+    if (!silent) setFlightLookupNote(null);
+
     try {
       const res = await fetch('/api/flights/lookup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           flightNumber: code,
-          date: newFlight.departureDate,
+          date: depDate,
         }),
       });
+      const ct = (res.headers.get('content-type') || '').toLowerCase();
+      if (ct.includes('text/html')) {
+        throw new Error('純靜態託管環境無法使用自動航班查詢，請手動填寫下方機場與時間。');
+      }
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data?.error || '查無此航班資訊，請手動輸入。');
+        throw new Error((data as { error?: string })?.error || '查無此航班資訊，請手動輸入。');
       }
 
       const depOffset =
@@ -623,12 +668,18 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => 
       const arrOffset =
         typeof data.arrivalOffsetHours === 'number' ? data.arrivalOffsetHours : arrTz;
 
-      let computedArrivalDate = newFlight.departureDate;
-      if (data.nextDay && newFlight.departureDate) {
-        const ms = Date.parse(`${newFlight.departureDate}T00:00:00Z`);
+      const dayDelta =
+        typeof data.arrivalDayDelta === 'number'
+          ? data.arrivalDayDelta
+          : data.nextDay
+            ? 1
+            : 0;
+      let computedArrivalDate = depDate;
+      if (dayDelta !== 0 && depDate) {
+        const ms = Date.parse(`${depDate}T00:00:00Z`);
         if (!Number.isNaN(ms)) {
           const d = new Date(ms);
-          d.setUTCDate(d.getUTCDate() + 1);
+          d.setUTCDate(d.getUTCDate() + dayDelta);
           computedArrivalDate = d.toISOString().slice(0, 10);
         }
       }
@@ -638,27 +689,45 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => 
       setNewFlight((prev) => ({
         ...prev,
         flightNumber: data.flightNumber || code,
-        planeType: data.planeType || prev.planeType,
         departureCode: data.departureCode || prev.departureCode,
         arrivalCode: data.arrivalCode || prev.arrivalCode,
         departureTime: data.departureTime || prev.departureTime,
         arrivalTime: data.arrivalTime || prev.arrivalTime,
         arrivalDate: computedArrivalDate,
-        departureTimezone: timezones.find((t) => t.value === depOffset)?.label || prev.departureTimezone,
-        arrivalTimezone: timezones.find((t) => t.value === arrOffset)?.label || prev.arrivalTimezone,
+        departureTimezone: formatGmtOffset(depOffset),
+        arrivalTimezone: formatGmtOffset(arrOffset),
       }));
       const airlineLabel = data.airline ? `${data.airline} ` : '';
-      const note = `已自動帶入 ${airlineLabel}${data.flightNumber || code} (${data.departureCode} → ${data.arrivalCode})`;
+      const note = `已自動帶入 ${airlineLabel}${data.flightNumber || code} (${data.departureCode} → ${data.arrivalCode} · ${formatGmtOffset(depOffset)} → ${formatGmtOffset(arrOffset)})`;
       setFlightLookupNote(note);
-      onShowToast(note, 'success');
+      if (!silent) onShowToast(note, 'success');
     } catch (err) {
+      if ((err as { name?: string })?.name === 'AbortError') return;
       const msg = err instanceof Error ? err.message : '航班查詢失敗';
       setFlightLookupNote(msg);
-      onShowToast(msg, 'error');
+      if (!silent) onShowToast(msg, 'error');
     } finally {
-      setFlightLookupLoading(false);
+      if (flightLookupAbortRef.current === controller) {
+        flightLookupAbortRef.current = null;
+        setFlightLookupLoading(false);
+      }
     }
   };
+
+  useEffect(() => {
+    if (!showAddModal || modalMode !== 'FLIGHT') return;
+    const cleanCode = newFlight.flightNumber.trim().toUpperCase().replace(/\s+/g, '');
+    const depDate = newFlight.departureDate.trim();
+    const isLikelyFlightCode = /^[A-Z0-9]{2,3}\d{1,4}[A-Z]?$/.test(cleanCode) && /[A-Z]/.test(cleanCode) && /\d/.test(cleanCode);
+    if (!isLikelyFlightCode || !depDate) return;
+    const seedKey = `${cleanCode}::${depDate}`;
+    if (flightLookupSeedRef.current === seedKey) return;
+
+    const timer = window.setTimeout(() => {
+      void handleLookupFlight(cleanCode, depDate, true);
+    }, 550);
+    return () => window.clearTimeout(timer);
+  }, [showAddModal, modalMode, newFlight.flightNumber, newFlight.departureDate]);
 
   const getNextStartTime = () => {
     if (!currentActivities || currentActivities.length === 0) return '09:00';
@@ -1029,9 +1098,15 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => 
   const openEditModal = (activity: Activity) => {
     setEditingActivityId(activity.id);
     if (activity.type === 'flight' && activity.flightInfo) {
+      flightLookupSeedRef.current = `${activity.flightInfo.flightNumber.trim().toUpperCase()}::${activity.flightInfo.departureDate}`;
       setModalMode('FLIGHT');
       setNewFlight(activity.flightInfo);
+      const parsedDep = parseGmtOffsetLabel(activity.flightInfo.departureTimezone);
+      const parsedArr = parseGmtOffsetLabel(activity.flightInfo.arrivalTimezone);
+      if (parsedDep !== null) setDepTz(parsedDep);
+      if (parsedArr !== null) setArrTz(parsedArr);
     } else {
+      flightLookupSeedRef.current = null;
       setModalMode('PLAN');
       setNewActivity({
         time: activity.time,
@@ -1046,6 +1121,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => 
   };
 
   const openAddModal = () => {
+    flightLookupSeedRef.current = null;
     setEditingActivityId(null);
     setModalMode('PLAN');
     setSightseeingList([{ title: '', location: '', duration: '2h' }]);
@@ -1061,10 +1137,14 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => 
     });
     setNewFlight((prev) => ({
       ...prev,
+      flightNumber: '',
+      departureCode: '',
+      arrivalCode: '',
       departureDate: selectedDate || prev.departureDate,
       arrivalDate: selectedDate || prev.arrivalDate,
       departureTime: nextTime,
     }));
+    setFlightLookupNote(null);
     setShowAddModal(true);
   };
 
@@ -1669,50 +1749,50 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => 
             </div>
           ) : (
             <div className="space-y-4">
+              {/* Primary User Input: Flight Number + Departure Date (Auto-fetches airports, times & DST timezones) */}
               <div className="space-y-2">
-                <div className="grid grid-cols-12 gap-2.5 items-end">
-                  <div className="col-span-7 sm:col-span-6">
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
+                  <div className="sm:col-span-6">
                     <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1 block">
                       航班編號
                     </label>
-                    <div className="flex gap-1.5">
-                      <input
-                        type="text"
-                        placeholder="BR198"
-                        className="w-full h-11 rounded-2xl bg-zinc-100 dark:bg-white/[0.05] border border-zinc-200/70 dark:border-white/10 text-zinc-900 dark:text-white font-num font-bold text-center uppercase focus:outline-none px-2"
-                        value={newFlight.flightNumber}
-                        onChange={(e) => setNewFlight({ ...newFlight, flightNumber: e.target.value.toUpperCase() })}
-                      />
-                      <button
-                        type="button"
-                        onClick={handleLookupFlight}
-                        disabled={flightLookupLoading || newFlight.flightNumber.trim().length < 3}
-                        className="h-11 px-3 rounded-2xl bg-sky-500 hover:bg-sky-600 disabled:opacity-45 text-white text-xs font-semibold flex items-center gap-1 shrink-0 cursor-pointer transition-colors whitespace-nowrap"
-                        title="依航班編號自動查詢起降機場與時間"
-                      >
-                        <SparklesIcon className={`w-3.5 h-3.5 ${flightLookupLoading ? 'animate-spin' : ''}`} />
-                        <span>{flightLookupLoading ? '查詢中' : '自動帶入'}</span>
-                      </button>
-                    </div>
-                  </div>
-                  <div className="col-span-5 sm:col-span-6">
-                    <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1 block">
-                      機型（選填）
-                    </label>
                     <input
                       type="text"
-                      placeholder="A350"
-                      className="w-full h-11 rounded-2xl bg-zinc-100 dark:bg-white/[0.05] border border-zinc-200/70 dark:border-white/10 text-zinc-900 dark:text-white font-num font-bold text-center uppercase focus:outline-none"
-                      value={newFlight.planeType}
-                      onChange={(e) => setNewFlight({ ...newFlight, planeType: e.target.value.toUpperCase() })}
+                      placeholder="例如：BR198、CX504"
+                      className="w-full h-11 rounded-2xl bg-zinc-100 dark:bg-white/[0.05] border border-zinc-200/70 dark:border-white/10 text-zinc-900 dark:text-white font-num font-bold text-center uppercase focus:outline-none px-3"
+                      value={newFlight.flightNumber}
+                      onChange={(e) => setNewFlight({ ...newFlight, flightNumber: e.target.value.toUpperCase() })}
+                    />
+                  </div>
+                  <div className="sm:col-span-6">
+                    <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1 block">
+                      出發日期
+                    </label>
+                    <input
+                      type="date"
+                      value={newFlight.departureDate}
+                      onChange={(e) => setNewFlight({ ...newFlight, departureDate: e.target.value })}
+                      className="w-full h-11 rounded-2xl bg-zinc-100 dark:bg-white/[0.05] border border-zinc-200/70 dark:border-white/10 px-3 text-zinc-900 dark:text-white text-xs sm:text-sm font-num font-semibold focus:outline-none"
                     />
                   </div>
                 </div>
-                {flightLookupNote && (
-                  <p className="text-[11px] font-medium text-sky-600 dark:text-sky-400 px-1">
-                    {flightLookupNote}
+
+                <div className="flex items-center justify-between gap-2 px-1">
+                  <p className="text-[11px] font-medium text-sky-600 dark:text-sky-400 truncate">
+                    {flightLookupLoading
+                      ? '正在依航班號與日期自動抓取起降機場與時區...'
+                      : flightLookupNote || '輸入航班號與日期後將自動配對航線、時間與時區'}
                   </p>
-                )}
+                  <button
+                    type="button"
+                    onClick={() => void handleLookupFlight()}
+                    disabled={flightLookupLoading || newFlight.flightNumber.trim().length < 3}
+                    className="h-7 px-2.5 rounded-full bg-sky-500/12 hover:bg-sky-500/20 disabled:opacity-45 text-sky-600 dark:text-sky-300 text-[11px] font-semibold flex items-center gap-1 shrink-0 cursor-pointer transition-colors whitespace-nowrap"
+                  >
+                    <SparklesIcon className={`w-3 h-3 ${flightLookupLoading ? 'animate-spin' : ''}`} />
+                    <span>{flightLookupLoading ? '抓取中' : '重新抓取'}</span>
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1743,42 +1823,39 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => 
               </div>
 
               <div className="rounded-2xl p-4 bg-zinc-100/80 dark:bg-white/[0.04] border border-zinc-200/70 dark:border-white/10 space-y-2.5">
-                <div className="flex items-center gap-2 text-zinc-900 dark:text-white text-xs font-semibold">
-                  <PlaneIcon className="w-4 h-4 -rotate-45 text-sky-600" />
-                  <span>出發</span>
+                <div className="flex items-center justify-between text-zinc-900 dark:text-white text-xs font-semibold">
+                  <div className="flex items-center gap-2">
+                    <PlaneIcon className="w-4 h-4 -rotate-45 text-sky-600" />
+                    <span>出發時間與時區</span>
+                  </div>
+                  <span className="text-[11px] font-num text-zinc-400">{newFlight.departureDate}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <input
-                    type="date"
-                    value={newFlight.departureDate}
-                    onChange={(e) => setNewFlight({ ...newFlight, departureDate: e.target.value })}
-                    className="bg-white dark:bg-zinc-900/70 rounded-xl p-2.5 text-zinc-900 dark:text-white text-xs font-num font-semibold focus:outline-none"
-                  />
                   <input
                     type="time"
                     value={newFlight.departureTime}
                     onChange={(e) => setNewFlight({ ...newFlight, departureTime: e.target.value })}
                     className="bg-white dark:bg-zinc-900/70 rounded-xl p-2.5 text-zinc-900 dark:text-white text-xs font-num font-semibold focus:outline-none"
                   />
+                  <select
+                    className="w-full bg-white dark:bg-zinc-900/70 rounded-xl p-2.5 text-zinc-900 dark:text-white text-xs font-num font-semibold focus:outline-none"
+                    value={depTz}
+                    onChange={(e) => setDepTz(Number(e.target.value))}
+                  >
+                    {timezones.map((tz) => (
+                      <option key={tz.value} value={tz.value} className="bg-white dark:bg-zinc-900">
+                        {tz.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <select
-                  className="w-full bg-white dark:bg-zinc-900/70 rounded-xl p-2.5 text-zinc-900 dark:text-white text-xs font-num font-semibold focus:outline-none"
-                  value={depTz}
-                  onChange={(e) => setDepTz(Number(e.target.value))}
-                >
-                  {timezones.map((tz) => (
-                    <option key={tz.value} value={tz.value} className="bg-white dark:bg-zinc-900">
-                      {tz.label}
-                    </option>
-                  ))}
-                </select>
               </div>
 
               <div className="rounded-2xl p-4 bg-zinc-100/80 dark:bg-white/[0.04] border border-zinc-200/70 dark:border-white/10 space-y-2.5">
                 <div className="flex items-center justify-between text-zinc-900 dark:text-white text-xs font-semibold">
                   <div className="flex items-center gap-2">
                     <MapIcon className="w-4 h-4 text-emerald-600" />
-                    <span>抵達</span>
+                    <span>抵達時間與時區</span>
                   </div>
                   {newFlight.duration && (
                     <span className="font-num text-[#F26B3A]">{newFlight.duration}</span>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence, MotionConfig } from 'motion/react';
-import { Trip, Tab, TripType, Stop, Activity, ThemeMode } from './types';
+import { Trip, Tab, TripType, Stop, Activity, ThemeMode, SyncDevice } from './types';
 import { useTripSync, detectEditedSection, RemoteChangeNotification } from './hooks/useTripSync';
 import { useCloudAccountSync } from './hooks/useCloudAccountSync';
 import { fetchDestinationPhotoFast } from './hooks/useDestinationPhoto';
@@ -515,7 +515,15 @@ function App() {
     return 'ITINERARY';
   }, [activeTab]);
 
-  useEffect(() => {
+  const currentTopTint = useMemo(() => {
+    const palette = TAB_THEME_PALETTES[activeThemeKey];
+    if (view === 'TRIP') {
+      return isDarkResolved ? palette.darkTop : palette.lightTop;
+    }
+    return isDarkResolved ? '#0B0D14' : '#FDF0EB';
+  }, [activeThemeKey, view, isDarkResolved]);
+
+  useLayoutEffect(() => {
     const root = window.document.documentElement;
     if (isDarkResolved) {
       root.classList.add('dark');
@@ -531,41 +539,40 @@ function App() {
       root.removeAttribute('data-tab-theme');
     }
 
-    const palette = TAB_THEME_PALETTES[activeThemeKey];
-    const topTint =
-      view === 'TRIP'
-        ? isDarkResolved
-          ? palette.darkTop
-          : palette.lightTop
-        : isDarkResolved
-          ? '#0B0D14'
-          : '#FDF0EB';
-
-    root.style.backgroundColor = topTint;
+    root.style.backgroundColor = currentTopTint;
     if (document.body) {
-      document.body.style.backgroundColor = topTint;
+      document.body.style.backgroundColor = currentTopTint;
     }
 
-    const applyFreshMetas = () => {
-      document.querySelectorAll('meta[name="color-scheme"]').forEach((el) => el.remove());
-      const schemeMeta = document.createElement('meta');
-      schemeMeta.name = 'color-scheme';
-      schemeMeta.content = isDarkResolved ? 'dark' : 'light';
-      document.head.appendChild(schemeMeta);
+    const schemeMeta =
+      document.getElementById('waynote-color-scheme') ||
+      document.querySelector('meta[name="color-scheme"]');
+    if (schemeMeta) {
+      schemeMeta.setAttribute('content', isDarkResolved ? 'dark' : 'light');
+    }
 
-      document.querySelectorAll('meta[name="theme-color"]').forEach((el) => el.remove());
-      const freshThemeMeta = document.createElement('meta');
-      freshThemeMeta.name = 'theme-color';
-      freshThemeMeta.content = topTint;
-      document.head.appendChild(freshThemeMeta);
-    };
+    const appleBarMeta =
+      document.getElementById('waynote-apple-bar') ||
+      document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+    if (appleBarMeta) {
+      appleBarMeta.setAttribute('content', isDarkResolved ? 'black-translucent' : 'default');
+    }
 
-    applyFreshMetas();
-    const rafId = window.requestAnimationFrame(applyFreshMetas);
+    const themeMeta =
+      document.getElementById('waynote-theme-color') ||
+      document.querySelector('meta[name="theme-color"]');
+    if (themeMeta) {
+      themeMeta.setAttribute('content', currentTopTint);
+    } else {
+      const created = document.createElement('meta');
+      created.id = 'waynote-theme-color';
+      created.name = 'theme-color';
+      created.content = currentTopTint;
+      document.head.appendChild(created);
+    }
 
     localStorage.setItem(STORAGE_THEME_MODE_KEY, themeMode);
-    return () => window.cancelAnimationFrame(rafId);
-  }, [isDarkResolved, themeMode, view, activeThemeKey]);
+  }, [isDarkResolved, themeMode, view, activeThemeKey, currentTopTint]);
 
   const resetScrollDrift = useCallback(() => {
     if (typeof window === 'undefined') return;
@@ -665,6 +672,8 @@ function App() {
     syncStatus,
     connectedDevices,
     lastSyncedAt,
+    clientId,
+    deviceName,
     pushTripUpdate,
     joinSyncTripByCode,
   } = useTripSync({
@@ -672,6 +681,8 @@ function App() {
     onRemoteTrip: handleRemoteTrip,
     onRemoteChangeMeta: showSyncBubble,
   });
+
+  const latestRemoteCloudDeviceRef = useRef<string | null>(null);
 
   const handleApplyCloudSnapshot = useCallback(
     (nextActiveTrips: Trip[], nextArchivedTrips: Trip[]) => {
@@ -692,7 +703,7 @@ function App() {
         const diff = detectEditedSection(prev, found);
         if (diff && (found.updatedAt || 0) > (prev.updatedAt || 0)) {
           showSyncBubble({
-            deviceName: '另一台裝置',
+            deviceName: latestRemoteCloudDeviceRef.current || '另一台裝置',
             sectionLabel: diff.sectionLabel,
             targetTab: diff.targetTab,
           });
@@ -707,9 +718,29 @@ function App() {
   const cloudAuth = useCloudAccountSync({
     tripsList,
     archivedTrips,
+    activeTripId: view === 'TRIP' ? tripData?.id || null : 'HOME',
+    clientId,
+    deviceName,
     onApplyCloudSnapshot: handleApplyCloudSnapshot,
     onNotify: showToast,
   });
+
+  useEffect(() => {
+    latestRemoteCloudDeviceRef.current = cloudAuth.latestRemoteCloudDeviceName;
+  }, [cloudAuth.latestRemoteCloudDeviceName]);
+
+  const effectiveConnectedDevices = useMemo(() => {
+    const map = new Map<string, SyncDevice>();
+    for (const d of cloudAuth.cloudPresenceDevices) {
+      map.set(d.clientId, d);
+    }
+    for (const d of connectedDevices) {
+      map.set(d.clientId, d);
+    }
+    return Array.from(map.values());
+  }, [cloudAuth.cloudPresenceDevices, connectedDevices]);
+
+  const effectiveDeviceCount = effectiveConnectedDevices.length || 1;
 
   const handleLocalUpdateTrip = useCallback(
     (nextTrip: Trip) => {
@@ -1475,17 +1506,23 @@ function App() {
     if (syncStatus === 'connected') {
       return {
         dotClass: 'bg-emerald-500',
-        text: connectedDevices.length > 1 ? `${connectedDevices.length} 裝置同步中` : '即時同步',
+        text: effectiveDeviceCount > 1 ? `${effectiveDeviceCount} 裝置同步中` : '即時同步',
+      };
+    }
+    if (cloudAuth.user && cloudAuth.cloudStatus === 'synced') {
+      return {
+        dotClass: 'bg-emerald-500',
+        text: effectiveDeviceCount > 1 ? `${effectiveDeviceCount} 裝置雲端同步中` : '雲端即時同步',
       };
     }
     if (syncStatus === 'offline') {
       return { dotClass: 'bg-amber-500', text: '離線模式' };
     }
-    if (syncStatus === 'connecting' || syncStatus === 'reconnecting') {
+    if (syncStatus === 'connecting' || syncStatus === 'reconnecting' || cloudAuth.cloudStatus === 'connecting') {
       return { dotClass: 'bg-blue-500', text: '連線中' };
     }
     return { dotClass: 'bg-zinc-400', text: '同步待命' };
-  }, [syncStatus, connectedDevices.length]);
+  }, [syncStatus, effectiveDeviceCount, cloudAuth.user, cloudAuth.cloudStatus]);
 
   // Unified 4-Tab Navigation
   const navItems: {
@@ -1618,7 +1655,11 @@ function App() {
         data-scroll-lock
         className="fixed inset-0 w-full h-full overflow-clip app-canvas text-zinc-900 dark:text-zinc-100 select-none sm:select-auto"
       >
-        <div aria-hidden="true" className="app-backdrop pointer-events-none z-0" />
+        <div
+          aria-hidden="true"
+          className="app-backdrop pointer-events-none z-0"
+          style={{ backgroundColor: currentTopTint }}
+        />
         <input
           ref={importInputRef}
           type="file"
@@ -2768,7 +2809,7 @@ function App() {
                       >
                         <span className={`w-2 h-2 rounded-full ${syncBadge.dotClass}`} />
                         <DevicePhoneMobileIcon className="w-4 h-4" />
-                        <span className="font-num font-bold">{connectedDevices.length || 1}</span>
+                        <span className="font-num font-bold">{effectiveDeviceCount}</span>
                         <span className="hidden sm:inline text-[11px] text-zinc-500 dark:text-zinc-400">裝置</span>
                       </button>
                     </div>
@@ -2792,6 +2833,7 @@ function App() {
                     {(activeTab === Tab.TOOLBOX || activeTab === Tab.PACKING) && (
                       <PrepToolboxTool
                         trip={tripData}
+                        cloudUserId={cloudAuth.user?.emailVerified ? cloudAuth.user.uid : null}
                         onUpdateTrip={handleLocalUpdateTrip}
                         onShowToast={showToast}
                       />
@@ -2861,7 +2903,7 @@ function App() {
                                   </div>
                                   <span className="inline-flex items-center gap-1.5 text-xs font-num font-semibold text-white/90">
                                     <span className={`w-2 h-2 rounded-full ${syncBadge.dotClass}`} />
-                                    {connectedDevices.length || 1} 台裝置在線
+                                    {effectiveDeviceCount} 台裝置在線
                                   </span>
                                 </div>
 
@@ -3179,9 +3221,15 @@ function App() {
             open={isSyncHubOpen}
             onClose={() => setIsSyncHubOpen(false)}
             syncId={tripData.syncId || ''}
-            syncStatus={syncStatus}
-            connectedDevices={connectedDevices}
-            lastSyncedAt={lastSyncedAt}
+            syncStatus={
+              syncStatus === 'connected'
+                ? 'connected'
+                : cloudAuth.user && cloudAuth.cloudStatus === 'synced'
+                  ? 'connected'
+                  : syncStatus
+            }
+            connectedDevices={effectiveConnectedDevices}
+            lastSyncedAt={lastSyncedAt || cloudAuth.lastCloudSyncAt}
             onJoinByCode={handleJoinByCode}
             onRegenerateCode={handleRegenerateSyncCode}
             onShowToast={showToast}

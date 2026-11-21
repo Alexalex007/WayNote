@@ -418,6 +418,7 @@ export function useTripSync({ trip, onRemoteTrip, onRemoteChangeMeta }: UseTripS
     lastSyncedAt,
     syncError,
     clientId: clientIdRef.current,
+    deviceName: deviceLabelRef.current,
     pushTripUpdate,
     joinSyncTripByCode,
   };

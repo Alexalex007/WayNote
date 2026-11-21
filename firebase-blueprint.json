@@ -189,6 +189,138 @@
         "createdAt",
         "updatedAt"
       ]
+    },
+    "UserPresence": {
+      "title": "UserPresence",
+      "description": "Real-time cross-device session heartbeat scoped under the authenticated owner.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique browser/device session identifier.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Authenticated owner UID.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "tripId": {
+          "type": "string",
+          "description": "Currently active trip ID or HOME.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "deviceName": {
+          "type": "string",
+          "description": "Human-readable device label such as iPhone or Mac.",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "clientUpdatedAt": {
+          "type": "number",
+          "description": "Client millisecond heartbeat timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the latest presence heartbeat."
+        }
+      },
+      "required": ["id", "ownerId", "tripId", "deviceName", "clientUpdatedAt", "updatedAt"]
+    },
+    "UserFileManifest": {
+      "title": "UserFileManifest",
+      "description": "Metadata manifest for chunked cross-device travel document files.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique cloud file identifier.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Authenticated owner UID.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "tripId": {
+          "type": "string",
+          "description": "Associated trip identifier.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Original file name.",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "mimeType": {
+          "type": "string",
+          "description": "MIME type of the stored file.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "fileSize": {
+          "type": "number",
+          "description": "Byte length of the stored file."
+        },
+        "chunkCount": {
+          "type": "number",
+          "description": "Total number of base64 chunks stored under this manifest."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when file upload was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of latest manifest update."
+        }
+      },
+      "required": ["id", "ownerId", "tripId", "fileName", "mimeType", "fileSize", "chunkCount", "createdAt", "updatedAt"]
+    },
+    "UserFileChunk": {
+      "title": "UserFileChunk",
+      "description": "Base64-encoded binary slice of a user travel document (< 700 KB per doc).",
+      "type": "object",
+      "properties": {
+        "index": {
+          "type": "number",
+          "description": "Zero-based chunk order index."
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Authenticated owner UID.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "fileId": {
+          "type": "string",
+          "description": "Parent file manifest ID.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "data": {
+          "type": "string",
+          "description": "Base64 slice payload.",
+          "minLength": 1,
+          "maxLength": 700000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of chunk creation."
+        }
+      },
+      "required": ["index", "ownerId", "fileId", "data", "createdAt"]
     }
   },
   "firestore": {
@@ -199,6 +331,18 @@
     "/users/{userId}/trips/{tripId}": {
       "schema": { "$ref": "#/entities/UserTrip" },
       "description": "Private trips owned by a user, synced in real time across their signed-in devices."
+    },
+    "/users/{userId}/presence/{sessionId}": {
+      "schema": { "$ref": "#/entities/UserPresence" },
+      "description": "Real-time cross-device session heartbeat for accurate live device count across domains."
+    },
+    "/users/{userId}/files/{fileId}": {
+      "schema": { "$ref": "#/entities/UserFileManifest" },
+      "description": "Manifest metadata for uploaded travel documents synced across devices."
+    },
+    "/users/{userId}/files/{fileId}/chunks/{chunkId}": {
+      "schema": { "$ref": "#/entities/UserFileChunk" },
+      "description": "Ordered binary chunks belonging to a cloud-synced travel document."
     }
   }
 }

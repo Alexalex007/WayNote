@@ -10,6 +10,8 @@ import {
   upsertCloudTrip,
   updateCloudTripArchived,
   deleteCloudTrip,
+  upsertCloudPresence,
+  removeCloudPresence,
   signInWithGooglePopup,
   signInWithApplePopup,
   signOutFirebase,
@@ -19,13 +21,19 @@ import {
   OperationType,
 } from '../services/firebaseClient';
 import { mergeTrips } from '../shared/syncMerge';
-import type { Trip } from '../types';
+import type { Trip, SyncDevice } from '../types';
 
 export type CloudSyncState = 'signed-out' | 'connecting' | 'synced' | 'syncing' | 'error';
+
+const CLOUD_PRESENCE_STALE_MS = 28_000;
+const CLOUD_PRESENCE_HEARTBEAT_MS = 8_000;
 
 interface UseCloudAccountSyncOptions {
   tripsList: Trip[];
   archivedTrips: Trip[];
+  activeTripId?: string | null;
+  clientId?: string;
+  deviceName?: string;
   onApplyCloudSnapshot: (nextActiveTrips: Trip[], nextArchivedTrips: Trip[]) => void;
   onNotify?: (text: string, tone?: 'info' | 'success' | 'error') => void;
 }
@@ -60,6 +68,9 @@ function docToTrip(raw: Record<string, unknown>): Trip {
 export function useCloudAccountSync({
   tripsList,
   archivedTrips,
+  activeTripId,
+  clientId,
+  deviceName,
   onApplyCloudSnapshot,
   onNotify,
 }: UseCloudAccountSyncOptions) {
@@ -69,13 +80,22 @@ export function useCloudAccountSync({
   const [lastCloudSyncAt, setLastCloudSyncAt] = useState<number | null>(null);
   const [cloudError, setCloudError] = useState<string | null>(null);
   const [quotaUpgradeUrl, setQuotaUpgradeUrl] = useState<string | null>(null);
+  const [rawPresenceEntries, setRawPresenceEntries] = useState<
+    Array<{ id: string; tripId: string; deviceName: string; clientUpdatedAt: number }>
+  >([]);
+  const [presenceTick, setPresenceTick] = useState<number>(() => Date.now());
 
   const tripsListRef = useRef<Trip[]>(tripsList);
   const archivedTripsRef = useRef<Trip[]>(archivedTrips);
   const knownCloudIdsRef = useRef<Set<string>>(new Set());
   const profileReadyUidRef = useRef<string | null>(null);
+  const presenceDocExistsRef = useRef<boolean>(false);
   const onApplyRef = useRef(onApplyCloudSnapshot);
   const onNotifyRef = useRef(onNotify);
+
+  const safeSessionId = sanitizeValidId(clientId || 'browser_session');
+  const safeDeviceLabel = (deviceName || 'Web 裝置').trim().slice(0, 60) || 'Web 裝置';
+  const normalizedTripScope = sanitizeValidId(activeTripId || 'HOME');
 
   useEffect(() => {
     tripsListRef.current = tripsList;
@@ -101,12 +121,23 @@ export function useCloudAccountSync({
       if (!nextUser) {
         knownCloudIdsRef.current = new Set();
         profileReadyUidRef.current = null;
+        presenceDocExistsRef.current = false;
+        setRawPresenceEntries([]);
         setCloudStatus('signed-out');
         setCloudError(null);
       }
     });
     return () => unsub();
   }, []);
+
+  // Periodic local freshness re-evaluation so stale remote devices drop immediately after timeout
+  useEffect(() => {
+    if (!user) return;
+    const t = window.setInterval(() => {
+      setPresenceTick(Date.now());
+    }, 2000);
+    return () => window.clearInterval(t);
+  }, [user]);
 
   // Attach private Firestore listener when signed in and verified
   useEffect(() => {
@@ -258,6 +289,118 @@ export function useCloudAccountSync({
     };
   }, [authReady, user]);
 
+  // Real-time Cross-Device Presence subscription + heartbeat across all signed-in domains/devices
+  useEffect(() => {
+    if (!authReady || !user || !user.emailVerified) {
+      setRawPresenceEntries([]);
+      return;
+    }
+
+    let cancelled = false;
+    let unsubPresence: (() => void) | null = null;
+    const uid = sanitizeValidId(user.uid);
+    const presencePath = `users/${uid}/presence`;
+
+    const sendHeartbeat = async () => {
+      if (cancelled || document.visibilityState === 'hidden') return;
+      try {
+        if (profileReadyUidRef.current !== uid) {
+          await ensureUserProfile(user);
+          profileReadyUidRef.current = uid;
+        }
+        if (cancelled) return;
+        await upsertCloudPresence({
+          userId: uid,
+          sessionId: safeSessionId,
+          tripId: normalizedTripScope,
+          deviceName: safeDeviceLabel,
+          knownExists: presenceDocExistsRef.current,
+        });
+        presenceDocExistsRef.current = true;
+      } catch (err) {
+        if (!isFirestoreQuotaError(err)) {
+          console.error('Presence heartbeat error:', err);
+        }
+      }
+    };
+
+    const startPresence = async () => {
+      try {
+        if (profileReadyUidRef.current !== uid) {
+          await ensureUserProfile(user);
+          profileReadyUidRef.current = uid;
+        }
+        if (cancelled) return;
+
+        const q = query(collection(db, 'users', uid, 'presence'), where('ownerId', '==', uid));
+        unsubPresence = onSnapshot(
+          q,
+          (snap) => {
+            if (cancelled) return;
+            const list: Array<{ id: string; tripId: string; deviceName: string; clientUpdatedAt: number }> = [];
+            snap.forEach((docSnap) => {
+              const d = docSnap.data() as Record<string, unknown>;
+              const entryId = String(d.id || docSnap.id);
+              if (entryId === safeSessionId) {
+                presenceDocExistsRef.current = true;
+              }
+              list.push({
+                id: entryId,
+                tripId: String(d.tripId || 'HOME'),
+                deviceName: String(d.deviceName || 'Web 裝置'),
+                clientUpdatedAt: Number(d.clientUpdatedAt || Date.now()),
+              });
+            });
+            setRawPresenceEntries(list);
+            setPresenceTick(Date.now());
+          },
+          (error) => {
+            if (cancelled) return;
+            if (!isFirestoreQuotaError(error)) {
+              handleFirestoreError(error, OperationType.LIST, presencePath);
+            }
+          }
+        );
+
+        await sendHeartbeat();
+      } catch (err) {
+        if (!isFirestoreQuotaError(err)) {
+          console.error('Presence init error:', err);
+        }
+      }
+    };
+
+    void startPresence();
+
+    const heartbeatTimer = window.setInterval(() => {
+      void sendHeartbeat();
+    }, CLOUD_PRESENCE_HEARTBEAT_MS);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void sendHeartbeat();
+      }
+    };
+
+    const handleUnload = () => {
+      presenceDocExistsRef.current = false;
+      void removeCloudPresence(uid, safeSessionId).catch(() => undefined);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('pagehide', handleUnload);
+    window.addEventListener('beforeunload', handleUnload);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(heartbeatTimer);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('pagehide', handleUnload);
+      window.removeEventListener('beforeunload', handleUnload);
+      if (unsubPresence) unsubPresence();
+    };
+  }, [authReady, user, safeSessionId, safeDeviceLabel, normalizedTripScope]);
+
   const pushTripToCloud = useCallback(
     async (trip: Trip, archived = false) => {
       if (!user || !user.emailVerified) return;
@@ -351,9 +494,34 @@ export function useCloudAccountSync({
   }, []);
 
   const handleSignOut = useCallback(async () => {
+    if (user) {
+      const uid = sanitizeValidId(user.uid);
+      presenceDocExistsRef.current = false;
+      await removeCloudPresence(uid, safeSessionId).catch(() => undefined);
+    }
     await signOutFirebase();
     onNotifyRef.current?.('已登出雲端帳號', 'info');
-  }, []);
+  }, [user, safeSessionId]);
+
+  const cloudPresenceDevices: SyncDevice[] = rawPresenceEntries
+    .filter(
+      (entry) =>
+        entry.id === safeSessionId ||
+        (entry.tripId === normalizedTripScope && presenceTick - entry.clientUpdatedAt <= CLOUD_PRESENCE_STALE_MS)
+    )
+    .map((entry) => ({
+      clientId: entry.id,
+      deviceName: entry.deviceName,
+      connectedAt: entry.clientUpdatedAt,
+    }));
+
+  const latestRemoteCloudDeviceName =
+    rawPresenceEntries
+      .filter(
+        (entry) =>
+          entry.id !== safeSessionId && presenceTick - entry.clientUpdatedAt <= CLOUD_PRESENCE_STALE_MS
+      )
+      .sort((a, b) => b.clientUpdatedAt - a.clientUpdatedAt)[0]?.deviceName || null;
 
   return {
     user,
@@ -362,6 +530,8 @@ export function useCloudAccountSync({
     lastCloudSyncAt,
     cloudError,
     quotaUpgradeUrl,
+    cloudPresenceDevices,
+    latestRemoteCloudDeviceName,
     signInWithGoogle,
     signInWithApple,
     signOut: handleSignOut,

@@ -26,13 +26,14 @@ export interface DocumentItem {
   fileSize?: number;
   mimeType?: string;
   content: string;
+  cloudFileId?: string;
   createdAt: string;
   updatedAt?: number;
 }
 
 export interface FlightInfo {
   flightNumber: string;
-  planeType: string;
+  planeType?: string;
   departureCode: string;
   arrivalCode: string;
   departureDate: string;

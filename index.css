@@ -173,7 +173,6 @@
     min-height: -webkit-fill-available;
     overscroll-behavior: none;
     background-color: var(--safe-top-tint);
-    transition: background-color 0.35s ease;
   }
 
   body {
@@ -185,27 +184,14 @@
     min-height: -webkit-fill-available;
     overscroll-behavior: none;
     background-color: var(--safe-top-tint);
-    background-image:
-      linear-gradient(180deg, var(--safe-top-tint) 0px, var(--safe-top-tint) calc(env(safe-area-inset-top, 0px) + 8px), transparent calc(env(safe-area-inset-top, 0px) + 170px)),
-      radial-gradient(60% 46% at 12% 10%, var(--tab-glow-1) 0%, transparent 72%),
-      radial-gradient(56% 42% at 88% 12%, var(--tab-glow-2) 0%, transparent 70%),
-      radial-gradient(62% 46% at 22% 94%, var(--tab-glow-3) 0%, transparent 72%),
-      linear-gradient(180deg, var(--safe-top-tint) 0%, var(--bg-canvas) 240px);
     font-family: var(--font-sans);
     color: var(--text-primary);
     -webkit-tap-highlight-color: transparent;
-    transition: background-color 0.35s ease, color 0.2s ease;
   }
 
   html.dark,
   html.dark body {
     background-color: var(--safe-top-tint);
-    background-image:
-      linear-gradient(180deg, var(--safe-top-tint) 0px, var(--safe-top-tint) calc(env(safe-area-inset-top, 0px) + 8px), transparent calc(env(safe-area-inset-top, 0px) + 170px)),
-      radial-gradient(60% 46% at 14% 10%, var(--tab-glow-1) 0%, transparent 72%),
-      radial-gradient(56% 42% at 86% 12%, var(--tab-glow-2) 0%, transparent 70%),
-      radial-gradient(62% 46% at 24% 94%, var(--tab-glow-3) 0%, transparent 72%),
-      linear-gradient(180deg, var(--safe-top-tint) 0%, var(--bg-canvas) 240px);
   }
 
   #root {
@@ -251,7 +237,6 @@
     radial-gradient(56% 42% at 88% 16%, var(--tab-glow-2) 0%, transparent 70%),
     radial-gradient(62% 46% at 22% 88%, var(--tab-glow-3) 0%, transparent 72%),
     linear-gradient(180deg, var(--safe-top-tint) 0%, var(--bg-canvas) 260px);
-  transition: background-color 0.35s ease;
 }
 
 html.dark .app-backdrop {

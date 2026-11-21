@@ -121,6 +121,9 @@ export const AiPlannerModal: React.FC<AiPlannerModalProps> = ({
     setLoading(true);
     setErrorMsg(null);
 
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 58000);
+
     try {
       const hotelsList = (trip.hotels || []).slice(0, 4).map((h) => `${h.name} (${h.checkIn}~${h.checkOut})`);
       const existingActivities = trip.activities?.[targetStartDate] || [];
@@ -134,7 +137,11 @@ export const AiPlannerModal: React.FC<AiPlannerModalProps> = ({
 
       const res = await fetch('/api/ai/plan-itinerary', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/x-ndjson, application/json',
+        },
+        signal: controller.signal,
         body: JSON.stringify({
           destination: destinationInput.trim() || trip.destination,
           userPrompt: userPrompt.trim(),
@@ -147,20 +154,79 @@ export const AiPlannerModal: React.FC<AiPlannerModalProps> = ({
         }),
       });
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data?.error || 'AI 行程規劃失敗，請稍後再試。');
+      const contentType = (res.headers.get('content-type') || '').toLowerCase();
+      let payload: unknown = null;
+
+      if (contentType.includes('application/x-ndjson') && res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let streamError: string | null = null;
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+          for (const rawLine of lines) {
+            const line = rawLine.trim();
+            if (!line) continue;
+            try {
+              const event = JSON.parse(line) as { type?: string; data?: unknown; error?: string };
+              if (event.type === 'result' && event.data) {
+                payload = event.data;
+              } else if (event.type === 'error') {
+                streamError = event.error || 'AI 行程規劃失敗，請稍後再試。';
+              }
+            } catch {
+              // ignore malformed keepalive fragment
+            }
+          }
+        }
+        if (buffer.trim()) {
+          try {
+            const event = JSON.parse(buffer.trim()) as { type?: string; data?: unknown; error?: string };
+            if (event.type === 'result' && event.data) {
+              payload = event.data;
+            } else if (event.type === 'error') {
+              streamError = event.error || 'AI 行程規劃失敗，請稍後再試。';
+            }
+          } catch {
+            // ignore trailing fragment
+          }
+        }
+        if (streamError) {
+          throw new Error(streamError);
+        }
+        if (!res.ok && !payload) {
+          throw new Error('AI 行程規劃失敗，請稍後再試。');
+        }
+      } else if (contentType.includes('text/html')) {
+        throw new Error('目前網站為純靜態託管環境，AI 規劃需透過整合伺服器的網址執行。');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error((data as { error?: string })?.error || 'AI 行程規劃失敗，請稍後再試。');
+        }
+        payload = data;
       }
 
-      if (!Array.isArray(data?.days) || data.days.length === 0) {
+      const parsed = payload as AiPlanResult | null;
+      if (!parsed || !Array.isArray(parsed.days) || parsed.days.length === 0) {
         throw new Error('AI 未能產生有效的每日行程，請補充目的地或景點描述再試一次。');
       }
 
-      setResult(data as AiPlanResult);
+      setResult(parsed);
       setPreviewDayIdx(0);
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'AI 行程規劃請求發生錯誤。');
+      if ((err as { name?: string })?.name === 'AbortError') {
+        setErrorMsg('AI 規劃回應逾時，請稍後再按一次規劃。');
+      } else {
+        setErrorMsg(err instanceof Error ? err.message : 'AI 行程規劃請求發生錯誤。');
+      }
     } finally {
+      window.clearTimeout(timeoutId);
       setLoading(false);
     }
   };

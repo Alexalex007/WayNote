@@ -5,6 +5,7 @@ import { generateUniqueId } from '../shared/syncMerge';
 import { detectDestinationIntel, getDestinationLocalTime } from '../shared/destinationIntel';
 import { WeatherModal, WeatherGlyph, useLiveWeather } from './WeatherModal';
 import { LiquidModal, ConfirmSheet, SlidingSegmentedControl } from './LiquidPrimitives';
+import { uploadCloudFile, downloadCloudFileUrl, deleteCloudFile } from '../services/firebaseClient';
 import {
   PlusIcon,
   TrashIcon,
@@ -29,6 +30,7 @@ import {
 
 interface Props {
   trip: Trip;
+  cloudUserId?: string | null;
   onUpdateTrip: (trip: Trip) => void;
   onShowToast: (text: string, tone?: 'info' | 'success' | 'error') => void;
 }
@@ -156,7 +158,7 @@ const PackingRow: React.FC<PackingRowProps> = ({ item, onToggle, onCommitName, o
   );
 };
 
-const PrepToolboxTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
+const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onShowToast }) => {
   const [section, setSection] = useState<'LISTS' | 'TOOLS' | 'DOCS'>('LISTS');
   const [listMode, setListMode] = useState<'PACKING' | 'SHOPPING'>('PACKING');
   const [newItemText, setNewItemText] = useState('');
@@ -164,6 +166,9 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) =
 
   // Toolbox & Document Metadata states
   const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
+  const [resolvedPreviewUrl, setResolvedPreviewUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [deleteDocTarget, setDeleteDocTarget] = useState<DocumentItem | null>(null);
   const [showWeatherModal, setShowWeatherModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -181,12 +186,68 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) =
   const [editNoteDraft, setEditNoteDraft] = useState('');
 
   useEffect(() => {
-    if (previewDoc) {
-      setEditTitleDraft(previewDoc.title);
-      setEditCategoryDraft(previewDoc.docCategory || 'other');
-      setEditNoteDraft(previewDoc.note || '');
+    if (!previewDoc) {
+      setResolvedPreviewUrl(null);
+      setPreviewLoading(false);
+      setPreviewError(null);
+      return;
     }
-  }, [previewDoc]);
+
+    setEditTitleDraft(previewDoc.title);
+    setEditCategoryDraft(previewDoc.docCategory || 'other');
+    setEditNoteDraft(previewDoc.note || '');
+    setPreviewError(null);
+
+    let cancelled = false;
+
+    const resolveContent = async () => {
+      const cloudId =
+        previewDoc.cloudFileId ||
+        (previewDoc.content.startsWith('cloud://file/')
+          ? previewDoc.content.slice('cloud://file/'.length)
+          : undefined);
+
+      // Prefer cloud file resolution when signed in and cloudFileId exists (works across any device/origin)
+      if (cloudId && cloudUserId) {
+        setPreviewLoading(true);
+        try {
+          const url = await downloadCloudFileUrl(cloudUserId, cloudId);
+          if (!cancelled) {
+            setResolvedPreviewUrl(url);
+            setPreviewLoading(false);
+          }
+          return;
+        } catch (err) {
+          if (previewDoc.content.startsWith('cloud://')) {
+            if (!cancelled) {
+              setPreviewLoading(false);
+              setPreviewError(err instanceof Error ? err.message : '無法讀取雲端檔案');
+            }
+            return;
+          }
+        }
+      }
+
+      if (previewDoc.content.startsWith('cloud://')) {
+        if (!cancelled) {
+          setResolvedPreviewUrl(null);
+          setPreviewLoading(false);
+          setPreviewError('請先登入與原裝置相同的雲端帳號以檢視此檔案');
+        }
+        return;
+      }
+
+      if (!cancelled) {
+        setResolvedPreviewUrl(previewDoc.content);
+        setPreviewLoading(false);
+      }
+    };
+
+    void resolveContent();
+    return () => {
+      cancelled = true;
+    };
+  }, [previewDoc, cloudUserId]);
 
   useEffect(() => {
     if (!pendingFile) {
@@ -337,18 +398,52 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) =
     setIsUploadingDoc(true);
 
     try {
-      const res = await fetch('/api/documents/upload', {
-        method: 'POST',
-        headers: {
-          'Content-Type': pendingFile.type || 'application/octet-stream',
-          'X-File-Name': encodeURIComponent(pendingFile.name),
-        },
-        body: pendingFile,
-      });
+      let serverUrl: string | null = null;
+      let serverMime: string | undefined;
+      let cloudFileId: string | undefined;
 
-      const uploaded = await res.json().catch(() => ({}));
-      if (!res.ok || !uploaded?.url) {
-        throw new Error(uploaded?.error || '檔案上傳失敗，請稍後再試');
+      // 1. Always upload to private Firestore chunked storage when signed in so all devices/domains can view & download
+      if (cloudUserId) {
+        const uploadedCloud = await uploadCloudFile({
+          userId: cloudUserId,
+          tripId: trip.id,
+          file: pendingFile,
+        });
+        cloudFileId = uploadedCloud.fileId;
+        serverMime = uploadedCloud.mimeType;
+      }
+
+      // 2. Also upload to same-origin server endpoint when available (supports companion room sync without login)
+      try {
+        const res = await fetch('/api/documents/upload', {
+          method: 'POST',
+          headers: {
+            'Content-Type': pendingFile.type || 'application/octet-stream',
+            'X-File-Name': encodeURIComponent(pendingFile.name),
+          },
+          body: pendingFile,
+        });
+        const uploaded = await res.json().catch(() => ({}));
+        if (res.ok && uploaded?.url) {
+          serverUrl = uploaded.url;
+          serverMime = uploaded.mimeType || serverMime;
+        }
+      } catch {
+        // Static deploy without Express API: ignore if Firestore cloud upload succeeded
+      }
+
+      // 3. Fallback Data URL for small files when offline / static deploy without login
+      if (!cloudFileId && !serverUrl) {
+        if (pendingFile.size <= 1.2 * 1024 * 1024) {
+          serverUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result || ''));
+            reader.onerror = () => reject(new Error('讀取檔案失敗'));
+            reader.readAsDataURL(pendingFile);
+          });
+        } else {
+          throw new Error('請先登入雲端帳號，即可跨裝置同步 20MB 大型文件');
+        }
       }
 
       const now = Date.now();
@@ -360,8 +455,9 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) =
         note: docNoteDraft.trim() || undefined,
         fileName: pendingFile.name,
         fileSize: pendingFile.size,
-        mimeType: pendingFile.type || uploaded.mimeType,
-        content: uploaded.url,
+        mimeType: pendingFile.type || serverMime,
+        content: serverUrl || `cloud://file/${cloudFileId}`,
+        cloudFileId,
         createdAt: new Date().toLocaleDateString('zh-TW'),
         updatedAt: now,
       };
@@ -375,7 +471,7 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) =
       setPendingFile(null);
       setDocTitleDraft('');
       setDocNoteDraft('');
-      onShowToast('已儲存並同步文件', 'success');
+      onShowToast(cloudFileId ? '已儲存並同步文件至所有裝置' : '已儲存文件', 'success');
     } catch (err) {
       onShowToast(err instanceof Error ? err.message : '檔案上傳失敗', 'error');
     } finally {
@@ -415,6 +511,14 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) =
     });
     if (deleteDocTarget.content.startsWith('/api/documents/')) {
       void fetch(deleteDocTarget.content, { method: 'DELETE' }).catch(() => undefined);
+    }
+    const cloudId =
+      deleteDocTarget.cloudFileId ||
+      (deleteDocTarget.content.startsWith('cloud://file/')
+        ? deleteDocTarget.content.slice('cloud://file/'.length)
+        : undefined);
+    if (cloudId && cloudUserId) {
+      void deleteCloudFile(cloudUserId, cloudId).catch(() => undefined);
     }
     if (previewDoc?.id === deleteDocTarget.id) setPreviewDoc(null);
     onShowToast('已移除文件');
@@ -948,15 +1052,27 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) =
         {previewDoc && (
           <div className="space-y-4 overflow-y-auto no-scrollbar max-h-[75vh] pr-0.5">
             <div className="max-h-[48vh] overflow-auto rounded-2xl bg-zinc-100 dark:bg-zinc-950/60 flex items-center justify-center p-3">
-              {isDocImage(previewDoc) ? (
+              {previewLoading ? (
+                <div className="py-12 px-6 text-center space-y-2">
+                  <div className="w-6 h-6 border-2 border-[var(--tab-accent)] border-t-transparent rounded-full animate-spin mx-auto" />
+                  <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">正在從雲端載入文件...</p>
+                </div>
+              ) : previewError || !resolvedPreviewUrl ? (
+                <div className="py-10 px-6 text-center space-y-2">
+                  <DocumentTextIcon className="w-10 h-10 text-zinc-400 mx-auto" />
+                  <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                    {previewError || '無法載入預覽內容'}
+                  </p>
+                </div>
+              ) : isDocImage(previewDoc) ? (
                 <img
-                  src={previewDoc.content}
+                  src={resolvedPreviewUrl}
                   alt={previewDoc.title}
                   className="max-w-full max-h-[44vh] object-contain rounded-xl"
                 />
               ) : previewDoc.mimeType === 'application/pdf' || /\.pdf$/i.test(previewDoc.fileName || previewDoc.title) ? (
                 <iframe
-                  src={previewDoc.content}
+                  src={resolvedPreviewUrl}
                   title={previewDoc.title}
                   className="w-full h-[42vh] rounded-xl bg-white"
                 />
@@ -1030,9 +1146,14 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) =
                 {previewDoc.fileSize ? ` · ${formatFileSize(previewDoc.fileSize)}` : ''}
               </span>
               <a
-                href={previewDoc.content}
+                href={resolvedPreviewUrl || '#'}
                 download={previewDoc.fileName || previewDoc.title}
-                className="min-h-[42px] px-5 rounded-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-xs font-semibold inline-flex items-center gap-2 shrink-0"
+                onClick={(e) => {
+                  if (!resolvedPreviewUrl) e.preventDefault();
+                }}
+                className={`min-h-[42px] px-5 rounded-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-xs font-semibold inline-flex items-center gap-2 shrink-0 ${
+                  !resolvedPreviewUrl ? 'opacity-40 pointer-events-none' : ''
+                }`}
               >
                 <ArrowDownTrayIcon className="w-4 h-4" />
                 <span>下載檔案</span>

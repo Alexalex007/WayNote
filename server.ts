@@ -1273,35 +1273,132 @@ async function startServer() {
     res.status(204).end();
   });
 
+  const AIRPORT_IANA_MAP: Record<string, string> = {
+    TPE: 'Asia/Taipei', TSA: 'Asia/Taipei', KHH: 'Asia/Taipei', RMQ: 'Asia/Taipei',
+    HKG: 'Asia/Hong_Kong', MFM: 'Asia/Macau',
+    NRT: 'Asia/Tokyo', HND: 'Asia/Tokyo', KIX: 'Asia/Tokyo', ITM: 'Asia/Tokyo',
+    NGO: 'Asia/Tokyo', CTS: 'Asia/Tokyo', FUK: 'Asia/Tokyo', OKA: 'Asia/Tokyo',
+    SDJ: 'Asia/Tokyo', KOJ: 'Asia/Tokyo', KMJ: 'Asia/Tokyo', HIJ: 'Asia/Tokyo',
+    ICN: 'Asia/Seoul', GMP: 'Asia/Seoul', PUS: 'Asia/Seoul', CJU: 'Asia/Seoul',
+    BKK: 'Asia/Bangkok', DMK: 'Asia/Bangkok', CNX: 'Asia/Bangkok', HKT: 'Asia/Bangkok',
+    SIN: 'Asia/Singapore', KUL: 'Asia/Kuala_Lumpur', PEN: 'Asia/Kuala_Lumpur', BKI: 'Asia/Kuching',
+    SGN: 'Asia/Ho_Chi_Minh', HAN: 'Asia/Ho_Chi_Minh', DAD: 'Asia/Ho_Chi_Minh',
+    MNL: 'Asia/Manila', CEB: 'Asia/Manila', CGK: 'Asia/Jakarta', DPS: 'Asia/Makassar',
+    RGN: 'Asia/Yangon', PNH: 'Asia/Phnom_Penh',
+    PVG: 'Asia/Shanghai', SHA: 'Asia/Shanghai', PEK: 'Asia/Shanghai', PKX: 'Asia/Shanghai',
+    CAN: 'Asia/Shanghai', SZX: 'Asia/Shanghai', HGH: 'Asia/Shanghai', CTU: 'Asia/Shanghai',
+    TFU: 'Asia/Shanghai', CKG: 'Asia/Shanghai', XIY: 'Asia/Shanghai', KMG: 'Asia/Shanghai',
+    NKG: 'Asia/Shanghai', TAO: 'Asia/Shanghai', DLC: 'Asia/Shanghai', WUH: 'Asia/Shanghai', XMN: 'Asia/Shanghai',
+    DEL: 'Asia/Kolkata', BOM: 'Asia/Kolkata', BLR: 'Asia/Kolkata', MAA: 'Asia/Kolkata',
+    DXB: 'Asia/Dubai', AUH: 'Asia/Dubai', DOH: 'Asia/Qatar', RUH: 'Asia/Riyadh', JED: 'Asia/Riyadh',
+    IST: 'Europe/Istanbul', SAW: 'Europe/Istanbul', CAI: 'Africa/Cairo', JNB: 'Africa/Johannesburg',
+    LHR: 'Europe/London', LGW: 'Europe/London', STN: 'Europe/London', MAN: 'Europe/London', EDI: 'Europe/London',
+    DUB: 'Europe/Dublin',
+    CDG: 'Europe/Paris', ORY: 'Europe/Paris', NCE: 'Europe/Paris', LYS: 'Europe/Paris',
+    FRA: 'Europe/Berlin', MUC: 'Europe/Berlin', BER: 'Europe/Berlin', HAM: 'Europe/Berlin',
+    AMS: 'Europe/Amsterdam', BRU: 'Europe/Brussels',
+    ZRH: 'Europe/Zurich', GVA: 'Europe/Zurich', VIE: 'Europe/Vienna', PRG: 'Europe/Prague',
+    MXP: 'Europe/Rome', FCO: 'Europe/Rome', VCE: 'Europe/Rome',
+    MAD: 'Europe/Madrid', BCN: 'Europe/Madrid', LIS: 'Europe/Lisbon', OPO: 'Europe/Lisbon',
+    ATH: 'Europe/Athens', CPH: 'Europe/Copenhagen', OSL: 'Europe/Oslo', ARN: 'Europe/Stockholm',
+    HEL: 'Europe/Helsinki', KEF: 'Atlantic/Reykjavik', WAW: 'Europe/Warsaw', BUD: 'Europe/Budapest',
+    JFK: 'America/New_York', EWR: 'America/New_York', LGA: 'America/New_York',
+    BOS: 'America/New_York', IAD: 'America/New_York', ATL: 'America/New_York', MIA: 'America/New_York',
+    ORD: 'America/Chicago', DFW: 'America/Chicago', IAH: 'America/Chicago',
+    DEN: 'America/Denver',
+    LAX: 'America/Los_Angeles', SFO: 'America/Los_Angeles', SEA: 'America/Los_Angeles',
+    LAS: 'America/Los_Angeles', SAN: 'America/Los_Angeles',
+    HNL: 'Pacific/Honolulu',
+    YVR: 'America/Vancouver', YYZ: 'America/Toronto', YUL: 'America/Toronto',
+    MEX: 'America/Mexico_City', GRU: 'America/Sao_Paulo', EZE: 'America/Argentina/Buenos_Aires', SCL: 'America/Santiago',
+    SYD: 'Australia/Sydney', MEL: 'Australia/Melbourne', BNE: 'Australia/Brisbane',
+    ADL: 'Australia/Adelaide', PER: 'Australia/Perth',
+    AKL: 'Pacific/Auckland', CHC: 'Pacific/Auckland',
+  };
+  const airportTzCache = new Map<string, string>();
+
+  const getOffsetHoursForDate = (ianaTimeZone: string, dateIso?: string): number | null => {
+    try {
+      const probe = dateIso && /^\d{4}-\d{2}-\d{2}$/.test(dateIso)
+        ? new Date(`${dateIso}T12:00:00Z`)
+        : new Date();
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: ianaTimeZone,
+        timeZoneName: 'shortOffset',
+      }).formatToParts(probe);
+      const tzVal = parts.find((p) => p.type === 'timeZoneName')?.value || '';
+      if (tzVal === 'GMT' || tzVal === 'UTC') return 0;
+      const m = tzVal.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/i);
+      if (!m) return null;
+      const sign = m[1] === '-' ? -1 : 1;
+      return sign * (Number(m[2]) + Number(m[3] || 0) / 60);
+    } catch {
+      return null;
+    }
+  };
+
+  const inferOffsetByCountryOrLon = (countryIso?: string, lon?: number): number => {
+    const iso = (countryIso || '').toUpperCase();
+    const map: Record<string, number> = {
+      TW: 8, HK: 8, MO: 8, CN: 8, SG: 8, MY: 8, PH: 8,
+      JP: 9, KR: 9,
+      TH: 7, VN: 7, KH: 7, LA: 7,
+      IN: 5.5, AE: 4, QA: 3, TR: 3,
+      GB: 0, IE: 0, PT: 0, IS: 0,
+      FR: 1, DE: 1, IT: 1, ES: 1, NL: 1, CH: 1, AT: 1, CZ: 1, BE: 1, SE: 1, NO: 1, DK: 1, PL: 1, HU: 1,
+      GR: 2, FI: 2, EG: 2, ZA: 2,
+      AU: 10, NZ: 12,
+    };
+    if (iso && iso in map) return map[iso];
+    if (typeof lon === 'number' && !Number.isNaN(lon)) {
+      return Math.max(-12, Math.min(14, Math.round(lon / 15)));
+    }
+    return 8;
+  };
+
+  const resolveAirportOffsetHours = async (
+    iataCode: string,
+    dateIso: string,
+    countryIso?: string,
+    lat?: number,
+    lon?: number
+  ): Promise<number> => {
+    const cleanIata = iataCode.trim().toUpperCase();
+    let ianaTz = AIRPORT_IANA_MAP[cleanIata] || airportTzCache.get(cleanIata);
+
+    if (!ianaTz && typeof lat === 'number' && typeof lon === 'number' && Date.now() > openMeteoBlockedUntil) {
+      try {
+        const tzUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&timezone=auto&forecast_days=1`;
+        const tzRes = await fetch(tzUrl, { signal: AbortSignal.timeout(1800) });
+        if (tzRes.ok) {
+          const tzJson = (await tzRes.json()) as { timezone?: string };
+          if (tzJson.timezone && tzJson.timezone !== 'UTC') {
+            ianaTz = tzJson.timezone;
+            airportTzCache.set(cleanIata, ianaTz);
+          }
+        }
+      } catch {
+        // fallback cleanly below
+      }
+    }
+
+    if (ianaTz) {
+      const exact = getOffsetHoursForDate(ianaTz, dateIso);
+      if (exact !== null) return exact;
+    }
+    return inferOffsetByCountryOrLon(countryIso, lon);
+  };
+
   app.post('/api/flights/lookup', async (req, res) => {
     const flightNumber = String(req.body?.flightNumber || '')
       .trim()
       .toUpperCase()
       .replace(/\s+/g, '');
-    const date = String(req.body?.date || '').trim();
+    const date = String(req.body?.date || '').trim() || new Date().toISOString().slice(0, 10);
     if (!flightNumber || flightNumber.length < 3) {
       res.status(400).json({ error: '請輸入正確的航班編號（例如 BR198、CX504）' });
       return;
     }
-
-    const inferOffsetByCountryOrLon = (countryIso?: string, lon?: number): number => {
-      const iso = (countryIso || '').toUpperCase();
-      const map: Record<string, number> = {
-        TW: 8, HK: 8, MO: 8, CN: 8, SG: 8, MY: 8, PH: 8,
-        JP: 9, KR: 9,
-        TH: 7, VN: 7, KH: 7, LA: 7,
-        IN: 6, AE: 4, QA: 3, TR: 3,
-        GB: 0, IE: 0, PT: 0, IS: 0,
-        FR: 1, DE: 1, IT: 1, ES: 1, NL: 1, CH: 1, AT: 1, CZ: 1, BE: 1, SE: 1, NO: 1, DK: 1, PL: 1, HU: 1,
-        GR: 2, FI: 2, EG: 2, ZA: 2,
-        AU: 10, NZ: 12,
-      };
-      if (iso && iso in map) return map[iso];
-      if (typeof lon === 'number' && !Number.isNaN(lon)) {
-        return Math.max(-12, Math.min(14, Math.round(lon / 15)));
-      }
-      return 8;
-    };
 
     try {
       // Query real public flight schedule sources in parallel
@@ -1357,7 +1454,6 @@ async function startServer() {
           const depIso = String(flightObj.departureTime || '');
           const arrIso = String(flightObj.arrivalTime || '');
           const durIso = String(flightObj.estimatedFlightDuration || '');
-          const acMatch = html.match(/\b(A3[123458]0(?:-\d{3}|neo)?|A220(?:-\d{3})?|B7[34678]7(?:-\d{3}| MAX \d)?|B77W|B789|B788|E19[05])\b/i);
 
           return {
             airline: String(airlineObj?.name || '').trim(),
@@ -1371,7 +1467,6 @@ async function startServer() {
             depIso,
             arrIso,
             durIso,
-            planeType: acMatch ? acMatch[1].toUpperCase() : '',
           };
         })(),
         (async () => {
@@ -1405,27 +1500,41 @@ async function startServer() {
         const arrTime = info?.arrIso?.match(/T(\d{2}:\d{2})/)?.[1] || '12:00';
         const depDatePart = info?.depIso?.slice(0, 10) || '';
         const arrDatePart = info?.arrIso?.slice(0, 10) || '';
-        const nextDay = Boolean(depDatePart && arrDatePart && arrDatePart > depDatePart);
+        let arrivalDayDelta =
+          depDatePart && arrDatePart
+            ? Math.round((Date.parse(`${arrDatePart}T00:00:00Z`) - Date.parse(`${depDatePart}T00:00:00Z`)) / 86400000)
+            : 0;
 
-        const departureOffsetHours = inferOffsetByCountryOrLon(
-          adsb?.origin?.country_iso_name,
-          info?.depLon ?? adsb?.origin?.longitude
-        );
-        let arrivalOffsetHours = inferOffsetByCountryOrLon(
-          adsb?.destination?.country_iso_name,
-          info?.arrLon ?? adsb?.destination?.longitude
-        );
+        const [resolvedDepOffset, resolvedArrOffset] = await Promise.all([
+          resolveAirportOffsetHours(
+            departureCode,
+            date,
+            adsb?.origin?.country_iso_name,
+            info?.depLat ?? adsb?.origin?.latitude,
+            info?.depLon ?? adsb?.origin?.longitude
+          ),
+          resolveAirportOffsetHours(
+            arrivalCode,
+            date,
+            adsb?.destination?.country_iso_name,
+            info?.arrLat ?? adsb?.destination?.latitude,
+            info?.arrLon ?? adsb?.destination?.longitude
+          ),
+        ]);
 
-        // If airportinfo provides exact local departure/arrival timestamps + flight duration, derive exact arrival UTC offset
-        if (info?.depIso && info?.arrIso && info?.durIso) {
+        const departureOffsetHours = resolvedDepOffset;
+        let arrivalOffsetHours = resolvedArrOffset;
+
+        // Cross-check with exact scheduled local timestamps + flight duration when airportinfo provides both
+        if (info?.depIso && info?.arrIso && info?.durIso && !AIRPORT_IANA_MAP[arrivalCode] && !airportTzCache.has(arrivalCode)) {
           const durMatch = info.durIso.match(/PT(?:(\d+)H)?(?:(\d+)M)?/i);
           if (durMatch) {
-            const durMins = (Number(durMatch[1] || 0) * 60) + Number(durMatch[2] || 0);
+            const durMins = Number(durMatch[1] || 0) * 60 + Number(durMatch[2] || 0);
             const depFakeUtc = Date.parse(`${info.depIso}Z`);
             const arrFakeUtc = Date.parse(`${info.arrIso}Z`);
             if (!Number.isNaN(depFakeUtc) && !Number.isNaN(arrFakeUtc) && durMins > 0) {
               const localDiffMins = Math.round((arrFakeUtc - depFakeUtc) / 60000);
-              const tzDiffHours = Math.round((localDiffMins - durMins) / 60);
+              const tzDiffHours = Math.round(((localDiffMins - durMins) / 60) * 2) / 2;
               const candidate = departureOffsetHours + tzDiffHours;
               if (candidate >= -12 && candidate <= 14) {
                 arrivalOffsetHours = candidate;
@@ -1434,18 +1543,29 @@ async function startServer() {
           }
         }
 
+        // Recompute nextDay accurately when only times (no full ISO dates) were present
+        if (!depDatePart || !arrDatePart) {
+          const [dh, dm] = depTime.split(':').map(Number);
+          const [ah, am] = arrTime.split(':').map(Number);
+          const depTotalUtc = dh * 60 + dm - departureOffsetHours * 60;
+          const arrSameDayUtc = ah * 60 + am - arrivalOffsetHours * 60;
+          if (arrSameDayUtc <= depTotalUtc) {
+            arrivalDayDelta = 1;
+          }
+        }
+
         res.json({
           found: true,
           airline: info?.airline || adsb?.airline?.name || '',
           flightNumber: info?.flightNumber || adsb?.callsign_iata || flightNumber,
-          planeType: info?.planeType || '',
           departureCode,
           arrivalCode,
           departureTime: depTime,
           arrivalTime: arrTime,
           departureOffsetHours,
           arrivalOffsetHours,
-          nextDay,
+          nextDay: arrivalDayDelta > 0,
+          arrivalDayDelta,
         });
         return;
       }
@@ -1460,8 +1580,8 @@ async function startServer() {
         const gRes = await ai.models.generateContent({
           model: 'gemini-4-hydrogen',
           contents:
-            `查詢航班「${flightNumber}」${date ? `（${date}）` : ''}起降機場與時間，僅回傳純JSON：` +
-            `{"found":true,"airline":"","flightNumber":"${flightNumber}","planeType":"","departureCode":"TPE","arrivalCode":"NRT","departureTime":"09:00","arrivalTime":"13:00","departureOffsetHours":8,"arrivalOffsetHours":9,"nextDay":false}，找不到回傳{"found":false}`,
+            `查詢航班「${flightNumber}」（${date}）起降機場與時間，僅回傳純JSON：` +
+            `{"found":true,"airline":"","flightNumber":"${flightNumber}","departureCode":"TPE","arrivalCode":"NRT","departureTime":"09:00","arrivalTime":"13:00","departureOffsetHours":8,"arrivalOffsetHours":9,"nextDay":false}，找不到回傳{"found":false}`,
           config: {
             tools: [{ googleSearch: {} }],
             thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
@@ -1470,9 +1590,30 @@ async function startServer() {
         });
         const match = (gRes.text || '').match(/\{[\s\S]*\}/);
         if (match) {
-          const parsed = JSON.parse(match[0]);
+          const parsed = JSON.parse(match[0]) as {
+            found?: boolean;
+            airline?: string;
+            flightNumber?: string;
+            departureCode?: string;
+            arrivalCode?: string;
+            departureTime?: string;
+            arrivalTime?: string;
+            departureOffsetHours?: number;
+            arrivalOffsetHours?: number;
+            nextDay?: boolean;
+          };
           if (parsed?.found && parsed.departureCode && parsed.arrivalCode) {
-            res.json(parsed);
+            const dCode = parsed.departureCode.trim().toUpperCase();
+            const aCode = parsed.arrivalCode.trim().toUpperCase();
+            const dTz = AIRPORT_IANA_MAP[dCode] ? getOffsetHoursForDate(AIRPORT_IANA_MAP[dCode], date) : null;
+            const aTz = AIRPORT_IANA_MAP[aCode] ? getOffsetHoursForDate(AIRPORT_IANA_MAP[aCode], date) : null;
+            res.json({
+              ...parsed,
+              departureCode: dCode,
+              arrivalCode: aCode,
+              departureOffsetHours: dTz ?? parsed.departureOffsetHours ?? 8,
+              arrivalOffsetHours: aTz ?? parsed.arrivalOffsetHours ?? 8,
+            });
             return;
           }
         }
@@ -1487,11 +1628,22 @@ async function startServer() {
   });
 
   app.post('/api/ai/plan-itinerary', async (req, res) => {
+    const wantsNdjson = String(req.headers.accept || '').includes('application/x-ndjson');
+    const sendError = (status: number, errorMsg: string) => {
+      if (wantsNdjson) {
+        if (!res.headersSent) {
+          res.status(status).setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+        }
+        res.write(JSON.stringify({ type: 'error', error: errorMsg }) + '\n');
+        res.end();
+      } else {
+        res.status(status).json({ error: errorMsg });
+      }
+    };
+
     const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
     if (!apiKey) {
-      res.status(503).json({
-        error: '伺服器尚未設定 GEMINI_API_KEY，無法使用 AI 行程規劃功能。',
-      });
+      sendError(503, '伺服器尚未設定 GEMINI_API_KEY，無法使用 AI 行程規劃功能。');
       return;
     }
 
@@ -1509,7 +1661,7 @@ async function startServer() {
     const destination = String(body.destination || '').trim().slice(0, 300);
     const userPrompt = String(body.userPrompt || '').trim().slice(0, 1500);
     if (!destination && !userPrompt) {
-      res.status(400).json({ error: '請至少輸入想前往的目的地或景點需求。' });
+      sendError(400, '請至少輸入想前往的目的地或景點需求。');
       return;
     }
 
@@ -1603,18 +1755,31 @@ async function startServer() {
         },
       });
 
+    let keepaliveTimer: ReturnType<typeof setInterval> | null = null;
+    if (wantsNdjson) {
+      res.status(200);
+      res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('X-Accel-Buffering', 'no');
+      res.flushHeaders?.();
+      res.write('{"type":"keepalive"}\n');
+      keepaliveTimer = setInterval(() => {
+        if (!res.writableEnded) {
+          try {
+            res.write('{"type":"keepalive"}\n');
+          } catch {
+            // ignore closed socket
+          }
+        }
+      }, 1500);
+    }
+
     try {
       let response;
-      // Fast reliable path: use gemini-3.1-flash-lite with LOW thinking for structured JSON speed & zero high-demand timeouts,
-      // falling back to gemini-4-hydrogen or MINIMAL thinking if needed.
       try {
-        response = await callModel('gemini-3.1-flash-lite', ThinkingLevel.LOW, 22000);
+        response = await callModel('gemini-3.1-flash-lite', ThinkingLevel.MINIMAL, 28000);
       } catch {
-        try {
-          response = await callModel('gemini-4-hydrogen', ThinkingLevel.LOW, 22000);
-        } catch {
-          response = await callModel('gemini-3.1-flash-lite', ThinkingLevel.MINIMAL, 20000);
-        }
+        response = await callModel('gemini-4-hydrogen', ThinkingLevel.LOW, 28000);
       }
 
       const rawText = (response.text || '')
@@ -1625,7 +1790,7 @@ async function startServer() {
         .trim();
 
       if (!rawText) {
-        res.status(502).json({ error: 'AI 未回傳有效行程內容，請重試。' });
+        sendError(502, 'AI 未回傳有效行程內容，請重試。');
         return;
       }
 
@@ -1671,11 +1836,18 @@ async function startServer() {
         }),
       }));
 
-      res.json({
+      const resultPayload = {
         summary: String(parsed.summary || '').trim(),
         routeTip: String(parsed.routeTip || '').trim(),
         days: normalizedDays,
-      });
+      };
+
+      if (wantsNdjson) {
+        res.write(JSON.stringify({ type: 'result', data: resultPayload }) + '\n');
+        res.end();
+      } else {
+        res.json(resultPayload);
+      }
     } catch (err: unknown) {
       console.error('[Waynote AI Planner] Error:', err);
       const e = err as { status?: number; message?: string };
@@ -1702,7 +1874,12 @@ async function startServer() {
         status = 504;
         cleanMsg = 'AI 規劃回應逾時，請稍後再按一次規劃。';
       }
-      res.status(status).json({ error: cleanMsg });
+      sendError(status, cleanMsg);
+    } finally {
+      if (keepaliveTimer) {
+        clearInterval(keepaliveTimer);
+        keepaliveTimer = null;
+      }
     }
   });
 

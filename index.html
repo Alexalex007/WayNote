@@ -4,9 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta id="waynote-apple-bar" name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="color-scheme" content="light dark" />
+    <meta id="waynote-color-scheme" name="color-scheme" content="light" />
+    <meta id="waynote-theme-color" name="theme-color" content="#FDF0EB" />
     <script>
       (function () {
         try {
@@ -28,17 +29,14 @@
           }
           root.style.backgroundColor = topTint;
 
-          var schemeMeta = document.querySelector('meta[name="color-scheme"]');
+          var schemeMeta = document.getElementById('waynote-color-scheme') || document.querySelector('meta[name="color-scheme"]');
           if (schemeMeta) schemeMeta.setAttribute('content', isDark ? 'dark' : 'light');
 
-          var existingThemeMetas = document.querySelectorAll('meta[name="theme-color"]');
-          for (var i = 0; i < existingThemeMetas.length; i++) {
-            existingThemeMetas[i].parentNode.removeChild(existingThemeMetas[i]);
-          }
-          var freshMeta = document.createElement('meta');
-          freshMeta.name = 'theme-color';
-          freshMeta.content = topTint;
-          document.head.appendChild(freshMeta);
+          var themeMeta = document.getElementById('waynote-theme-color') || document.querySelector('meta[name="theme-color"]');
+          if (themeMeta) themeMeta.setAttribute('content', topTint);
+
+          var appleBarMeta = document.getElementById('waynote-apple-bar') || document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+          if (appleBarMeta) appleBarMeta.setAttribute('content', isDark ? 'black-translucent' : 'default');
         } catch (e) {}
       })();
     </script>
@@ -49,7 +47,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;900&family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/index.css" />
   </head>
   <body class="antialiased min-h-[100dvh] selection:bg-indigo-600 selection:text-white">
     <div id="root" class="min-h-[100dvh] w-full"></div>

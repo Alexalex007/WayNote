@@ -112,6 +112,65 @@ service cloud.firestore {
         && data.updatedAt is timestamp;
     }
 
+    function isValidUserPresence(data, userId, sessionId) {
+      return data.keys().hasAll(['id', 'ownerId', 'tripId', 'deviceName', 'clientUpdatedAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'ownerId', 'tripId', 'deviceName', 'clientUpdatedAt', 'updatedAt'])
+        && isValidId(data.id)
+        && data.id == sessionId
+        && isValidId(data.ownerId)
+        && data.ownerId == userId
+        && data.ownerId == request.auth.uid
+        && isValidId(data.tripId)
+        && data.deviceName is string
+        && data.deviceName.size() >= 1
+        && data.deviceName.size() <= 60
+        && data.clientUpdatedAt is number
+        && data.clientUpdatedAt >= 0
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserFileManifest(data, userId, fileId) {
+      return data.keys().hasAll(['id', 'ownerId', 'tripId', 'fileName', 'mimeType', 'fileSize', 'chunkCount', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'ownerId', 'tripId', 'fileName', 'mimeType', 'fileSize', 'chunkCount', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && data.id == fileId
+        && isValidId(data.ownerId)
+        && data.ownerId == userId
+        && data.ownerId == request.auth.uid
+        && isValidId(data.tripId)
+        && data.fileName is string
+        && data.fileName.size() >= 1
+        && data.fileName.size() <= 255
+        && data.mimeType is string
+        && data.mimeType.size() >= 1
+        && data.mimeType.size() <= 120
+        && data.fileSize is int
+        && data.fileSize >= 1
+        && data.fileSize <= 22000000
+        && data.chunkCount is int
+        && data.chunkCount >= 1
+        && data.chunkCount <= 60
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserFileChunk(data, userId, fileId) {
+      return data.keys().hasAll(['index', 'ownerId', 'fileId', 'data', 'createdAt'])
+        && data.keys().hasOnly(['index', 'ownerId', 'fileId', 'data', 'createdAt'])
+        && data.index is int
+        && data.index >= 0
+        && data.index < 60
+        && isValidId(data.ownerId)
+        && data.ownerId == userId
+        && data.ownerId == request.auth.uid
+        && isValidId(data.fileId)
+        && data.fileId == fileId
+        && data.data is string
+        && data.data.size() >= 1
+        && data.data.size() <= 700000
+        && data.createdAt is timestamp;
+    }
+
     // 2. Private User Profile Collection
     match /users/{userId} {
       allow get: if isValidId(userId) && isOwner(userId);
@@ -173,6 +232,89 @@ service cloud.firestore {
           && isValidId(tripId)
           && isOwner(userId)
           && exists(/databases/$(database)/documents/users/$(userId));
+      }
+
+      // 4. Real-Time Multi-Device Presence Subcollection
+      match /presence/{sessionId} {
+        allow get: if isValidId(userId) && isValidId(sessionId) && isOwner(userId);
+        allow list: if isValidId(userId) && isOwner(userId) && resource.data.ownerId == request.auth.uid;
+
+        allow create: if isValidId(userId)
+          && isValidId(sessionId)
+          && isOwner(userId)
+          && isValidUserPresence(incoming(), userId, sessionId)
+          && incoming().updatedAt == request.time
+          && exists(/databases/$(database)/documents/users/$(userId));
+
+        allow update: if isValidId(userId)
+          && isValidId(sessionId)
+          && isOwner(userId)
+          && isValidUserPresence(incoming(), userId, sessionId)
+          && incoming().id == existing().id
+          && incoming().ownerId == existing().ownerId
+          && incoming().updatedAt == request.time
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && incoming().diff(existing()).affectedKeys().hasOnly(['tripId', 'deviceName', 'clientUpdatedAt', 'updatedAt']);
+
+        allow delete: if isValidId(userId)
+          && isValidId(sessionId)
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId));
+      }
+
+      // 5. Cross-Device Chunked Travel Document Files
+      match /files/{fileId} {
+        allow get: if isValidId(userId) && isValidId(fileId) && isOwner(userId);
+        allow list: if false;
+
+        allow create: if isValidId(userId)
+          && isValidId(fileId)
+          && isOwner(userId)
+          && isValidUserFileManifest(incoming(), userId, fileId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && exists(/databases/$(database)/documents/users/$(userId));
+
+        allow update: if isValidId(userId)
+          && isValidId(fileId)
+          && isOwner(userId)
+          && isValidUserFileManifest(incoming(), userId, fileId)
+          && incoming().id == existing().id
+          && incoming().ownerId == existing().ownerId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && incoming().diff(existing()).affectedKeys().hasOnly(['tripId', 'fileName', 'mimeType', 'fileSize', 'chunkCount', 'updatedAt']);
+
+        allow delete: if isValidId(userId)
+          && isValidId(fileId)
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId));
+
+        match /chunks/{chunkId} {
+          allow get: if isValidId(userId)
+            && isValidId(fileId)
+            && isValidId(chunkId)
+            && isOwner(userId)
+            && get(/databases/$(database)/documents/users/$(userId)/files/$(fileId)).data.ownerId == request.auth.uid;
+          allow list: if false;
+
+          allow create: if isValidId(userId)
+            && isValidId(fileId)
+            && isValidId(chunkId)
+            && isOwner(userId)
+            && isValidUserFileChunk(incoming(), userId, fileId)
+            && incoming().createdAt == request.time
+            && get(/databases/$(database)/documents/users/$(userId)/files/$(fileId)).data.ownerId == request.auth.uid;
+
+          allow update: if false;
+
+          allow delete: if isValidId(userId)
+            && isValidId(fileId)
+            && isValidId(chunkId)
+            && isOwner(userId)
+            && exists(/databases/$(database)/documents/users/$(userId));
+        }
       }
     }
   }
