@@ -6,6 +6,7 @@ import {
   isImageUrlLoaded,
   markImageUrlLoaded,
 } from '../hooks/useDestinationPhoto';
+import { useI18n } from '../hooks/useI18n';
 
 interface DestinationCoverProps {
   city?: string | null;
@@ -24,8 +25,10 @@ export const DestinationCover: React.FC<DestinationCoverProps> = React.memo(({
   children,
   scrimClassName = 'bg-gradient-to-t from-black/78 via-black/32 to-black/15',
 }) => {
+  const { t } = useI18n();
   const { data } = useDestinationPhoto(city, debounceMs);
   const rawUrl = data?.imageUrl || null;
+  const fallbackAlt = t('目的地風景', '目的地风景', 'Destination');
 
   const imgRef = useRef<HTMLImageElement | null>(null);
   const lastGoodUrlRef = useRef<string | null>(
@@ -109,7 +112,7 @@ export const DestinationCover: React.FC<DestinationCoverProps> = React.memo(({
                 ref={imgRef}
                 key={imageUrl}
                 src={imageUrl}
-                alt={city || 'Destination'}
+                alt={city || fallbackAlt}
                 decoding="async"
                 initial={{ opacity: 0, scale: 1.035 }}
                 animate={{ opacity: isAlreadyLoaded ? 1 : 0, scale: 1 }}
@@ -138,7 +141,7 @@ export const DestinationCover: React.FC<DestinationCoverProps> = React.memo(({
               ref={imgRef}
               key={imageUrl}
               src={imageUrl}
-              alt={city || 'Destination'}
+              alt={city || fallbackAlt}
               decoding="async"
               onLoad={() => handleLoad(imageUrl)}
               onError={() => handleError(imageUrl)}

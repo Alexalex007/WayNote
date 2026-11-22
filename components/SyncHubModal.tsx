@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { LiquidModal } from './LiquidPrimitives';
+import { useI18n } from '../hooks/useI18n';
 import type { SyncConnectionState, SyncDevice } from '../types';
 import type { User } from 'firebase/auth';
 import {
@@ -41,6 +42,7 @@ export const SyncHubModal: React.FC<SyncHubModalProps> = ({
   cloudUser,
   onOpenAuthModal,
 }) => {
+  const { t, localeTag } = useI18n();
   const [joinCode, setJoinCode] = useState('');
   const [joining, setJoining] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -57,14 +59,14 @@ export const SyncHubModal: React.FC<SyncHubModalProps> = ({
       if (mode === 'code') {
         setCopiedCode(true);
         setTimeout(() => setCopiedCode(false), 1800);
-        onShowToast('已複製同步碼', 'success');
+        onShowToast(t('已複製同步碼', '已复制同步码', 'Sync code copied'), 'success');
       } else {
         setCopiedLink(true);
         setTimeout(() => setCopiedLink(false), 1800);
-        onShowToast('已複製同步連結', 'success');
+        onShowToast(t('已複製同步連結', '已复制同步链接', 'Sync link copied'), 'success');
       }
     } catch {
-      onShowToast('無法自動複製，請手動選取', 'error');
+      onShowToast(t('無法自動複製，請手動選取', '无法自动复制，请手动选取', 'Could not copy automatically. Please copy manually.'), 'error');
     }
   };
 
@@ -77,7 +79,7 @@ export const SyncHubModal: React.FC<SyncHubModalProps> = ({
       setJoinCode('');
       onClose();
     } catch (err) {
-      const message = err instanceof Error ? err.message : '加入同步失敗';
+      const message = err instanceof Error ? err.message : t('加入同步失敗', '加入同步失败', 'Failed to join sync');
       onShowToast(message, 'error');
     } finally {
       setJoining(false);
@@ -86,12 +88,12 @@ export const SyncHubModal: React.FC<SyncHubModalProps> = ({
 
   const statusLabel =
     syncStatus === 'connected'
-      ? '即時同步已連線'
+      ? t('即時同步已連線', '实时同步已连接', 'Live sync connected')
       : syncStatus === 'connecting' || syncStatus === 'reconnecting'
-        ? '正在連線...'
+        ? t('正在連線...', '正在连接...', 'Connecting...')
         : syncStatus === 'offline'
-          ? '離線暫存（恢復連線後合併）'
-          : '待命中';
+          ? t('離線暫存（恢復連線後合併）', '离线缓存（恢复连接后合并）', 'Offline cache (merges when online)')
+          : t('待命中', '待命中', 'Standby');
 
   return (
     <LiquidModal
@@ -103,7 +105,7 @@ export const SyncHubModal: React.FC<SyncHubModalProps> = ({
           <div className="w-8 h-8 rounded-full bg-blue-600/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
             <WifiIcon className="w-4 h-4" />
           </div>
-          <span>跨裝置同步</span>
+          <span>{t('跨裝置同步', '跨设备同步', 'Cross-Device Sync')}</span>
         </div>
       }
     >
@@ -123,10 +125,18 @@ export const SyncHubModal: React.FC<SyncHubModalProps> = ({
               </div>
               <div className="min-w-0">
                 <div className="text-xs font-bold text-zinc-900 dark:text-white truncate">
-                  {cloudUser ? `個人雲端帳號：${cloudUser.displayName || cloudUser.email}` : '登入 Google / Apple 雲端帳號'}
+                  {cloudUser
+                    ? t(
+                        `個人雲端帳號：${cloudUser.displayName || cloudUser.email}`,
+                        `个人云端账号：${cloudUser.displayName || cloudUser.email}`,
+                        `Cloud Account: ${cloudUser.displayName || cloudUser.email}`
+                      )
+                    : t('登入 Google / Apple 雲端帳號', '登录 Google / Apple 云端账号', 'Sign in with Google / Apple')}
                 </div>
                 <div className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
-                  {cloudUser ? '所有旅程已私人同步，他人無法檢視' : '登入後無須代碼，自動跨裝置同步全部旅程'}
+                  {cloudUser
+                    ? t('所有旅程已私人同步，他人無法檢視', '所有旅程已私人同步，他人无法查看', 'All trips synced privately across your devices')
+                    : t('登入後無須代碼，自動跨裝置同步全部旅程', '登录后无需代码，自动跨设备同步全部旅程', 'Sync all trips automatically without codes')}
                 </div>
               </div>
             </div>
@@ -151,7 +161,7 @@ export const SyncHubModal: React.FC<SyncHubModalProps> = ({
             </div>
             {lastSyncedAt && (
               <span className="text-[11px] font-num text-zinc-500 dark:text-zinc-400">
-                {new Date(lastSyncedAt).toLocaleTimeString('zh-TW', { hour12: false })}
+                {new Date(lastSyncedAt).toLocaleTimeString(localeTag, { hour12: false })}
               </span>
             )}
           </div>
@@ -179,7 +189,7 @@ export const SyncHubModal: React.FC<SyncHubModalProps> = ({
 
           <div className="w-full space-y-1.5">
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              掃描 QR Code 或輸入代碼即可雙向同步
+              {t('掃描 QR Code 或輸入代碼即可雙向同步', '扫描二维码或输入代码即可双向同步', 'Scan QR code or enter code for live sync')}
             </p>
             <div className="flex items-center justify-center gap-2">
               <span className="font-num font-bold text-lg tracking-wide text-zinc-900 dark:text-white select-all">
@@ -189,7 +199,7 @@ export const SyncHubModal: React.FC<SyncHubModalProps> = ({
                 type="button"
                 onClick={() => copyText(syncId, 'code')}
                 className="min-w-[38px] min-h-[38px] rounded-xl bg-zinc-200/60 dark:bg-white/10 flex items-center justify-center text-zinc-700 dark:text-zinc-200 hover:bg-blue-600/10 hover:text-blue-600 transition-colors cursor-pointer"
-                title="複製代碼"
+                title={t('複製代碼', '复制代码', 'Copy code')}
               >
                 {copiedCode ? <CheckIcon className="w-4 h-4 text-emerald-500" /> : <DocumentDuplicateIcon className="w-4 h-4" />}
               </button>
@@ -203,7 +213,7 @@ export const SyncHubModal: React.FC<SyncHubModalProps> = ({
               className="min-h-[44px] px-3 rounded-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-semibold text-xs flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap"
             >
               {copiedLink ? <CheckIcon className="w-4 h-4" /> : <LinkIcon className="w-4 h-4" />}
-              <span>{copiedLink ? '已複製' : '複製連結'}</span>
+              <span>{copiedLink ? t('已複製', '已复制', 'Copied') : t('複製連結', '复制链接', 'Copy Link')}</span>
             </button>
             <button
               type="button"
@@ -211,7 +221,7 @@ export const SyncHubModal: React.FC<SyncHubModalProps> = ({
               className="min-h-[44px] px-3 rounded-full bg-zinc-200/70 dark:bg-white/10 hover:bg-zinc-200 dark:hover:bg-white/15 text-zinc-800 dark:text-zinc-200 font-semibold text-xs flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap"
             >
               <RefreshIcon className="w-4 h-4" />
-              <span>換新代碼</span>
+              <span>{t('換新代碼', '换新代码', 'New Code')}</span>
             </button>
           </div>
         </div>
@@ -219,7 +229,7 @@ export const SyncHubModal: React.FC<SyncHubModalProps> = ({
         {/* Join another Trip by Sync Code */}
         <form onSubmit={handleJoinSubmit} className="space-y-2">
           <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-300 block">
-            加入其他旅程
+            {t('加入其他旅程', '加入其他旅程', 'Join Another Trip')}
           </label>
           <div className="flex gap-2">
             <input
@@ -234,7 +244,7 @@ export const SyncHubModal: React.FC<SyncHubModalProps> = ({
               disabled={!joinCode.trim() || joining}
               className="min-h-[44px] px-5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
             >
-              {joining ? '連線中' : '加入'}
+              {joining ? t('連線中', '连接中', 'Joining') : t('加入', '加入', 'Join')}
             </button>
           </div>
         </form>

@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 import { FirebaseErrorBoundary } from './components/FirebaseErrorBoundary';
+import { I18nProvider } from './hooks/useI18n';
 
 // Google Maps Platform Quota Defense (Tier 1: Global Auth & Console Error Listeners)
 if (typeof window !== 'undefined') {
@@ -28,8 +29,10 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <FirebaseErrorBoundary>
-      <App />
-    </FirebaseErrorBoundary>
+    <I18nProvider>
+      <FirebaseErrorBoundary>
+        <App />
+      </FirebaseErrorBoundary>
+    </I18nProvider>
   </React.StrictMode>
 );

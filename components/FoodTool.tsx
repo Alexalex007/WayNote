@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Trip, Expense, Budget } from '../types';
 import { generateUniqueId } from '../shared/syncMerge';
 import { detectDestinationIntel } from '../shared/destinationIntel';
+import { localizeDestinationLabel } from '../shared/i18n';
+import { useI18n } from '../hooks/useI18n';
 import { LiquidModal, ConfirmSheet, SlidingSegmentedControl } from './LiquidPrimitives';
 import {
   PlusIcon,
@@ -20,7 +22,6 @@ import {
   ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  MapIcon,
   ChartPieIcon,
   CalendarIcon,
   TrashIcon,
@@ -36,50 +37,6 @@ interface Props {
   onUpdateTrip: (trip: Trip) => void;
   onShowToast: (text: string, tone?: 'info' | 'success' | 'error') => void;
 }
-
-const PRE_TRIP_CATEGORIES = [
-  { id: 'flight', label: '機票', icon: PlaneIcon, color: '#4F46E5', tintBg: 'rgba(79, 70, 229, 0.11)' },
-  { id: 'stay', label: '住宿', icon: HomeIcon, color: '#E11D48', tintBg: 'rgba(225, 29, 72, 0.11)' },
-  { id: 'ticket', label: '門票', icon: TicketIcon, color: '#059669', tintBg: 'rgba(5, 150, 105, 0.11)' },
-  { id: 'transport_pass', label: '交通票券', icon: BusIcon, color: '#D97706', tintBg: 'rgba(217, 119, 6, 0.12)' },
-  { id: 'insurance', label: '保險', icon: ShieldCheckIcon, color: '#0284C7', tintBg: 'rgba(2, 132, 199, 0.11)' },
-  { id: 'other', label: '其他', icon: TagIcon, color: '#64748B', tintBg: 'rgba(100, 116, 139, 0.12)' },
-];
-
-const ON_TRIP_CATEGORIES = [
-  { id: 'stay', label: '住宿', icon: HomeIcon, color: '#E11D48', tintBg: 'rgba(225, 29, 72, 0.11)' },
-  { id: 'food', label: '餐飲', icon: DiningIcon, color: '#EA580C', tintBg: 'rgba(234, 88, 12, 0.11)' },
-  { id: 'activity', label: '體驗與行程', icon: TicketIcon, color: '#4F46E5', tintBg: 'rgba(79, 70, 229, 0.11)' },
-  { id: 'transport', label: '交通', icon: BusIcon, color: '#0284C7', tintBg: 'rgba(2, 132, 199, 0.11)' },
-  { id: 'shopping', label: '購物', icon: ShoppingBagIcon, color: '#DB2777', tintBg: 'rgba(219, 39, 119, 0.11)' },
-  { id: 'other', label: '其他', icon: TagIcon, color: '#64748B', tintBg: 'rgba(100, 116, 139, 0.12)' },
-];
-
-const ALL_CATEGORIES = [...ON_TRIP_CATEGORIES, ...PRE_TRIP_CATEGORIES];
-
-const ALL_CURRENCIES = [
-  { code: 'HKD', name: '港幣' },
-  { code: 'TWD', name: '新台幣' },
-  { code: 'JPY', name: '日圓' },
-  { code: 'USD', name: '美元' },
-  { code: 'EUR', name: '歐元' },
-  { code: 'KRW', name: '韓元' },
-  { code: 'CNY', name: '人民幣' },
-  { code: 'GBP', name: '英鎊' },
-  { code: 'AUD', name: '澳幣' },
-  { code: 'CAD', name: '加幣' },
-  { code: 'SGD', name: '新加坡幣' },
-  { code: 'CHF', name: '瑞士法郎' },
-  { code: 'THB', name: '泰銖' },
-  { code: 'MYR', name: '馬來西亞林吉特' },
-  { code: 'VND', name: '越南盾' },
-  { code: 'PHP', name: '菲律賓披索' },
-  { code: 'IDR', name: '印尼盾' },
-  { code: 'NZD', name: '紐西蘭元' },
-  { code: 'MOP', name: '澳門幣' },
-  { code: 'TRY', name: '土耳其里拉' },
-  { code: 'AED', name: '阿聯酋迪拉姆' },
-];
 
 const FALLBACK_RATES: Record<string, number> = {
   HKD: 1,
@@ -131,21 +88,76 @@ function formatMoney(amount: number, code: string): string {
 }
 
 const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
-  const destinationIntel = useMemo(() => detectDestinationIntel(trip.destination), [trip.destination]);
+  const { lang, localeTag, t } = useI18n();
+
+  const preTripCategories = useMemo(
+    () => [
+      { id: 'flight', label: t('機票', '机票', 'Flights'), icon: PlaneIcon, color: '#4F46E5', tintBg: 'rgba(79, 70, 229, 0.11)' },
+      { id: 'stay', label: t('住宿', '住宿', 'Stay'), icon: HomeIcon, color: '#E11D48', tintBg: 'rgba(225, 29, 72, 0.11)' },
+      { id: 'ticket', label: t('門票', '门票', 'Tickets'), icon: TicketIcon, color: '#059669', tintBg: 'rgba(5, 150, 105, 0.11)' },
+      { id: 'transport_pass', label: t('交通票券', '交通票券', 'Rail / Pass'), icon: BusIcon, color: '#D97706', tintBg: 'rgba(217, 119, 6, 0.12)' },
+      { id: 'insurance', label: t('保險', '保险', 'Insurance'), icon: ShieldCheckIcon, color: '#0284C7', tintBg: 'rgba(2, 132, 199, 0.11)' },
+      { id: 'other', label: t('其他', '其他', 'Other'), icon: TagIcon, color: '#64748B', tintBg: 'rgba(100, 116, 139, 0.12)' },
+    ],
+    [t]
+  );
+
+  const onTripCategories = useMemo(
+    () => [
+      { id: 'stay', label: t('住宿', '住宿', 'Stay'), icon: HomeIcon, color: '#E11D48', tintBg: 'rgba(225, 29, 72, 0.11)' },
+      { id: 'food', label: t('餐飲', '餐饮', 'Dining'), icon: DiningIcon, color: '#EA580C', tintBg: 'rgba(234, 88, 12, 0.11)' },
+      { id: 'activity', label: t('體驗與行程', '体验与行程', 'Activities'), icon: TicketIcon, color: '#4F46E5', tintBg: 'rgba(79, 70, 229, 0.11)' },
+      { id: 'transport', label: t('交通', '交通', 'Transit'), icon: BusIcon, color: '#0284C7', tintBg: 'rgba(2, 132, 199, 0.11)' },
+      { id: 'shopping', label: t('購物', '购物', 'Shopping'), icon: ShoppingBagIcon, color: '#DB2777', tintBg: 'rgba(219, 39, 119, 0.11)' },
+      { id: 'other', label: t('其他', '其他', 'Other'), icon: TagIcon, color: '#64748B', tintBg: 'rgba(100, 116, 139, 0.12)' },
+    ],
+    [t]
+  );
+
+  const allCategories = useMemo(() => [...onTripCategories, ...preTripCategories], [onTripCategories, preTripCategories]);
+
+  const allCurrencies = useMemo(
+    () => [
+      { code: 'HKD', name: t('港幣', '港币', 'Hong Kong Dollar') },
+      { code: 'TWD', name: t('新台幣', '新台币', 'New Taiwan Dollar') },
+      { code: 'JPY', name: t('日圓', '日元', 'Japanese Yen') },
+      { code: 'USD', name: t('美元', '美元', 'US Dollar') },
+      { code: 'EUR', name: t('歐元', '欧元', 'Euro') },
+      { code: 'KRW', name: t('韓元', '韩元', 'South Korean Won') },
+      { code: 'CNY', name: t('人民幣', '人民币', 'Chinese Yuan') },
+      { code: 'GBP', name: t('英鎊', '英镑', 'British Pound') },
+      { code: 'AUD', name: t('澳幣', '澳元', 'Australian Dollar') },
+      { code: 'CAD', name: t('加幣', '加元', 'Canadian Dollar') },
+      { code: 'SGD', name: t('新加坡幣', '新加坡元', 'Singapore Dollar') },
+      { code: 'CHF', name: t('瑞士法郎', '瑞士法郎', 'Swiss Franc') },
+      { code: 'THB', name: t('泰銖', '泰铢', 'Thai Baht') },
+      { code: 'MYR', name: t('馬來西亞林吉特', '马来西亚林吉特', 'Malaysian Ringgit') },
+      { code: 'VND', name: t('越南盾', '越南盾', 'Vietnamese Dong') },
+      { code: 'PHP', name: t('菲律賓披索', '菲律宾比索', 'Philippine Peso') },
+      { code: 'IDR', name: t('印尼盾', '印尼盾', 'Indonesian Rupiah') },
+      { code: 'NZD', name: t('紐西蘭元', '新西兰元', 'New Zealand Dollar') },
+      { code: 'MOP', name: t('澳門幣', '澳门元', 'Macanese Pataca') },
+      { code: 'TRY', name: t('土耳其里拉', '土耳其里拉', 'Turkish Lira') },
+      { code: 'AED', name: t('阿聯酋迪拉姆', '阿联酋迪拉姆', 'UAE Dirham') },
+    ],
+    [t]
+  );
+
+  const destinationIntel = useMemo(() => detectDestinationIntel(trip.destination, lang), [trip.destination, lang]);
   const multiCityCurrencies = useMemo(() => {
     if (trip.type !== 'Multi' || !trip.stops?.length) return [];
     const seen = new Set<string>();
     const list: { city: string; currency: string }[] = [];
     trip.stops.forEach((s) => {
       if (!s.destination.trim()) return;
-      const d = detectDestinationIntel(s.destination);
+      const d = detectDestinationIntel(s.destination, lang);
       if (!seen.has(d.currency)) {
         seen.add(d.currency);
-        list.push({ city: s.destination.trim(), currency: d.currency });
+        list.push({ city: localizeDestinationLabel(s.destination.trim(), lang), currency: d.currency });
       }
     });
     return list;
-  }, [trip.type, trip.stops]);
+  }, [trip.type, trip.stops, lang]);
 
   const [currentView, setCurrentView] = useState<'DASHBOARD' | 'PRE_TRIP' | 'ON_TRIP'>('DASHBOARD');
   const [scopeFilter, setScopeFilter] = useState<'ALL' | 'ON_TRIP' | 'PRE_TRIP'>('ALL');
@@ -216,7 +228,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
     return inBase * exchangeRates[to];
   };
 
-  const getCurrencyLabel = (code: string) => ALL_CURRENCIES.find((c) => c.code === code)?.name || '';
+  const getCurrencyLabel = (code: string) => allCurrencies.find((c) => c.code === code)?.name || '';
 
   const getEffectiveAmount = (exp: Expense): number => {
     const split = exp.splitCount && exp.splitCount > 1 ? exp.splitCount : 1;
@@ -338,8 +350,8 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
     const categories = Object.entries(catStats)
       .sort(([, a], [, b]) => b - a)
       .map(([id, amount]) => {
-        const catInfo = ALL_CATEGORIES.find((c) => c.id === id) || {
-          label: '其他',
+        const catInfo = allCategories.find((c) => c.id === id) || {
+          label: t('其他', '其他', 'Other'),
           color: '#64748B',
           icon: TagIcon,
         };
@@ -396,7 +408,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
       updatedAt: now,
     });
     setActiveModal('NONE');
-    onShowToast('已更新預算設定', 'success');
+    onShowToast(t('已更新預算設定', '已更新预算设置', 'Budget updated'), 'success');
   };
 
   const handleSaveExpense = (isPre: boolean) => {
@@ -425,7 +437,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
           : e
       );
       commitExpenses(updated);
-      onShowToast('已更新消費紀錄', 'success');
+      onShowToast(t('已更新消費紀錄', '已更新消费记录', 'Expense updated'), 'success');
       setEditingId(null);
     } else {
       const expense: Expense = {
@@ -441,7 +453,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
         updatedAt: now,
       };
       commitExpenses([expense, ...expenses]);
-      onShowToast('已新增消費紀錄', 'success');
+      onShowToast(t('已新增消費紀錄', '已添加消费记录', 'Expense added'), 'success');
     }
 
     setActiveModal('NONE');
@@ -520,7 +532,11 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
           >
             {Math.round(percentage)}%
           </span>
-          {size >= 80 && <span className="text-[10px] font-medium text-zinc-400">已使用</span>}
+          {size >= 80 && (
+            <span className="text-[10px] font-medium text-zinc-400">
+              {t('已使用', '已使用', 'Used')}
+            </span>
+          )}
         </div>
       </div>
     );
@@ -546,7 +562,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
         <div className="flex items-center gap-1.5 shrink-0">
           {(exp.splitCount || 1) > 1 && (
             <span className="text-[11px] font-medium text-zinc-400 dark:text-zinc-500">
-              人均
+              {t('人均', '人均', '/pp')}
             </span>
           )}
           <span className="text-zinc-900 dark:text-white font-num font-bold text-sm">
@@ -560,7 +576,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
 
   const renderListView = (viewMode: 'PRE_TRIP' | 'ON_TRIP') => {
     const isPre = viewMode === 'PRE_TRIP';
-    const title = isPre ? '行前開支' : '旅途消費';
+    const title = isPre ? t('行前開支', '行前开支', 'Pre-Trip') : t('旅途消費', '旅途消费', 'On-Trip');
     const rawList = isPre ? preTripExpenses : onTripExpenses;
     const listExpenses = searchQuery.trim()
       ? rawList.filter((e) => e.title.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -586,7 +602,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
               {title}
             </h2>
             <p className="text-[11px] font-num font-medium text-zinc-500 dark:text-zinc-400 leading-tight">
-              總計 {formatMoney(totalAmount, globalCurrency)}
+              {t('總計', '总计', 'Total')} {formatMoney(totalAmount, globalCurrency)}
             </p>
           </div>
 
@@ -608,7 +624,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
             className="relative z-10 min-h-[40px] px-4 rounded-full bg-[var(--tab-accent)] hover:bg-[var(--tab-accent-hover)] text-white font-semibold text-xs flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap"
           >
             <PlusIcon className="w-4 h-4" />
-            <span>記一筆</span>
+            <span>{t('記一筆', '记一笔', 'Add')}</span>
           </button>
         </div>
 
@@ -618,7 +634,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="搜尋項目..."
+            placeholder={t('搜尋項目...', '搜索项目...', 'Search expenses...')}
             className="bg-transparent w-full text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none"
           />
         </div>
@@ -627,7 +643,9 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
           {listExpenses.length === 0 ? (
             <div className="surface-elevated rounded-3xl py-14 flex flex-col items-center justify-center text-center">
               <TagIcon className="w-8 h-8 text-zinc-400 mb-3" />
-              <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">尚無{title}紀錄</p>
+              <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+                {t(`尚無${title}紀錄`, `暂无${title}记录`, `No ${title.toLowerCase()} expenses yet`)}
+              </p>
             </div>
           ) : (
             <AnimatePresence initial={false}>{listExpenses.map(renderExpenseRow)}</AnimatePresence>
@@ -653,9 +671,9 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                     setSelectedDayFilter(null);
                   }}
                   options={[
-                    { id: 'ALL', label: '全部', accentFrom: '#4F5DF5', accentTo: '#60A5FA' },
-                    { id: 'ON_TRIP', label: '旅途', accentFrom: '#F26B3A', accentTo: '#FB923C' },
-                    { id: 'PRE_TRIP', label: '行前', accentFrom: '#4F46E5', accentTo: '#818CF8' },
+                    { id: 'ALL', label: t('全部', '全部', 'All'), accentFrom: '#4F5DF5', accentTo: '#60A5FA' },
+                    { id: 'ON_TRIP', label: t('旅途', '旅途', 'On-Trip'), accentFrom: '#F26B3A', accentTo: '#FB923C' },
+                    { id: 'PRE_TRIP', label: t('行前', '行前', 'Pre-Trip'), accentFrom: '#4F46E5', accentTo: '#818CF8' },
                   ]}
                 />
               </div>
@@ -667,7 +685,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                   className="min-h-[38px] px-3.5 rounded-full surface-elevated text-zinc-700 dark:text-zinc-200 font-semibold text-xs flex items-center gap-1.5 cursor-pointer"
                 >
                   <ChartPieIcon className="w-4 h-4 text-[var(--tab-accent)]" />
-                  <span className="hidden sm:inline">報表分析</span>
+                  <span className="hidden sm:inline">{t('報表分析', '报表分析', 'Analytics')}</span>
                 </button>
                 <button
                   type="button"
@@ -687,7 +705,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                   className="min-h-[38px] px-4 rounded-full bg-[var(--tab-accent)] hover:bg-[var(--tab-accent-hover)] text-white font-semibold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm"
                 >
                   <PlusIcon className="w-4 h-4" />
-                  <span>記一筆</span>
+                  <span>{t('記一筆', '记一笔', 'Add')}</span>
                 </button>
               </div>
             </div>
@@ -699,8 +717,11 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <span className="text-xs font-semibold tracking-wide text-zinc-400 dark:text-zinc-500 uppercase">
-                        TOTAL SPENT &amp; BUDGET ·{' '}
-                        {scopeFilter === 'ALL' ? '總開支與預算' : scopeFilter === 'ON_TRIP' ? '旅途消費' : '行前開支'}
+                        {scopeFilter === 'ALL'
+                          ? t('總開支與預算', '总开支与预算', 'TOTAL SPENT & BUDGET')
+                          : scopeFilter === 'ON_TRIP'
+                            ? t('旅途消費與預算', '旅途消费与预算', 'ON-TRIP SPENT & BUDGET')
+                            : t('行前開支總覽', '行前开支总览', 'PRE-TRIP SPENT')}
                       </span>
                       <div className="mt-1 flex items-baseline gap-2.5 flex-wrap">
                         <span className="text-4xl sm:text-5xl font-display font-bold font-num text-zinc-900 dark:text-white tracking-tight">
@@ -713,13 +734,21 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                         )}
                       </div>
                       <div className="mt-1.5 flex items-center gap-2 text-xs font-num text-zinc-500 dark:text-zinc-400 flex-wrap">
-                        <span>日均 {formatMoney(dailyChart.avgDaily, globalCurrency)}</span>
+                        <span>
+                          {t('日均', '日均', 'Daily avg')} {formatMoney(dailyChart.avgDaily, globalCurrency)}
+                        </span>
                         <span aria-hidden="true">·</span>
-                        <span>共 {scopedExpenses.length} 筆明細</span>
+                        <span>
+                          {t(
+                            `共 ${scopedExpenses.length} 筆明細`,
+                            `共 ${scopedExpenses.length} 笔明细`,
+                            `${scopedExpenses.length} entries`
+                          )}
+                        </span>
                         {hasAnySplit && (
                           <>
                             <span aria-hidden="true">·</span>
-                            <span>已按攤分計算個人實付</span>
+                            <span>{t('已按攤分計算個人實付', '已按分摊计算个人实付', 'Split-adjusted personal share')}</span>
                           </>
                         )}
                       </div>
@@ -734,7 +763,9 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                         }}
                         className="h-9 px-3 rounded-full bg-[var(--tab-accent-soft)] text-[var(--tab-accent)] font-semibold text-xs transition-colors cursor-pointer whitespace-nowrap hover:brightness-95"
                       >
-                        {budget.amount > 0 ? '調整預算' : '設定預算'}
+                        {budget.amount > 0
+                          ? t('調整預算', '调整预算', 'Edit Budget')
+                          : t('設定預算', '设置预算', 'Set Budget')}
                       </button>
                       <div className="relative">
                         <select
@@ -742,7 +773,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                           onChange={(e) => setGlobalCurrency(e.target.value)}
                           className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer"
                         >
-                          {ALL_CURRENCIES.map((c) => (
+                          {allCurrencies.map((c) => (
                             <option key={c.code} value={c.code} className="text-zinc-900">
                               {c.code} {c.name}
                             </option>
@@ -780,7 +811,9 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                             {Math.round(budgetProgress)}%
                           </span>
                           <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
-                            旅途預算（{budget.type === 'total' ? '含現金與刷卡' : '僅計算現金'}）
+                            {budget.type === 'total'
+                              ? t('旅途預算（含現金與刷卡）', '旅途预算（含现金与刷卡）', 'Trip Budget (Cash + Card)')
+                              : t('旅途預算（僅計算現金）', '旅途预算（仅计算现金）', 'Trip Budget (Cash Only)')}
                           </span>
                         </div>
                         <div
@@ -788,8 +821,8 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                             isOverBudget ? 'text-red-600 dark:text-red-400' : 'text-[var(--tab-accent)]'
                           }`}
                         >
-                          {isOverBudget ? '已超支 ' : '剩餘 '}
-                          {budget.currency} {Math.round(Math.abs(remainingBudget)).toLocaleString()}
+                          {isOverBudget ? t('已超支 ', '已超支 ', 'Over by ') : t('剩餘 ', '剩余 ', 'Left ')}
+                          {budget.currency} {Math.round(Math.abs(remainingBudget)).toLocaleString(localeTag)}
                         </div>
                       </div>
 
@@ -804,10 +837,10 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
 
                       <div className="flex items-center justify-between text-[11px] font-num text-zinc-500 dark:text-zinc-400">
                         <span>
-                          已使用 {budget.currency} {Math.round(usedBudgetAmount).toLocaleString()}
+                          {t('已使用', '已使用', 'Used')} {budget.currency} {Math.round(usedBudgetAmount).toLocaleString(localeTag)}
                         </span>
                         <span>
-                          預算上限 {budget.currency} {budget.amount.toLocaleString()}
+                          {t('預算上限', '预算上限', 'Cap')} {budget.currency} {budget.amount.toLocaleString(localeTag)}
                         </span>
                       </div>
                     </button>
@@ -821,9 +854,11 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                       className="w-full rounded-2xl px-4 py-2.5 bg-zinc-100/70 dark:bg-white/[0.04] border border-dashed border-zinc-300/80 dark:border-white/15 hover:border-[var(--tab-accent)] flex items-center justify-between gap-3 transition-colors cursor-pointer"
                     >
                       <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                        尚未設定旅途預算上限
+                        {t('尚未設定旅途預算上限', '尚未设置旅途预算上限', 'No trip budget set yet')}
                       </span>
-                      <span className="text-xs font-semibold text-[var(--tab-accent)]">設定預算 →</span>
+                      <span className="text-xs font-semibold text-[var(--tab-accent)]">
+                        {t('設定預算 →', '设置预算 →', 'Set budget →')}
+                      </span>
                     </button>
                   )}
 
@@ -841,14 +876,18 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                       <div className="flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-[var(--tab-accent)] shrink-0" />
                         <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-200 whitespace-normal">
-                          行前開支
+                          {t('行前開支', '行前开支', 'Pre-Trip')}
                         </span>
                       </div>
                       <div className="mt-1.5 text-lg sm:text-xl font-display font-bold font-num text-[var(--tab-accent)] break-words">
                         {formatMoney(preTripTotalBase, globalCurrency)}
                       </div>
                       <div className="mt-0.5 text-[11px] font-num text-zinc-500 dark:text-zinc-400 whitespace-normal">
-                        機票、訂房、票券、保險 · {preTripExpenses.length} 筆
+                        {t(
+                          `機票、訂房、票券、保險 · ${preTripExpenses.length} 筆`,
+                          `机票、订房、票券、保险 · ${preTripExpenses.length} 笔`,
+                          `Flights, stay, tickets · ${preTripExpenses.length}`
+                        )}
                       </div>
                     </button>
 
@@ -864,14 +903,18 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                       <div className="flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-[#F26B3A] shrink-0" />
                         <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-200 whitespace-normal">
-                          旅途消費
+                          {t('旅途消費', '旅途消费', 'On-Trip')}
                         </span>
                       </div>
                       <div className="mt-1.5 text-lg sm:text-xl font-display font-bold font-num text-[#F26B3A] break-words">
                         {formatMoney(onTripTotalBase, globalCurrency)}
                       </div>
                       <div className="mt-0.5 text-[11px] font-num text-zinc-500 dark:text-zinc-400 whitespace-normal">
-                        餐飲、交通、體驗、購物 · {onTripExpenses.length} 筆
+                        {t(
+                          `餐飲、交通、體驗、購物 · ${onTripExpenses.length} 筆`,
+                          `餐饮、交通、体验、购物 · ${onTripExpenses.length} 笔`,
+                          `Dining, transit, shopping · ${onTripExpenses.length}`
+                        )}
                       </div>
                     </button>
                   </div>
@@ -881,8 +924,12 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                 {dailyChart.bars.length > 0 && (
                   <div className="lg:col-span-5 lg:rounded-2xl lg:bg-zinc-100/60 lg:dark:bg-white/[0.03] lg:p-4 lg:border lg:border-zinc-200/60 lg:dark:border-white/[0.07]">
                     <div className="hidden lg:flex items-center justify-between text-xs mb-2">
-                      <span className="font-semibold text-zinc-500 dark:text-zinc-400">每日消費趨勢</span>
-                      <span className="font-num text-zinc-400 dark:text-zinc-500">點擊長條篩選單日</span>
+                      <span className="font-semibold text-zinc-500 dark:text-zinc-400">
+                        {t('每日消費趨勢', '每日消费趋势', 'Daily Spend Trend')}
+                      </span>
+                      <span className="font-num text-zinc-400 dark:text-zinc-500">
+                        {t('點擊長條篩選單日', '点击柱状条筛选单日', 'Tap a bar to filter day')}
+                      </span>
                     </div>
                     <div className="relative h-28 lg:h-36 flex items-end gap-2 sm:gap-3 overflow-x-auto no-scrollbar pr-8 pb-6">
                       {dailyChart.maxTotal > 0 && (
@@ -891,7 +938,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                           style={{ bottom: `${24 + dailyChart.avgRatio * 82}px` }}
                         >
                           <span className="text-[10px] font-num font-medium text-zinc-400 dark:text-zinc-500 -mt-3.5 bg-white/90 dark:bg-[#151924] px-1">
-                            avg
+                            {t('日均', '日均', 'avg')}
                           </span>
                         </div>
                       )}
@@ -947,7 +994,11 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
             {selectedDayFilter && (
               <div className="flex items-center justify-between px-4 py-2.5 rounded-2xl surface-pastel-sky text-xs">
                 <span className="font-semibold text-zinc-800 dark:text-zinc-100 font-num">
-                  正在篩選 {selectedDayFilter} 當日消費
+                  {t(
+                    `正在篩選 ${selectedDayFilter} 當日消費`,
+                    `正在筛选 ${selectedDayFilter} 当日消费`,
+                    `Filtering expenses on ${selectedDayFilter}`
+                  )}
                 </span>
                 <button
                   type="button"
@@ -955,7 +1006,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                   className="font-semibold text-indigo-600 dark:text-indigo-400 flex items-center gap-1 cursor-pointer"
                 >
                   <XMarkIcon className="w-3.5 h-3.5" />
-                  <span>清除篩選</span>
+                  <span>{t('清除篩選', '清除筛选', 'Clear')}</span>
                 </button>
               </div>
             )}
@@ -970,10 +1021,14 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                       <span className="w-2.5 h-2.5 rounded-full bg-[var(--tab-accent)] shrink-0" />
                       <div className="min-w-0">
                         <h3 className="font-display font-bold text-base text-zinc-900 dark:text-white">
-                          行前開支表
+                          {t('行前開支表', '行前开支表', 'Pre-Trip Expenses')}
                         </h3>
                         <p className="text-[11px] font-num text-zinc-500 dark:text-zinc-400">
-                          共 {displayedPreTripExpenses.length} 項 · 點擊項目查看明細
+                          {t(
+                            `共 ${displayedPreTripExpenses.length} 項 · 點擊項目查看明細`,
+                            `共 ${displayedPreTripExpenses.length} 项 · 点击项目查看明细`,
+                            `${displayedPreTripExpenses.length} items · Tap to inspect`
+                          )}
                         </p>
                       </div>
                     </div>
@@ -984,7 +1039,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
 
                   {displayedPreTripExpenses.length === 0 ? (
                     <div className="py-7 px-6 text-center text-xs text-zinc-400 dark:text-zinc-500">
-                      尚未紀錄任何行前開支
+                      {t('尚未紀錄任何行前開支', '尚未记录任何行前开支', 'No pre-trip expenses recorded')}
                     </div>
                   ) : (
                     <div className="divide-y divide-zinc-200/50 dark:divide-white/[0.05]">
@@ -1003,7 +1058,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                             <div className="flex items-center gap-1.5 shrink-0">
                               {(exp.splitCount || 1) > 1 && (
                                 <span className="text-[11px] font-medium text-zinc-400 dark:text-zinc-500">
-                                  人均
+                                  {t('人均', '人均', '/pp')}
                                 </span>
                               )}
                               <span className="text-sm font-num font-bold text-zinc-900 dark:text-white">
@@ -1026,13 +1081,21 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                       }}
                       className="w-full px-5 sm:px-6 py-3 border-t border-zinc-200/60 dark:border-white/[0.06] text-xs font-semibold text-[var(--tab-accent)] hover:bg-[var(--tab-accent-soft)] flex items-center justify-center gap-1 cursor-pointer transition-colors"
                     >
-                      <span>查看全部 {displayedPreTripExpenses.length} 項行前開支</span>
+                      <span>
+                        {t(
+                          `查看全部 ${displayedPreTripExpenses.length} 項行前開支`,
+                          `查看全部 ${displayedPreTripExpenses.length} 项行前开支`,
+                          `View all ${displayedPreTripExpenses.length} pre-trip items`
+                        )}
+                      </span>
                       <ChevronRightIcon className="w-3.5 h-3.5" />
                     </button>
                   )}
 
                   <div className="px-5 sm:px-6 py-3.5 bg-zinc-100/75 dark:bg-white/[0.03] border-t border-zinc-200/70 dark:border-white/[0.06] flex items-center justify-between">
-                    <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-300">行前開支小計</span>
+                    <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-300">
+                      {t('行前開支小計', '行前开支小计', 'Pre-Trip Subtotal')}
+                    </span>
                     <span className="text-base font-display font-bold font-num text-[var(--tab-accent)]">
                       {formatMoney(preTripTotalBase, globalCurrency)}
                     </span>
@@ -1048,10 +1111,14 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                       <span className="w-2.5 h-2.5 rounded-full bg-[#F26B3A] shrink-0" />
                       <div className="min-w-0">
                         <h3 className="font-display font-bold text-base text-zinc-900 dark:text-white">
-                          旅途消費表
+                          {t('旅途消費表', '旅途消费表', 'On-Trip Expenses')}
                         </h3>
                         <p className="text-[11px] font-num text-zinc-500 dark:text-zinc-400">
-                          共 {displayedOnTripExpenses.length} 項 · 點擊項目查看明細
+                          {t(
+                            `共 ${displayedOnTripExpenses.length} 項 · 點擊項目查看明細`,
+                            `共 ${displayedOnTripExpenses.length} 项 · 点击项目查看明细`,
+                            `${displayedOnTripExpenses.length} items · Tap to inspect`
+                          )}
                         </p>
                       </div>
                     </div>
@@ -1062,7 +1129,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
 
                   {displayedOnTripExpenses.length === 0 ? (
                     <div className="py-7 px-6 text-center text-xs text-zinc-400 dark:text-zinc-500">
-                      尚未紀錄任何旅途消費
+                      {t('尚未紀錄任何旅途消費', '尚未记录任何旅途消费', 'No on-trip expenses recorded')}
                     </div>
                   ) : (
                     <div className="divide-y divide-zinc-200/50 dark:divide-white/[0.05]">
@@ -1081,7 +1148,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                             <div className="flex items-center gap-1.5 shrink-0">
                               {(exp.splitCount || 1) > 1 && (
                                 <span className="text-[11px] font-medium text-zinc-400 dark:text-zinc-500">
-                                  人均
+                                  {t('人均', '人均', '/pp')}
                                 </span>
                               )}
                               <span className="text-sm font-num font-bold text-zinc-900 dark:text-white">
@@ -1104,13 +1171,21 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                       }}
                       className="w-full px-5 sm:px-6 py-3 border-t border-zinc-200/60 dark:border-white/[0.06] text-xs font-semibold text-[#F26B3A] hover:bg-[#F26B3A]/[0.05] flex items-center justify-center gap-1 cursor-pointer transition-colors"
                     >
-                      <span>查看全部 {displayedOnTripExpenses.length} 項旅途消費</span>
+                      <span>
+                        {t(
+                          `查看全部 ${displayedOnTripExpenses.length} 項旅途消費`,
+                          `查看全部 ${displayedOnTripExpenses.length} 项旅途消费`,
+                          `View all ${displayedOnTripExpenses.length} on-trip items`
+                        )}
+                      </span>
                       <ChevronRightIcon className="w-3.5 h-3.5" />
                     </button>
                   )}
 
                   <div className="px-5 sm:px-6 py-3.5 bg-zinc-100/75 dark:bg-white/[0.03] border-t border-zinc-200/70 dark:border-white/[0.06] flex items-center justify-between">
-                    <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-300">旅途消費小計</span>
+                    <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-300">
+                      {t('旅途消費小計', '旅途消费小计', 'On-Trip Subtotal')}
+                    </span>
                     <span className="text-base font-display font-bold font-num text-[#F26B3A]">
                       {formatMoney(onTripTotalBase, globalCurrency)}
                     </span>
@@ -1125,10 +1200,10 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div>
                     <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-                      TOTAL SUMMARY · 統一總算
+                      {t('統一總算', '统一总算', 'TOTAL SUMMARY')}
                     </div>
                     <h3 className="text-lg font-display font-bold text-white mt-0.5">
-                      行前 + 旅途總花費
+                      {t('行前 + 旅途總花費', '行前 + 旅途总花费', 'Pre-Trip + On-Trip Total')}
                     </h3>
                   </div>
                   <div className="text-right">
@@ -1137,7 +1212,8 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                     </div>
                     {globalCurrency !== destinationIntel.currency && (
                       <div className="text-xs font-num text-zinc-400">
-                        約 {formatMoney(grandTotalLocal, destinationIntel.currency)}
+                        {t('約 ', '约 ', '≈ ')}
+                        {formatMoney(grandTotalLocal, destinationIntel.currency)}
                       </div>
                     )}
                   </div>
@@ -1145,20 +1221,20 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-3 border-t border-white/10 text-xs">
                   <div className="rounded-2xl bg-white/[0.06] px-3.5 py-2.5">
-                    <div className="text-zinc-400">行前開支小計</div>
+                    <div className="text-zinc-400">{t('行前開支小計', '行前开支小计', 'Pre-Trip')}</div>
                     <div className="font-num font-bold text-sm text-indigo-300 mt-0.5">
                       {formatMoney(preTripTotalBase, globalCurrency)}
                     </div>
                   </div>
                   <div className="rounded-2xl bg-white/[0.06] px-3.5 py-2.5">
-                    <div className="text-zinc-400">旅途消費小計</div>
+                    <div className="text-zinc-400">{t('旅途消費小計', '旅途消费小计', 'On-Trip')}</div>
                     <div className="font-num font-bold text-sm text-[#FF9E7B] mt-0.5">
                       {formatMoney(onTripTotalBase, globalCurrency)}
                     </div>
                   </div>
                   <div className="col-span-2 sm:col-span-1 rounded-2xl bg-white/[0.06] px-3.5 py-2.5 flex sm:block items-center justify-between">
                     <div className="text-zinc-400">
-                      共 {expenses.length} 筆明細
+                      {t(`共 ${expenses.length} 筆明細`, `共 ${expenses.length} 笔明细`, `${expenses.length} entries`)}
                     </div>
                     <div className="font-num font-bold text-sm text-emerald-300 mt-0.5">
                       {formatMoney(grandTotalBase, globalCurrency)}
@@ -1172,7 +1248,9 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 text-zinc-900 dark:text-white">
                     <ArrowsRightLeftIcon className="w-4 h-4 text-[var(--tab-accent)]" />
-                    <h3 className="font-display font-bold text-base">匯率換算</h3>
+                    <h3 className="font-display font-bold text-base">
+                      {t('匯率換算', '汇率换算', 'Currency Converter')}
+                    </h3>
                   </div>
                   <span className="text-[11px] font-num text-zinc-500 dark:text-zinc-400">
                     1 {calcFrom} ={' '}
@@ -1223,7 +1301,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                         onChange={(e) => setCalcFrom(e.target.value)}
                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                       >
-                        {ALL_CURRENCIES.map((c) => (
+                        {allCurrencies.map((c) => (
                           <option key={c.code} value={c.code} className="text-zinc-900">
                             {c.code} {c.name}
                           </option>
@@ -1243,7 +1321,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                         setCalcFrom(calcTo);
                         setCalcTo(calcFrom);
                       }}
-                      aria-label="交換幣別"
+                      aria-label={t('交換幣別', '交换币种', 'Swap currencies')}
                       className="w-9 h-9 rounded-full bg-indigo-600 text-white shadow-md flex items-center justify-center hover:scale-105 active:scale-95 transition-transform cursor-pointer"
                     >
                       <ArrowsRightLeftIcon className="w-4 h-4 rotate-90" />
@@ -1265,7 +1343,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                         onChange={(e) => setCalcTo(e.target.value)}
                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                       >
-                        {ALL_CURRENCIES.map((c) => (
+                        {allCurrencies.map((c) => (
                           <option key={c.code} value={c.code} className="text-zinc-900">
                             {c.code} {c.name}
                           </option>
@@ -1291,17 +1369,22 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                   >
                     <div>
                       <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300 block mb-0.5">
-                        {activeTaxIntel.countryLabel}退稅門檻 ({activeTaxIntel.symbol}
-                        {activeTaxIntel.threshold.toLocaleString()})
+                        {t(
+                          `${activeTaxIntel.countryLabel}退稅門檻 (${activeTaxIntel.symbol}${activeTaxIntel.threshold.toLocaleString()})`,
+                          `${activeTaxIntel.countryLabel}退税门槛 (${activeTaxIntel.symbol}${activeTaxIntel.threshold.toLocaleString()})`,
+                          `${activeTaxIntel.countryLabel} Tax-Free Threshold (${activeTaxIntel.symbol}${activeTaxIntel.threshold.toLocaleString()})`
+                        )}
                       </span>
                       {activeTaxIntel.value >= activeTaxIntel.threshold ? (
                         <span className="font-semibold text-sm text-indigo-700 dark:text-indigo-400">
-                          已達門檻 · 結帳出示護照
+                          {t('已達門檻 · 結帳出示護照', '已达门槛 · 结账出示护照', 'Eligible · Show passport at checkout')}
                         </span>
                       ) : (
                         <span className="font-num font-bold text-sm text-zinc-900 dark:text-white">
-                          還差 {activeTaxIntel.symbol}
+                          {t('還差 ', '还差 ', 'Add ')}
+                          {activeTaxIntel.symbol}
                           {Math.ceil(activeTaxIntel.threshold - activeTaxIntel.value).toLocaleString()}
+                          {t('', '', ' more')}
                         </span>
                       )}
                     </div>
@@ -1332,12 +1415,14 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
         open={activeModal === 'BUDGET'}
         onClose={() => setActiveModal('NONE')}
         maxWidthClass="max-w-sm"
-        title="設定旅途預算"
+        title={t('設定旅途預算', '设置旅途预算', 'Set Trip Budget')}
       >
         <div className="space-y-4">
           <div className="flex gap-2.5">
             <div className="flex-1 bg-zinc-100 dark:bg-white/[0.05] border border-zinc-200/70 dark:border-white/10 rounded-2xl p-3.5">
-              <span className="text-[11px] font-medium text-zinc-500 block mb-1">金額</span>
+              <span className="text-[11px] font-medium text-zinc-500 block mb-1">
+                {t('金額', '金额', 'Amount')}
+              </span>
               <input
                 type="number"
                 value={draftBudget.amount || ''}
@@ -1352,7 +1437,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                 onChange={(e) => setDraftBudget({ ...draftBudget, currency: e.target.value })}
                 className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer"
               >
-                {ALL_CURRENCIES.map((c) => (
+                {allCurrencies.map((c) => (
                   <option key={c.code} value={c.code} className="text-zinc-900">
                     {c.code} {c.name}
                   </option>
@@ -1371,8 +1456,8 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
             value={draftBudget.type}
             onChange={(bt) => setDraftBudget({ ...draftBudget, type: bt })}
             options={[
-              { id: 'total', label: '總預算 (現金+卡)', accentFrom: '#4F5DF5', accentTo: '#6366F1' },
-              { id: 'cash_only', label: '僅限現金', accentFrom: '#0E9F76', accentTo: '#10B981' },
+              { id: 'total', label: t('總預算 (現金+卡)', '总预算 (现金+卡)', 'Total (Cash + Card)'), accentFrom: '#4F5DF5', accentTo: '#6366F1' },
+              { id: 'cash_only', label: t('僅限現金', '仅限现金', 'Cash Only'), accentFrom: '#0E9F76', accentTo: '#10B981' },
             ]}
           />
 
@@ -1382,14 +1467,14 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
               onClick={() => setActiveModal('NONE')}
               className="flex-1 min-h-[46px] rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 font-semibold text-sm cursor-pointer"
             >
-              取消
+              {t('取消', '取消', 'Cancel')}
             </button>
             <button
               type="button"
               onClick={handleSaveBudget}
               className="flex-1 min-h-[46px] rounded-full bg-[var(--tab-accent)] hover:bg-[var(--tab-accent-hover)] text-white font-semibold text-sm cursor-pointer"
             >
-              儲存
+              {t('儲存', '保存', 'Save')}
             </button>
           </div>
         </div>
@@ -1401,23 +1486,27 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
         onClose={() => setDetailExpense(null)}
         bottomSheetOnMobile
         maxWidthClass="max-w-md"
-        title={detailExpense?.isPreTrip ? '行前開支明細' : '旅途消費明細'}
+        title={
+          detailExpense?.isPreTrip
+            ? t('行前開支明細', '行前开支明细', 'Pre-Trip Detail')
+            : t('旅途消費明細', '旅途消费明细', 'Expense Detail')
+        }
       >
         {detailExpense &&
           (() => {
             const cat =
-              ALL_CATEGORIES.find((c) => c.id === detailExpense.category) ||
-              ALL_CATEGORIES[ALL_CATEGORIES.length - 1];
+              allCategories.find((c) => c.id === detailExpense.category) ||
+              allCategories[allCategories.length - 1];
             const splitN = detailExpense.splitCount && detailExpense.splitCount > 1 ? detailExpense.splitCount : 1;
             const personalAmt = detailExpense.amount / splitN;
             const personalBase = convert(personalAmt, detailExpense.currency, globalCurrency);
             const totalBase = convert(detailExpense.amount, detailExpense.currency, globalCurrency);
             const payLabel =
               detailExpense.paymentMethod === 'cash'
-                ? '現金'
+                ? t('現金', '现金', 'Cash')
                 : detailExpense.paymentMethod === 'card'
-                  ? '信用卡'
-                  : '其他';
+                  ? t('信用卡', '信用卡', 'Card')
+                  : t('其他', '其他', 'Other');
 
             return (
               <div className="space-y-4">
@@ -1434,7 +1523,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                         {detailExpense.title}
                       </h3>
                       <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                        {detailExpense.isPreTrip ? '行前開支' : '旅途消費'} · {cat.label}
+                        {detailExpense.isPreTrip ? t('行前開支', '行前开支', 'Pre-Trip') : t('旅途消費', '旅途消费', 'On-Trip')} · {cat.label}
                       </p>
                     </div>
                   </div>
@@ -1443,7 +1532,13 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                 <div className="rounded-2xl bg-zinc-100/80 dark:bg-white/[0.04] p-4 space-y-2">
                   <div className="flex items-baseline justify-between gap-3">
                     <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                      {splitN > 1 ? `個人攤分金額（共 ${splitN} 人）` : '消費金額'}
+                      {splitN > 1
+                        ? t(
+                            `個人攤分金額（共 ${splitN} 人）`,
+                            `个人分摊金额（共 ${splitN} 人）`,
+                            `Your share (split by ${splitN})`
+                          )
+                        : t('消費金額', '消费金额', 'Amount')}
                     </span>
                     <span className="text-2xl font-display font-bold font-num text-zinc-900 dark:text-white">
                       {formatMoney(personalAmt, detailExpense.currency)}
@@ -1451,7 +1546,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                   </div>
                   {detailExpense.currency !== globalCurrency && (
                     <div className="flex items-center justify-between text-xs font-num text-zinc-500 dark:text-zinc-400">
-                      <span>折合基準幣別</span>
+                      <span>{t('折合基準幣別', '折合基准币种', 'Converted amount')}</span>
                       <span className="font-semibold text-zinc-700 dark:text-zinc-200">
                         ≈ {formatMoney(personalBase, globalCurrency)}
                       </span>
@@ -1459,7 +1554,13 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                   )}
                   {splitN > 1 && (
                     <div className="pt-2 border-t border-zinc-200/70 dark:border-white/[0.08] flex items-center justify-between text-xs font-num text-indigo-600 dark:text-indigo-400 font-semibold">
-                      <span>帳單總額（{splitN} 人平均攤分）</span>
+                      <span>
+                        {t(
+                          `帳單總額（${splitN} 人平均攤分）`,
+                          `账单总额（${splitN} 人平均分摊）`,
+                          `Bill total (split ${splitN} ways)`
+                        )}
+                      </span>
                       <span>
                         {formatMoney(detailExpense.amount, detailExpense.currency)}
                         {detailExpense.currency !== globalCurrency
@@ -1472,16 +1573,16 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
 
                 <div className="grid grid-cols-2 gap-2.5 text-xs">
                   <div className="rounded-2xl bg-zinc-100/70 dark:bg-white/[0.04] px-3.5 py-2.5">
-                    <span className="text-zinc-400 block">分類</span>
+                    <span className="text-zinc-400 block">{t('分類', '分类', 'Category')}</span>
                     <span className="font-semibold text-zinc-900 dark:text-white mt-0.5 block">{cat.label}</span>
                   </div>
                   <div className="rounded-2xl bg-zinc-100/70 dark:bg-white/[0.04] px-3.5 py-2.5">
-                    <span className="text-zinc-400 block">付款方式</span>
+                    <span className="text-zinc-400 block">{t('付款方式', '付款方式', 'Payment')}</span>
                     <span className="font-semibold text-zinc-900 dark:text-white mt-0.5 block">{payLabel}</span>
                   </div>
                   {!detailExpense.isPreTrip && detailExpense.date && (
                     <div className="col-span-2 rounded-2xl bg-zinc-100/70 dark:bg-white/[0.04] px-3.5 py-2.5 flex items-center justify-between">
-                      <span className="text-zinc-400">消費日期</span>
+                      <span className="text-zinc-400">{t('消費日期', '消费日期', 'Date')}</span>
                       <span className="font-num font-semibold text-zinc-900 dark:text-white">
                         {detailExpense.date}
                       </span>
@@ -1500,7 +1601,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                     className="min-h-[46px] px-4 rounded-full bg-red-500/10 hover:bg-red-500/15 text-red-600 dark:text-red-400 font-semibold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <TrashIcon className="w-4 h-4" />
-                    <span>刪除</span>
+                    <span>{t('刪除', '删除', 'Delete')}</span>
                   </button>
                   <button
                     type="button"
@@ -1508,7 +1609,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                     className="flex-1 min-h-[46px] rounded-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <EditIcon className="w-4 h-4" />
-                    <span>編輯紀錄</span>
+                    <span>{t('編輯紀錄', '编辑记录', 'Edit Expense')}</span>
                   </button>
                 </div>
               </div>
@@ -1522,12 +1623,18 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
         onClose={() => setActiveModal('NONE')}
         bottomSheetOnMobile
         maxWidthClass="max-w-md"
-        title={editingId ? '編輯消費紀錄' : '記一筆開支'}
+        title={
+          editingId
+            ? t('編輯消費紀錄', '编辑消费记录', 'Edit Expense')
+            : t('記一筆開支', '记一笔开支', 'Add Expense')
+        }
       >
         <div className="flex-1 overflow-y-auto no-scrollbar space-y-4 pb-4">
           {/* Free Scope Toggle: 旅途消費 vs 行前開支 */}
           <div>
-            <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1.5 block">歸屬類型</label>
+            <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1.5 block">
+              {t('歸屬類型', '归属类型', 'Expense Scope')}
+            </label>
             <SlidingSegmentedControl
               fullWidth
               value={activeModal === 'ADD_PRE' ? 'ADD_PRE' : 'ADD_ON'}
@@ -1538,7 +1645,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                     ...prev,
                     currency: !editingId && !prev.amount ? destinationIntel.currency : prev.currency,
                     date: prev.date || new Date().toISOString().split('T')[0],
-                    category: ON_TRIP_CATEGORIES.some((c) => c.id === prev.category) ? prev.category : '',
+                    category: onTripCategories.some((c) => c.id === prev.category) ? prev.category : '',
                   }));
                 } else {
                   setActiveModal('ADD_PRE');
@@ -1547,13 +1654,13 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                     currency: !editingId && !prev.amount ? globalCurrency : prev.currency,
                     paymentMethod: !editingId && !prev.amount ? 'card' : prev.paymentMethod,
                     date: '',
-                    category: PRE_TRIP_CATEGORIES.some((c) => c.id === prev.category) ? prev.category : '',
+                    category: preTripCategories.some((c) => c.id === prev.category) ? prev.category : '',
                   }));
                 }
               }}
               options={[
-                { id: 'ADD_ON', label: '旅途消費', accentFrom: '#F26B3A', accentTo: '#FB923C' },
-                { id: 'ADD_PRE', label: '行前開支', accentFrom: '#4F5DF5', accentTo: '#6366F1' },
+                { id: 'ADD_ON', label: t('旅途消費', '旅途消费', 'On-Trip'), accentFrom: '#F26B3A', accentTo: '#FB923C' },
+                { id: 'ADD_PRE', label: t('行前開支', '行前开支', 'Pre-Trip'), accentFrom: '#4F5DF5', accentTo: '#6366F1' },
               ]}
             />
           </div>
@@ -1561,7 +1668,9 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
           <div className="flex gap-2.5">
             <div className="flex-1 bg-zinc-100 dark:bg-white/[0.05] border border-zinc-200/70 dark:border-white/10 rounded-2xl p-3.5">
               <span className="text-[11px] font-medium text-zinc-500 block mb-1">
-                {newExpense.splitCount > 1 ? '帳單總金額' : '金額'}
+                {newExpense.splitCount > 1
+                  ? t('帳單總金額', '账单总金额', 'Total Bill Amount')
+                  : t('金額', '金额', 'Amount')}
               </span>
               <input
                 type="number"
@@ -1577,7 +1686,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                 onChange={(e) => setNewExpense({ ...newExpense, currency: e.target.value })}
                 className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer"
               >
-                {ALL_CURRENCIES.map((c) => (
+                {allCurrencies.map((c) => (
                   <option key={c.code} value={c.code} className="text-zinc-900">
                     {c.code} {c.name}
                   </option>
@@ -1595,10 +1704,16 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
 
           <div className={`grid grid-cols-1 ${activeModal === 'ADD_ON' ? 'sm:grid-cols-2' : ''} gap-3`}>
             <div>
-              <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1 block">項目名稱</label>
+              <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1 block">
+                {t('項目名稱', '项目名称', 'Title')}
+              </label>
               <input
                 type="text"
-                placeholder={activeModal === 'ADD_PRE' ? '來回機票、住宿訂金' : '拉麵、交通卡'}
+                placeholder={
+                  activeModal === 'ADD_PRE'
+                    ? t('來回機票、住宿訂金', '往返机票、住宿定金', 'Roundtrip flight, hotel deposit')
+                    : t('拉麵、交通卡', '拉面、交通卡', 'Ramen, transit card')
+                }
                 value={newExpense.title}
                 onChange={(e) => setNewExpense({ ...newExpense, title: e.target.value })}
                 className="w-full h-11 px-4 rounded-2xl bg-zinc-100 dark:bg-white/[0.05] border border-zinc-200/70 dark:border-white/10 text-zinc-900 dark:text-white font-medium text-sm focus:outline-none"
@@ -1606,7 +1721,9 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
             </div>
             {activeModal === 'ADD_ON' && (
               <div>
-                <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1 block">日期</label>
+                <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1 block">
+                  {t('日期', '日期', 'Date')}
+                </label>
                 <div className="h-11 px-3.5 rounded-2xl bg-zinc-100 dark:bg-white/[0.05] border border-zinc-200/70 dark:border-white/10 flex items-center gap-2">
                   <CalendarIcon className="w-4 h-4 text-zinc-400 shrink-0" />
                   <input
@@ -1625,7 +1742,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-xs font-semibold text-zinc-800 dark:text-zinc-200">
                 <UsersIcon className="w-4 h-4 text-[var(--tab-accent)]" />
-                <span>是否有多人攤分此筆開支？</span>
+                <span>{t('是否有多人攤分此筆開支？', '是否有多人分摊此笔开支？', 'Split this expense?')}</span>
               </div>
               <SlidingSegmentedControl
                 size="sm"
@@ -1637,8 +1754,8 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                   }))
                 }
                 options={[
-                  { id: 'SOLO', label: '單獨支付', accentFrom: '#27272A', accentTo: '#3F3F46' },
-                  { id: 'SPLIT', label: '多人攤分', accentFrom: '#4F5DF5', accentTo: '#6366F1' },
+                  { id: 'SOLO', label: t('單獨支付', '单独支付', 'Solo'), accentFrom: '#27272A', accentTo: '#3F3F46' },
+                  { id: 'SPLIT', label: t('多人攤分', '多人分摊', 'Split'), accentFrom: '#4F5DF5', accentTo: '#6366F1' },
                 ]}
               />
             </div>
@@ -1646,7 +1763,9 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
             {newExpense.splitCount > 1 && (
               <div className="pt-2 border-t border-zinc-200/60 dark:border-white/[0.08] space-y-2.5">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs text-zinc-500 dark:text-zinc-400">攤分人數</span>
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                    {t('攤分人數', '分摊人数', 'People')}
+                  </span>
                   <div className="flex items-center gap-1.5">
                     {[2, 3, 4, 5, 6].map((cnt) => (
                       <button
@@ -1673,7 +1792,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                         -
                       </button>
                       <span className="px-1.5 text-xs font-num font-bold text-zinc-900 dark:text-white">
-                        {newExpense.splitCount}人
+                        {t(`${newExpense.splitCount}人`, `${newExpense.splitCount}人`, `${newExpense.splitCount}`)}
                       </span>
                       <button
                         type="button"
@@ -1689,7 +1808,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                 </div>
                 {parseFloat(newExpense.amount) > 0 && (
                   <div className="flex items-center justify-between text-xs font-num text-indigo-600 dark:text-indigo-400 font-semibold">
-                    <span>每人平均應付</span>
+                    <span>{t('每人平均應付', '每人平均应付', 'Per person share')}</span>
                     <span>
                       {formatMoney(parseFloat(newExpense.amount) / newExpense.splitCount, newExpense.currency)}
                     </span>
@@ -1700,23 +1819,27 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
           </div>
 
           <div>
-            <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1.5 block">付款方式</label>
+            <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1.5 block">
+              {t('付款方式', '付款方式', 'Payment Method')}
+            </label>
             <SlidingSegmentedControl
               fullWidth
               value={newExpense.paymentMethod}
               onChange={(pm) => setNewExpense({ ...newExpense, paymentMethod: pm })}
               options={[
-                { id: 'cash', label: '現金', icon: <BanknotesIcon className="w-4 h-4" />, accentFrom: '#0E9F76', accentTo: '#10B981' },
-                { id: 'card', label: '信用卡', icon: <CreditCardIcon className="w-4 h-4" />, accentFrom: '#4F5DF5', accentTo: '#6366F1' },
-                { id: 'other', label: '其他', icon: <TagIcon className="w-4 h-4" />, accentFrom: '#8B5CF6', accentTo: '#A78BFA' },
+                { id: 'cash', label: t('現金', '现金', 'Cash'), icon: <BanknotesIcon className="w-4 h-4" />, accentFrom: '#0E9F76', accentTo: '#10B981' },
+                { id: 'card', label: t('信用卡', '信用卡', 'Card'), icon: <CreditCardIcon className="w-4 h-4" />, accentFrom: '#4F5DF5', accentTo: '#6366F1' },
+                { id: 'other', label: t('其他', '其他', 'Other'), icon: <TagIcon className="w-4 h-4" />, accentFrom: '#8B5CF6', accentTo: '#A78BFA' },
               ]}
             />
           </div>
 
           <div>
-            <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1.5 block">分類</label>
+            <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1.5 block">
+              {t('分類', '分类', 'Category')}
+            </label>
             <div className="grid grid-cols-2 gap-2">
-              {(activeModal === 'ADD_PRE' ? PRE_TRIP_CATEGORIES : ON_TRIP_CATEGORIES).map((cat) => (
+              {(activeModal === 'ADD_PRE' ? preTripCategories : onTripCategories).map((cat) => (
                 <button
                   key={cat.id}
                   type="button"
@@ -1741,7 +1864,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
           disabled={!newExpense.amount || !newExpense.title.trim() || !newExpense.category}
           className="w-full min-h-[48px] rounded-full font-semibold text-sm bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-35 cursor-pointer shrink-0"
         >
-          {editingId ? '儲存變更' : '新增紀錄'}
+          {editingId ? t('儲存變更', '保存更改', 'Save Changes') : t('新增紀錄', '添加记录', 'Add Expense')}
         </button>
       </LiquidModal>
 
@@ -1753,36 +1876,42 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
         title={
           <div className="flex items-center gap-2">
             <ChartPieIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-            <span>消費分析 ({globalCurrency})</span>
+            <span>
+              {t(`消費分析 (${globalCurrency})`, `消费分析 (${globalCurrency})`, `Spending Analytics (${globalCurrency})`)}
+            </span>
           </div>
         }
       >
         <div className="flex-1 overflow-y-auto no-scrollbar space-y-5 pb-2">
           <div className="grid grid-cols-3 gap-2.5">
             <div className="bg-zinc-100 dark:bg-white/[0.05] rounded-2xl p-3 text-center">
-              <p className="text-[11px] font-medium text-zinc-500 mb-1">現金</p>
+              <p className="text-[11px] font-medium text-zinc-500 mb-1">{t('現金', '现金', 'Cash')}</p>
               <p className="font-num font-bold text-sm text-zinc-900 dark:text-white truncate">
-                {Math.round(onTripStats.methods.cash).toLocaleString()}
+                {Math.round(onTripStats.methods.cash).toLocaleString(localeTag)}
               </p>
             </div>
             <div className="bg-zinc-100 dark:bg-white/[0.05] rounded-2xl p-3 text-center">
-              <p className="text-[11px] font-medium text-zinc-500 mb-1">信用卡</p>
+              <p className="text-[11px] font-medium text-zinc-500 mb-1">{t('信用卡', '信用卡', 'Card')}</p>
               <p className="font-num font-bold text-sm text-zinc-900 dark:text-white truncate">
-                {Math.round(onTripStats.methods.card).toLocaleString()}
+                {Math.round(onTripStats.methods.card).toLocaleString(localeTag)}
               </p>
             </div>
             <div className="bg-zinc-100 dark:bg-white/[0.05] rounded-2xl p-3 text-center">
-              <p className="text-[11px] font-medium text-zinc-500 mb-1">其他</p>
+              <p className="text-[11px] font-medium text-zinc-500 mb-1">{t('其他', '其他', 'Other')}</p>
               <p className="font-num font-bold text-sm text-zinc-900 dark:text-white truncate">
-                {Math.round(onTripStats.methods.other).toLocaleString()}
+                {Math.round(onTripStats.methods.other).toLocaleString(localeTag)}
               </p>
             </div>
           </div>
 
           <div className="space-y-3">
-            <h4 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">類別佔比</h4>
+            <h4 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+              {t('類別佔比', '类别占比', 'By Category')}
+            </h4>
             {onTripStats.categories.length === 0 ? (
-              <p className="text-xs text-zinc-400 py-6 text-center">尚無消費數據</p>
+              <p className="text-xs text-zinc-400 py-6 text-center">
+                {t('尚無消費數據', '暂无消费数据', 'No expense data yet')}
+              </p>
             ) : (
               onTripStats.categories.map((cat) => {
                 const percent = onTripStats.total > 0 ? (cat.amount / onTripStats.total) * 100 : 0;
@@ -1807,9 +1936,13 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
           </div>
 
           <div className="space-y-2.5">
-            <h4 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">每日明細</h4>
+            <h4 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+              {t('每日明細', '每日明细', 'Daily Breakdown')}
+            </h4>
             {onTripStats.days.length === 0 ? (
-              <p className="text-xs text-zinc-400 py-4 text-center">尚無每日數據</p>
+              <p className="text-xs text-zinc-400 py-4 text-center">
+                {t('尚無每日數據', '暂无每日数据', 'No daily breakdown yet')}
+              </p>
             ) : (
               onTripStats.days.map((day) => {
                 const percent = onTripStats.maxDailyTotal > 0 ? (day.total / onTripStats.maxDailyTotal) * 100 : 0;
@@ -1842,12 +1975,17 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
             expenses.filter((e) => e.id !== deleteTarget.id),
             deleteTarget.id
           );
-          onShowToast('已刪除消費紀錄');
+          onShowToast(t('已刪除消費紀錄', '已删除消费记录', 'Expense deleted'));
           setDeleteTarget(null);
         }}
-        title="刪除此筆消費？"
-        description={`「${deleteTarget?.title || ''}」將從紀錄移除。`}
-        confirmLabel="確認刪除"
+        title={t('刪除此筆消費？', '删除此笔消费？', 'Delete Expense?')}
+        description={t(
+          `「${deleteTarget?.title || ''}」將從紀錄移除。`,
+          `「${deleteTarget?.title || ''}」将从记录移除。`,
+          `"${deleteTarget?.title || ''}" will be removed from expenses.`
+        )}
+        confirmLabel={t('確認刪除', '确认删除', 'Delete')}
+        cancelLabel={t('取消', '取消', 'Cancel')}
         icon={<TrashIcon className="w-6 h-6" />}
       />
     </div>

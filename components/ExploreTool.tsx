@@ -3,6 +3,13 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Trip, SavedPlace, SavedPlaceCategory, Activity } from '../types';
 import { generateUniqueId } from '../shared/syncMerge';
 import { detectDestinationIntel } from '../shared/destinationIntel';
+import {
+  formatDayBadge,
+  formatDurationLabel,
+  formatStopsCount,
+  formatTimeDisplay,
+} from '../shared/i18n';
+import { useI18n } from '../hooks/useI18n';
 import { getDaySpanUtc, addDaysUtc } from './DateRangeCalendar';
 import { LiquidModal, ConfirmSheet, SlidingSegmentedControl } from './LiquidPrimitives';
 import {
@@ -11,7 +18,6 @@ import {
   SparklesIcon,
   CameraIcon,
   DiningIcon,
-  CoffeeIcon,
   ShoppingBagIcon,
   TagIcon,
   StarIcon,
@@ -34,65 +40,22 @@ interface Props {
   onOpenItineraryDate?: (date: string) => void;
 }
 
+type AiFocusCategory = 'sightseeing' | 'food' | 'shopping';
+type DisplaySavedCategory = 'sightseeing' | 'food' | 'shopping' | 'other';
+
 interface AiExploreSuggestion {
   name: string;
-  category: 'sightseeing' | 'food' | 'cafe' | 'shopping';
+  category: AiFocusCategory;
   area: string;
   note: string;
   estimatedCost: number;
 }
 
-const CATEGORY_META: Record<
-  SavedPlaceCategory,
-  {
-    label: string;
-    icon: React.ComponentType<{ className?: string }>;
-    tintBg: string;
-    textClass: string;
-    accentBar: string;
-    activityType: Activity['type'];
-  }
-> = {
-  sightseeing: {
-    label: '景點',
-    icon: CameraIcon,
-    tintBg: 'bg-orange-500/12 dark:bg-orange-400/16',
-    textClass: 'text-orange-600 dark:text-orange-300',
-    accentBar: 'bg-orange-500',
-    activityType: 'sightseeing',
-  },
-  food: {
-    label: '美食',
-    icon: DiningIcon,
-    tintBg: 'bg-rose-500/12 dark:bg-rose-400/16',
-    textClass: 'text-rose-600 dark:text-rose-300',
-    accentBar: 'bg-rose-500',
-    activityType: 'food',
-  },
-  cafe: {
-    label: '咖啡甜點',
-    icon: CoffeeIcon,
-    tintBg: 'bg-amber-500/14 dark:bg-amber-400/16',
-    textClass: 'text-amber-600 dark:text-amber-300',
-    accentBar: 'bg-amber-500',
-    activityType: 'food',
-  },
-  shopping: {
-    label: '逛街伴手',
-    icon: ShoppingBagIcon,
-    tintBg: 'bg-fuchsia-500/12 dark:bg-fuchsia-400/16',
-    textClass: 'text-fuchsia-600 dark:text-fuchsia-300',
-    accentBar: 'bg-fuchsia-500',
-    activityType: 'sightseeing',
-  },
-  other: {
-    label: '其他',
-    icon: TagIcon,
-    tintBg: 'bg-zinc-500/12 dark:bg-zinc-400/16',
-    textClass: 'text-zinc-600 dark:text-zinc-300',
-    accentBar: 'bg-zinc-400',
-    activityType: 'sightseeing',
-  },
+const normalizeCategory = (cat?: SavedPlaceCategory | string): DisplaySavedCategory => {
+  if (cat === 'cafe' || cat === 'food') return 'food';
+  if (cat === 'sightseeing') return 'sightseeing';
+  if (cat === 'shopping') return 'shopping';
+  return 'other';
 };
 
 const QUICK_TIMES = ['09:30', '12:00', '14:30', '17:00', '19:30'];
@@ -105,8 +68,59 @@ const normalizeSpotKey = (name: string) =>
     .trim();
 
 const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenItineraryDate }) => {
-  const intel = useMemo(() => detectDestinationIntel(trip.destination), [trip.destination]);
+  const { lang, t } = useI18n();
+  const intel = useMemo(() => detectDestinationIntel(trip.destination, lang), [trip.destination, lang]);
   const savedPlaces = trip.savedPlaces || [];
+
+  const categoryMeta = useMemo<
+    Record<
+      DisplaySavedCategory,
+      {
+        label: string;
+        icon: React.ComponentType<{ className?: string }>;
+        tintBg: string;
+        textClass: string;
+        accentBar: string;
+        activityType: Activity['type'];
+      }
+    >
+  >(
+    () => ({
+      sightseeing: {
+        label: t('風景景點', '风景景点', 'Scenic & Sights'),
+        icon: CameraIcon,
+        tintBg: 'bg-orange-500/12 dark:bg-orange-400/16',
+        textClass: 'text-orange-600 dark:text-orange-300',
+        accentBar: 'bg-orange-500',
+        activityType: 'sightseeing',
+      },
+      food: {
+        label: t('美食甜點', '美食甜品', 'Food & Cafes'),
+        icon: DiningIcon,
+        tintBg: 'bg-rose-500/12 dark:bg-rose-400/16',
+        textClass: 'text-rose-600 dark:text-rose-300',
+        accentBar: 'bg-rose-500',
+        activityType: 'food',
+      },
+      shopping: {
+        label: t('逛街購物', '逛街购物', 'Shopping'),
+        icon: ShoppingBagIcon,
+        tintBg: 'bg-fuchsia-500/12 dark:bg-fuchsia-400/16',
+        textClass: 'text-fuchsia-600 dark:text-fuchsia-300',
+        accentBar: 'bg-fuchsia-500',
+        activityType: 'sightseeing',
+      },
+      other: {
+        label: t('其他', '其他', 'Other'),
+        icon: TagIcon,
+        tintBg: 'bg-zinc-500/12 dark:bg-zinc-400/16',
+        textClass: 'text-zinc-600 dark:text-zinc-300',
+        accentBar: 'bg-zinc-400',
+        activityType: 'sightseeing',
+      },
+    }),
+    [t]
+  );
 
   const tripDays = useMemo(() => {
     const span = getDaySpanUtc(trip.startDate, trip.endDate);
@@ -155,14 +169,14 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
 
   // Filters & Search
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'UNSCHEDULED' | 'SCHEDULED' | 'VISITED'>('ALL');
-  const [categoryFilter, setCategoryFilter] = useState<'ALL' | SavedPlaceCategory>('ALL');
+  const [categoryFilter, setCategoryFilter] = useState<'ALL' | DisplaySavedCategory>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Add / Edit Modal State
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingPlace, setEditingPlace] = useState<SavedPlace | null>(null);
   const [formName, setFormName] = useState('');
-  const [formCategory, setFormCategory] = useState<SavedPlaceCategory>('sightseeing');
+  const [formCategory, setFormCategory] = useState<DisplaySavedCategory>('sightseeing');
   const [formArea, setFormArea] = useState('');
   const [formNote, setFormNote] = useState('');
   const [formMapUrl, setFormMapUrl] = useState('');
@@ -178,9 +192,9 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
   // Delete Confirm State
   const [deletingPlace, setDeletingPlace] = useState<SavedPlace | null>(null);
 
-  // AI Spot Discovery Modal State + Anti-Duplicate Session History
+  // AI Spot Discovery Modal State + Anti-Duplicate Session History (strict 3 categories, no 'all')
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
-  const [aiFocusCategory, setAiFocusCategory] = useState<'all' | 'sightseeing' | 'food' | 'cafe' | 'shopping'>('all');
+  const [aiFocusCategory, setAiFocusCategory] = useState<AiFocusCategory>('sightseeing');
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiSuggestions, setAiSuggestions] = useState<AiExploreSuggestion[]>([]);
@@ -195,7 +209,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
     aiBatchSeedRef.current = 0;
     setAiBatchNum(0);
     setAiSuggestions([]);
-  }, [trip.id, trip.destination]);
+  }, [trip.id, trip.destination, lang]);
 
   const stats = useMemo(() => {
     let mustGo = 0;
@@ -213,7 +227,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
     const q = searchQuery.trim().toLowerCase();
     return [...savedPlaces]
       .filter((p) => {
-        if (categoryFilter !== 'ALL' && p.category !== categoryFilter) return false;
+        if (categoryFilter !== 'ALL' && normalizeCategory(p.category) !== categoryFilter) return false;
         const isScheduled = resolvedScheduleMap.has(p.id);
         if (statusFilter === 'UNSCHEDULED' && isScheduled) return false;
         if (statusFilter === 'SCHEDULED' && !isScheduled) return false;
@@ -246,7 +260,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
   const openEditModal = (place: SavedPlace) => {
     setEditingPlace(place);
     setFormName(place.name);
-    setFormCategory(place.category);
+    setFormCategory(normalizeCategory(place.category));
     setFormArea(place.area || '');
     setFormNote(place.note || '');
     setFormMapUrl(place.mapUrl || '');
@@ -259,7 +273,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
     e.preventDefault();
     const cleanName = formName.trim();
     if (!cleanName) {
-      onShowToast('請輸入地點或餐廳名稱', 'error');
+      onShowToast(t('請輸入地點或餐廳名稱', '请输入地点或餐厅名称', 'Please enter a place or restaurant name'), 'error');
       return;
     }
 
@@ -285,7 +299,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
           : item
       );
       onUpdateTrip({ ...trip, savedPlaces: updatedList, updatedAt: now });
-      onShowToast('已更新口袋地點', 'success');
+      onShowToast(t('已更新口袋地點', '已更新收藏地点', 'Saved place updated'), 'success');
     } else {
       const newPlace: SavedPlace = {
         id: generateUniqueId('place'),
@@ -301,7 +315,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
         updatedAt: now,
       };
       onUpdateTrip({ ...trip, savedPlaces: [newPlace, ...savedPlaces], updatedAt: now });
-      onShowToast(`已收錄「${cleanName}」`, 'success');
+      onShowToast(t(`已收錄「${cleanName}」`, `已收藏“${cleanName}”`, `Saved "${cleanName}"`), 'success');
     }
 
     setIsFormOpen(false);
@@ -321,7 +335,12 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
       p.id === place.id ? { ...p, visited: !p.visited, updatedAt: now } : p
     );
     onUpdateTrip({ ...trip, savedPlaces: next, updatedAt: now });
-    onShowToast(place.visited ? '已取消造訪標記' : `已打卡「${place.name}」`, 'info');
+    onShowToast(
+      place.visited
+        ? t('已取消造訪標記', '已取消打卡标记', 'Unmarked as visited')
+        : t(`已打卡「${place.name}」`, `已打卡“${place.name}”`, `Checked in at "${place.name}"`),
+      'info'
+    );
   };
 
   const confirmDeletePlace = () => {
@@ -330,7 +349,10 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
     const next = savedPlaces.filter((p) => p.id !== deletingPlace.id);
     const nextTombstones = { ...(trip.tombstones || {}), [deletingPlace.id]: now };
     onUpdateTrip({ ...trip, savedPlaces: next, tombstones: nextTombstones, updatedAt: now });
-    onShowToast(`已移除「${deletingPlace.name}」`, 'info');
+    onShowToast(
+      t(`已移除「${deletingPlace.name}」`, `已移除“${deletingPlace.name}”`, `Removed "${deletingPlace.name}"`),
+      'info'
+    );
     setDeletingPlace(null);
   };
 
@@ -347,7 +369,8 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
     if (!schedulingPlace || !scheduleDate) return;
 
     const now = Date.now();
-    const meta = CATEGORY_META[schedulingPlace.category] || CATEGORY_META.other;
+    const normCat = normalizeCategory(schedulingPlace.category);
+    const meta = categoryMeta[normCat] || categoryMeta.other;
     const newActId = generateUniqueId('act');
     const cleanTime = /^\d{1,2}:\d{2}$/.test(scheduleTime.trim())
       ? scheduleTime.trim().padStart(5, '0')
@@ -384,7 +407,9 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
     );
 
     const dayIndex = tripDays.findIndex((d) => d.iso === scheduleDate);
-    const dayLabel = dayIndex >= 0 ? `Day ${dayIndex + 1}` : scheduleDate.slice(5);
+    const dayLabel = dayIndex >= 0 ? formatDayBadge(dayIndex + 1, lang) : scheduleDate.slice(5);
+    const formattedTime = formatTimeDisplay(cleanTime, lang);
+    const timeLabel = formattedTime.suffix ? `${formattedTime.main} ${formattedTime.suffix}` : formattedTime.main;
 
     onUpdateTrip({
       ...trip,
@@ -401,10 +426,17 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
     });
 
     setSchedulingPlace(null);
-    onShowToast(`已排入 ${dayLabel} (${cleanTime}) 行程時間軸`, 'success');
+    onShowToast(
+      t(
+        `已排入 ${dayLabel} (${timeLabel}) 行程時間軸`,
+        `已排入 ${dayLabel} (${timeLabel}) 行程时间轴`,
+        `Added to ${dayLabel} (${timeLabel}) timeline`
+      ),
+      'success'
+    );
   };
 
-  const handleFetchAiSpots = async (overrideCategory = aiFocusCategory, resetHistory = false) => {
+  const handleFetchAiSpots = async (overrideCategory: AiFocusCategory = aiFocusCategory, resetHistory = false) => {
     if (resetHistory) {
       seenAiNamesRef.current.clear();
       seenAiKeysRef.current.clear();
@@ -417,34 +449,57 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
     const nextBatch = aiBatchSeedRef.current + 1;
     aiBatchSeedRef.current = nextBatch;
 
-    // Combine saved places + all previously suggested spots in this session so "換一批" never repeats
     const excludeSet = new Set<string>([
       ...savedPlaces.map((p) => p.name.trim()),
       ...Array.from(seenAiNamesRef.current),
     ]);
-    const excludeNames = Array.from(excludeSet).filter(Boolean).slice(-120);
+    const excludeNames = Array.from(excludeSet).filter(Boolean).slice(-140);
 
     try {
       const res = await fetch('/api/ai/explore-spots', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          destination: trip.destination,
+          destination: intel.displayCity || trip.destination,
           focusCategory: overrideCategory,
           excludeNames,
           batchSeed: nextBatch,
+          lang,
         }),
       });
       const contentType = res.headers.get('content-type') || '';
       if (!contentType.includes('application/json')) {
-        throw new Error('目前為純靜態託管環境，AI 探索推薦需透過完整後端伺服器執行。');
+        throw new Error(
+          t(
+            '目前為純靜態託管環境，AI 探索推薦需透過完整後端伺服器執行。',
+            '当前为纯静态托管环境，AI 探索推荐需通过完整后端服务器执行。',
+            'Static hosting detected. AI Spot Discovery requires the full backend server.'
+          )
+        );
       }
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || '無法取得推薦地點');
+        throw new Error(data.error || t('無法取得推薦地點', '无法获取推荐地点', 'Unable to fetch spot recommendations'));
       }
 
-      const rawSpots: AiExploreSuggestion[] = Array.isArray(data.spots) ? data.spots : [];
+      const rawSpots: AiExploreSuggestion[] = (Array.isArray(data.spots) ? data.spots : []).map(
+        (s: { name: string; category?: string; area?: string; note?: string; estimatedCost?: number }) => {
+          const cat: AiFocusCategory =
+            s.category === 'food' || s.category === 'cafe'
+              ? 'food'
+              : s.category === 'shopping'
+                ? 'shopping'
+                : 'sightseeing';
+          return {
+            name: String(s.name || '').trim(),
+            category: cat,
+            area: String(s.area || '').trim(),
+            note: String(s.note || '').trim(),
+            estimatedCost: Number(s.estimatedCost) || 0,
+          };
+        }
+      );
+
       const savedKeys = new Set(savedPlaces.map((p) => normalizeSpotKey(p.name)));
       const freshSpots = rawSpots.filter((s) => {
         const key = normalizeSpotKey(s.name);
@@ -453,7 +508,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
         return true;
       });
 
-      const finalSpots = freshSpots.length > 0 ? freshSpots : rawSpots;
+      const finalSpots = (freshSpots.length > 0 ? freshSpots : rawSpots).filter((s) => Boolean(s.name));
       finalSpots.forEach((s) => {
         seenAiNamesRef.current.add(s.name.trim());
         const key = normalizeSpotKey(s.name);
@@ -463,7 +518,11 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
       setAiSuggestions(finalSpots);
       setAiBatchNum(nextBatch);
     } catch (err) {
-      setAiError(err instanceof Error ? err.message : '探索請求失敗，請稍後再試。');
+      setAiError(
+        err instanceof Error
+          ? err.message
+          : t('探索請求失敗，請稍後再試。', '探索请求失败，请稍后再试。', 'Discovery request failed. Please try again.')
+      );
     } finally {
       setAiLoading(false);
     }
@@ -481,7 +540,10 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
       (p) => p.name.trim().toLowerCase() === spot.name.trim().toLowerCase()
     );
     if (exists) {
-      onShowToast(`「${spot.name}」已在口袋名單中`, 'info');
+      onShowToast(
+        t(`「${spot.name}」已在口袋名單中`, `“${spot.name}”已在收藏列表中`, `"${spot.name}" is already saved`),
+        'info'
+      );
       return;
     }
     const now = Date.now();
@@ -502,7 +564,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
       savedPlaces: [newPlace, ...savedPlaces],
       updatedAt: now,
     });
-    onShowToast(`已收錄「${spot.name}」`, 'success');
+    onShowToast(t(`已收錄「${spot.name}」`, `已收藏“${spot.name}”`, `Saved "${spot.name}"`), 'success');
   };
 
   const getGoogleMapsUrl = (place: SavedPlace) => {
@@ -514,7 +576,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
   return (
     <div className="h-full overflow-y-auto no-scrollbar px-4 sm:px-6 lg:px-8 pt-2 pb-10">
       <div className="max-w-2xl lg:max-w-5xl mx-auto space-y-4">
-        {/* Redesigned Warm Sunset Coral-Amber Discovery Hero & Controls */}
+        {/* Sunset Coral-Amber Discovery Hero & Controls */}
         <div className="surface-elevated rounded-3xl p-4 sm:p-5 space-y-4 relative overflow-hidden">
           <div
             aria-hidden="true"
@@ -529,17 +591,21 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <h2 className="text-base sm:text-lg font-display font-bold text-zinc-900 dark:text-white truncate">
-                    {intel.displayCity} 探索靈感庫
+                    {t(`${intel.displayCity} 探索靈感庫`, `${intel.displayCity} 探索灵感库`, `${intel.displayCity} Discovery`)}
                   </h2>
                 </div>
                 <div className="flex items-center flex-wrap gap-x-2.5 gap-y-0.5 text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 font-num">
-                  <span>共 {stats.total} 處</span>
+                  <span>{t(`共 ${stats.total} 處`, `共 ${stats.total} 处`, `${stats.total} saved`)}</span>
                   <span aria-hidden="true">·</span>
-                  <span className="text-amber-600 dark:text-amber-400 font-semibold">必去 {stats.mustGo}</span>
+                  <span className="text-amber-600 dark:text-amber-400 font-semibold">
+                    {t(`必去 ${stats.mustGo}`, `必去 ${stats.mustGo}`, `${stats.mustGo} must-go`)}
+                  </span>
                   <span aria-hidden="true">·</span>
-                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold">已排 {stats.scheduled}</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                    {t(`已排 ${stats.scheduled}`, `已排 ${stats.scheduled}`, `${stats.scheduled} planned`)}
+                  </span>
                   <span aria-hidden="true">·</span>
-                  <span>已訪 {stats.visited}</span>
+                  <span>{t(`已訪 ${stats.visited}`, `已访 ${stats.visited}`, `${stats.visited} visited`)}</span>
                 </div>
               </div>
             </div>
@@ -551,7 +617,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                 className="h-10 px-4 rounded-full bg-zinc-900 dark:bg-white/12 text-white text-xs font-semibold flex items-center gap-1.5 hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap shrink-0"
               >
                 <SparklesIcon className="w-3.5 h-3.5 text-amber-300" />
-                <span>AI 探索推薦</span>
+                <span>{t('AI 探索推薦', 'AI 探索推荐', 'AI Discovery')}</span>
               </button>
               <button
                 type="button"
@@ -559,7 +625,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                 className="h-10 px-4 rounded-full bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white text-xs font-semibold flex items-center gap-1.5 shadow-[0_8px_18px_-6px_rgba(225,29,72,0.5)] active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap shrink-0"
               >
                 <PlusIcon className="w-4 h-4" />
-                <span>新增地點</span>
+                <span>{t('新增地點', '添加地点', 'Add Spot')}</span>
               </button>
             </div>
           </div>
@@ -572,14 +638,14 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="搜尋收藏景點、餐廳、街區或筆記..."
+                placeholder={t('搜尋收藏景點、餐廳、街區或筆記...', '搜索收藏景点、餐厅、街区或笔记...', 'Search spots, cafes, districts, or notes...')}
                 className="w-full h-10 pl-9 pr-8 rounded-2xl bg-zinc-100/80 dark:bg-white/[0.06] text-xs sm:text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-rose-500/25"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  aria-label="清除搜尋"
+                  aria-label={t('清除搜尋', '清除搜索', 'Clear search')}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 cursor-pointer"
                 >
                   <XMarkIcon className="w-3.5 h-3.5" />
@@ -592,19 +658,19 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
               value={statusFilter}
               onChange={setStatusFilter}
               options={[
-                { id: 'ALL', label: '全部', accentFrom: '#E11D48', accentTo: '#F97316' },
-                { id: 'UNSCHEDULED', label: '待排入', accentFrom: '#F59E0B', accentTo: '#FB923C' },
-                { id: 'SCHEDULED', label: '已排入', accentFrom: '#10B981', accentTo: '#059669' },
-                { id: 'VISITED', label: '已打卡', accentFrom: '#7C3AED', accentTo: '#A855F7' },
+                { id: 'ALL', label: t('全部', '全部', 'All'), accentFrom: '#E11D48', accentTo: '#F97316' },
+                { id: 'UNSCHEDULED', label: t('待排入', '待排入', 'To Plan'), accentFrom: '#F59E0B', accentTo: '#FB923C' },
+                { id: 'SCHEDULED', label: t('已排入', '已排入', 'Planned'), accentFrom: '#10B981', accentTo: '#059669' },
+                { id: 'VISITED', label: t('已打卡', '已打卡', 'Visited'), accentFrom: '#7C3AED', accentTo: '#A855F7' },
               ]}
             />
           </div>
 
           {/* Category Filter Strip */}
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-0.5">
-            {(['ALL', 'sightseeing', 'food', 'cafe', 'shopping', 'other'] as const).map((cat) => {
+            {(['ALL', 'sightseeing', 'food', 'shopping', 'other'] as const).map((cat) => {
               const active = categoryFilter === cat;
-              const label = cat === 'ALL' ? '全部分類' : CATEGORY_META[cat].label;
+              const label = cat === 'ALL' ? t('全部分類', '全部分类', 'All Categories') : categoryMeta[cat].label;
               return (
                 <button
                   key={cat}
@@ -631,10 +697,16 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
             </div>
             <div className="space-y-1">
               <h3 className="text-base font-display font-bold text-zinc-900 dark:text-white">
-                {savedPlaces.length === 0 ? '建立你的口袋景點名單' : '沒有符合條件的收藏地點'}
+                {savedPlaces.length === 0
+                  ? t('建立你的口袋景點名單', '创建你的心愿景点清单', 'Build Your Spot Wishlist')
+                  : t('沒有符合條件的收藏地點', '没有符合条件的收藏地点', 'No matching saved spots')}
               </h3>
               <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-md mx-auto leading-relaxed">
-                把看到想去的餐廳、咖啡廳或伴手禮先收進來，決定好那天要去時，一鍵直接排進每日行程時間軸。
+                {t(
+                  '把看到想去的餐廳、咖啡廳或伴手禮先收進來，決定好哪天要去時，一鍵直接排進每日行程時間軸。',
+                  '把想去的餐厅、咖啡馆或手信好店先收藏起来，决定好日期后即可一键排入每日时间轴。',
+                  'Save must-visit sights, cafes, and shops here, then drop them onto any itinerary day with a single tap.'
+                )}
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
@@ -644,7 +716,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                 className="h-10 px-5 rounded-full bg-zinc-900 dark:bg-white/12 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
               >
                 <SparklesIcon className="w-3.5 h-3.5 text-amber-300" />
-                <span>讓 AI 推薦 {intel.displayCity} 好去處</span>
+                <span>{t(`讓 AI 推薦 ${intel.displayCity} 好去處`, `让 AI 推荐 ${intel.displayCity} 好去处`, `Explore ${intel.displayCity} with AI`)}</span>
               </button>
               <button
                 type="button"
@@ -652,7 +724,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                 className="h-10 px-5 rounded-full bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
               >
                 <PlusIcon className="w-4 h-4" />
-                <span>手動新增地點</span>
+                <span>{t('手動新增地點', '手动添加地点', 'Add Manually')}</span>
               </button>
             </div>
           </div>
@@ -660,9 +732,15 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
             <AnimatePresence initial={false}>
               {filteredPlaces.map((place) => {
-                const meta = CATEGORY_META[place.category] || CATEGORY_META.other;
+                const meta = categoryMeta[normalizeCategory(place.category)] || categoryMeta.other;
                 const Icon = meta.icon;
                 const scheduled = resolvedScheduleMap.get(place.id);
+                const schedTimeObj = scheduled ? formatTimeDisplay(scheduled.time, lang) : null;
+                const schedTimeLabel = schedTimeObj
+                  ? schedTimeObj.suffix
+                    ? `${schedTimeObj.main} ${schedTimeObj.suffix}`
+                    : schedTimeObj.main
+                  : '';
 
                 return (
                   <motion.div
@@ -705,7 +783,8 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                                 <>
                                   <span aria-hidden="true">·</span>
                                   <span className="font-num">
-                                    約 {intel.currencySymbol}
+                                    {t('約 ', '约 ', '~')}
+                                    {intel.currencySymbol}
                                     {place.estimatedCost.toLocaleString()}
                                   </span>
                                 </>
@@ -718,7 +797,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                           <button
                             type="button"
                             onClick={() => toggleMustGo(place)}
-                            aria-label={place.mustGo ? '取消必去星標' : '標記為必去'}
+                            aria-label={place.mustGo ? t('取消必去星標', '取消必去星标', 'Remove Must-Go') : t('標記為必去', '标记为必去', 'Mark Must-Go')}
                             className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
                               place.mustGo
                                 ? 'bg-amber-500/15 text-amber-500'
@@ -731,7 +810,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                           <button
                             type="button"
                             onClick={() => toggleVisited(place)}
-                            aria-label={place.visited ? '取消已造訪' : '標記已造訪'}
+                            aria-label={place.visited ? t('取消已造訪', '取消已访问', 'Unmark Visited') : t('標記已造訪', '标记已访问', 'Mark Visited')}
                             className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
                               place.visited
                                 ? 'bg-emerald-500 text-white'
@@ -759,14 +838,14 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                           className="h-8 px-3 rounded-full bg-zinc-100/90 dark:bg-white/[0.06] text-zinc-700 dark:text-zinc-200 text-xs font-medium inline-flex items-center gap-1 hover:bg-zinc-200/80 dark:hover:bg-white/10 transition-colors"
                         >
                           <MapIcon className="w-3.5 h-3.5" />
-                          <span>地圖</span>
+                          <span>{t('地圖', '地图', 'Map')}</span>
                           <ArrowUpRightIcon className="w-3 h-3 opacity-70" />
                         </a>
 
                         <button
                           type="button"
                           onClick={() => openEditModal(place)}
-                          aria-label="編輯"
+                          aria-label={t('編輯', '编辑', 'Edit')}
                           className="w-8 h-8 rounded-full text-zinc-400 hover:text-zinc-800 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/[0.06] flex items-center justify-center cursor-pointer transition-colors"
                         >
                           <EditIcon className="w-3.5 h-3.5" />
@@ -775,7 +854,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                         <button
                           type="button"
                           onClick={() => setDeletingPlace(place)}
-                          aria-label="刪除"
+                          aria-label={t('刪除', '删除', 'Delete')}
                           className="w-8 h-8 rounded-full text-zinc-400 hover:text-red-500 hover:bg-red-500/10 flex items-center justify-center cursor-pointer transition-colors"
                         >
                           <TrashIcon className="w-3.5 h-3.5" />
@@ -791,11 +870,11 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                               className="h-8 px-3 rounded-full bg-emerald-500/14 text-emerald-700 dark:text-emerald-300 text-xs font-num font-semibold flex items-center gap-1 cursor-pointer hover:bg-emerald-500/22 transition-colors whitespace-nowrap"
                             >
                               <CalendarIcon className="w-3.5 h-3.5" />
-                              <span>Day {scheduled.dayNum} · {scheduled.time}</span>
+                              <span>{formatDayBadge(scheduled.dayNum, lang)} · {schedTimeLabel}</span>
                             </button>
                           ) : (
                             <span className="text-xs font-num font-semibold text-emerald-600 dark:text-emerald-300">
-                              已排入 Day {scheduled.dayNum}
+                              {t(`已排入 ${formatDayBadge(scheduled.dayNum, lang)}`, `已排入 ${formatDayBadge(scheduled.dayNum, lang)}`, `Planned · ${formatDayBadge(scheduled.dayNum, lang)}`)}
                             </span>
                           )}
                           <button
@@ -803,7 +882,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                             onClick={() => openScheduleModal(place)}
                             className="h-8 px-2.5 rounded-full text-[11px] font-semibold text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white cursor-pointer"
                           >
-                            改期
+                            {t('改期', '改期', 'Reschedule')}
                           </button>
                         </div>
                       ) : (
@@ -813,7 +892,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                           className="h-8 px-3.5 rounded-full bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap"
                         >
                           <CalendarIcon className="w-3.5 h-3.5" />
-                          <span>排入行程</span>
+                          <span>{t('排入行程', '排入行程', 'Schedule')}</span>
                         </button>
                       )}
                     </div>
@@ -829,31 +908,35 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
       <LiquidModal
         open={isFormOpen}
         onClose={() => setIsFormOpen(false)}
-        title={editingPlace ? '編輯口袋地點' : '新增口袋地點'}
+        title={
+          editingPlace
+            ? t('編輯口袋地點', '编辑收藏地点', 'Edit Saved Spot')
+            : t('新增口袋地點', '添加收藏地点', 'Add Saved Spot')
+        }
         maxWidthClass="max-w-md"
         bottomSheetOnMobile
       >
         <form onSubmit={handleSavePlace} className="space-y-4 overflow-y-auto no-scrollbar max-h-[70dvh] pr-0.5">
           <div>
             <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1.5 block">
-              地點 / 餐廳名稱 *
+              {t('地點 / 餐廳名稱 *', '地点 / 餐厅名称 *', 'Place or Restaurant Name *')}
             </label>
             <input
               type="text"
               required
               value={formName}
               onChange={(e) => setFormName(e.target.value)}
-              placeholder={`例如：澀谷 SKY、今半壽喜燒...`}
+              placeholder={t('例如：澀谷 SKY、今半壽喜燒...', '例如：涩谷 SKY、今半寿喜烧...', 'e.g. Shibuya SKY, Blue Bottle...')}
               className="w-full min-h-[44px] px-4 rounded-2xl bg-zinc-100 dark:bg-white/[0.06] border border-zinc-200/70 dark:border-white/10 text-sm font-semibold text-zinc-900 dark:text-white focus:outline-none"
             />
           </div>
 
           <div>
             <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1.5 block">
-              分類
+              {t('分類', '分类', 'Category')}
             </label>
             <div className="flex flex-wrap gap-1.5">
-              {(['sightseeing', 'food', 'cafe', 'shopping', 'other'] as SavedPlaceCategory[]).map((cat) => {
+              {(['sightseeing', 'food', 'shopping', 'other'] as DisplaySavedCategory[]).map((cat) => {
                 const active = formCategory === cat;
                 return (
                   <button
@@ -866,7 +949,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                         : 'bg-zinc-100 dark:bg-white/[0.06] text-zinc-600 dark:text-zinc-300'
                     }`}
                   >
-                    {CATEGORY_META[cat].label}
+                    {categoryMeta[cat].label}
                   </button>
                 );
               })}
@@ -876,19 +959,19 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1.5 block">
-                所在區域（選填）
+                {t('所在區域（選填）', '所在区域（选填）', 'Neighborhood (optional)')}
               </label>
               <input
                 type="text"
                 value={formArea}
                 onChange={(e) => setFormArea(e.target.value)}
-                placeholder="例如：表參道、銀座"
+                placeholder={t('例如：表參道、銀座', '例如：表参道、银座', 'e.g. Omotesando, Ginza')}
                 className="w-full min-h-[42px] px-3.5 rounded-2xl bg-zinc-100 dark:bg-white/[0.06] border border-zinc-200/70 dark:border-white/10 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none"
               />
             </div>
             <div>
               <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1.5 block">
-                預估花費 ({intel.currency})
+                {t(`預估花費 (${intel.currency})`, `预估花费 (${intel.currency})`, `Est. Cost (${intel.currency})`)}
               </label>
               <input
                 type="number"
@@ -904,26 +987,26 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
 
           <div>
             <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1.5 block">
-              亮點筆記 / 營業時間 / 必買必點
+              {t('亮點筆記 / 營業時間 / 必買必點', '亮点笔记 / 营业时间 / 必买必点', 'Highlights / Hours / Notes')}
             </label>
             <textarea
               rows={2}
               value={formNote}
               onChange={(e) => setFormNote(e.target.value)}
-              placeholder="例如：預約日落時段、週二公休、推薦黑毛和牛套餐"
+              placeholder={t('例如：預約日落時段、週二公休、推薦招牌套餐', '例如：预约日落时段、周二休息、推荐招牌套餐', 'e.g. Book sunset slot, closed Tuesdays, signature dish')}
               className="w-full p-3.5 rounded-2xl bg-zinc-100 dark:bg-white/[0.06] border border-zinc-200/70 dark:border-white/10 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none resize-none"
             />
           </div>
 
           <div>
             <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1.5 block">
-              地圖 / 參考連結（選填）
+              {t('地圖 / 參考連結（選填）', '地图 / 参考链接（选填）', 'Map / Reference URL (optional)')}
             </label>
             <input
               type="url"
               value={formMapUrl}
               onChange={(e) => setFormMapUrl(e.target.value)}
-              placeholder="留空則自動以名稱搜尋 Google Maps"
+              placeholder={t('留空則自動以名稱搜尋 Google Maps', '留空则自动以名称搜索 Google Maps', 'Leave blank to auto-search Google Maps')}
               className="w-full min-h-[42px] px-3.5 rounded-2xl bg-zinc-100 dark:bg-white/[0.06] border border-zinc-200/70 dark:border-white/10 text-xs text-zinc-900 dark:text-white focus:outline-none"
             />
           </div>
@@ -935,10 +1018,10 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
           >
             <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 flex items-center gap-2">
               <StarIcon className="w-4 h-4 text-amber-500" filled={formMustGo} />
-              <span>標記為本次「必去清單」優先置頂</span>
+              <span>{t('標記為本次「必去清單」優先置頂', '标记为本次“必去清单”优先置顶', 'Pin as "Must-Go" Priority')}</span>
             </span>
             <span className={`text-xs font-bold ${formMustGo ? 'text-amber-500' : 'text-zinc-400'}`}>
-              {formMustGo ? '已開啟' : '關閉'}
+              {formMustGo ? t('已開啟', '已开启', 'On') : t('關閉', '关闭', 'Off')}
             </span>
           </button>
 
@@ -946,7 +1029,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
             type="submit"
             className="w-full min-h-[48px] rounded-full bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white font-semibold text-sm cursor-pointer active:scale-[0.985] transition-all shadow-sm"
           >
-            {editingPlace ? '儲存變更' : '收錄至口袋名單'}
+            {editingPlace ? t('儲存變更', '保存更改', 'Save Changes') : t('收錄至口袋名單', '添加到收藏清单', 'Save Spot')}
           </button>
         </form>
       </LiquidModal>
@@ -955,7 +1038,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
       <LiquidModal
         open={Boolean(schedulingPlace)}
         onClose={() => setSchedulingPlace(null)}
-        title="排入行程時間軸"
+        title={t('排入行程時間軸', '排入行程时间轴', 'Add to Itinerary')}
         maxWidthClass="max-w-md"
         bottomSheetOnMobile
       >
@@ -966,14 +1049,14 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                 {schedulingPlace.name}
               </div>
               <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                {CATEGORY_META[schedulingPlace.category].label}
+                {categoryMeta[normalizeCategory(schedulingPlace.category)].label}
                 {schedulingPlace.area ? ` · ${schedulingPlace.area}` : ''}
               </div>
             </div>
 
             <div>
               <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-2 block">
-                選擇排入哪一天
+                {t('選擇排入哪一天', '选择排入哪一天', 'Select Day')}
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-40 overflow-y-auto no-scrollbar pr-0.5">
                 {tripDays.map((d) => {
@@ -989,9 +1072,9 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                           : 'bg-zinc-100/80 dark:bg-white/[0.05] text-zinc-800 dark:text-zinc-200 border-transparent hover:border-zinc-300 dark:hover:border-white/15'
                       }`}
                     >
-                      <div className="font-num font-bold text-xs">Day {d.dayNum}</div>
+                      <div className="font-num font-bold text-xs">{formatDayBadge(d.dayNum, lang)}</div>
                       <div className={`text-[11px] font-num ${active ? 'text-white/85' : 'text-zinc-500 dark:text-zinc-400'}`}>
-                        {d.shortDate} · {d.count} 站
+                        {d.shortDate} · {formatStopsCount(d.count, lang)}
                       </div>
                     </button>
                   );
@@ -1003,7 +1086,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
               <div>
                 <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1.5 flex items-center gap-1">
                   <ClockIcon className="w-3.5 h-3.5" />
-                  <span>出發時間</span>
+                  <span>{t('出發時間', '出发时间', 'Start Time')}</span>
                 </label>
                 <input
                   type="time"
@@ -1014,7 +1097,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
               </div>
               <div>
                 <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1.5 block">
-                  停留時間
+                  {t('停留時間', '停留时间', 'Duration')}
                 </label>
                 <div className="flex items-center gap-1.5 h-[42px]">
                   {QUICK_DURATIONS.map((dur) => (
@@ -1028,7 +1111,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                           : 'bg-zinc-100 dark:bg-white/[0.06] text-zinc-700 dark:text-zinc-300'
                       }`}
                     >
-                      {dur}
+                      {formatDurationLabel(dur, lang)}
                     </button>
                   ))}
                 </div>
@@ -1036,37 +1119,40 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
             </div>
 
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-              {QUICK_TIMES.map((qt) => (
-                <button
-                  key={qt}
-                  type="button"
-                  onClick={() => setScheduleTime(qt)}
-                  className={`h-8 px-3 rounded-full text-xs font-num font-semibold shrink-0 cursor-pointer transition-colors ${
-                    scheduleTime === qt
-                      ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900'
-                      : 'bg-zinc-100 dark:bg-white/[0.06] text-zinc-600 dark:text-zinc-300'
-                  }`}
-                >
-                  {qt}
-                </button>
-              ))}
+              {QUICK_TIMES.map((qt) => {
+                const qtDisp = formatTimeDisplay(qt, lang);
+                return (
+                  <button
+                    key={qt}
+                    type="button"
+                    onClick={() => setScheduleTime(qt)}
+                    className={`h-8 px-3 rounded-full text-xs font-num font-semibold shrink-0 cursor-pointer transition-colors ${
+                      scheduleTime === qt
+                        ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900'
+                        : 'bg-zinc-100 dark:bg-white/[0.06] text-zinc-600 dark:text-zinc-300'
+                    }`}
+                  >
+                    {qtDisp.suffix ? `${qtDisp.main} ${qtDisp.suffix}` : qtDisp.main}
+                  </button>
+                );
+              })}
             </div>
 
             <button
               type="submit"
               className="w-full min-h-[48px] rounded-full bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white font-semibold text-sm cursor-pointer active:scale-[0.985] transition-all"
             >
-              確認加入行程時間軸
+              {t('確認加入行程時間軸', '确认加入行程时间轴', 'Add to Timeline')}
             </button>
           </form>
         )}
       </LiquidModal>
 
-      {/* Redesigned AI Spot Discovery Modal (Sunset Coral-Amber Identity + Deduplicated Batches) */}
+      {/* AI Spot Discovery Modal (Strictly 3 pure categories: sightseeing / food / shopping, 10 items per batch) */}
       <LiquidModal
         open={isAiModalOpen}
         onClose={() => setIsAiModalOpen(false)}
-        title={`AI 探索 · ${intel.displayCity}`}
+        title={t(`AI 探索 · ${intel.displayCity}`, `AI 探索 · ${intel.displayCity}`, `AI Discovery · ${intel.displayCity}`)}
         maxWidthClass="max-w-lg"
         bottomSheetOnMobile
       >
@@ -1075,11 +1161,9 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
               {(
                 [
-                  { id: 'all', label: '綜合精選' },
-                  { id: 'sightseeing', label: '經典景點' },
-                  { id: 'food', label: '在地美食' },
-                  { id: 'cafe', label: '咖啡甜點' },
-                  { id: 'shopping', label: '逛街伴手' },
+                  { id: 'sightseeing', label: categoryMeta.sightseeing.label },
+                  { id: 'food', label: categoryMeta.food.label },
+                  { id: 'shopping', label: categoryMeta.shopping.label },
                 ] as const
               ).map((tab) => (
                 <button
@@ -1089,7 +1173,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                     setAiFocusCategory(tab.id);
                     void handleFetchAiSpots(tab.id);
                   }}
-                  className={`h-8 px-3 rounded-full text-xs font-semibold shrink-0 cursor-pointer transition-all ${
+                  className={`h-8 px-3.5 rounded-full text-xs font-semibold shrink-0 cursor-pointer transition-all ${
                     aiFocusCategory === tab.id
                       ? 'bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white shadow-sm'
                       : 'bg-zinc-100 dark:bg-white/[0.06] text-zinc-600 dark:text-zinc-300'
@@ -1105,10 +1189,10 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                 <button
                   type="button"
                   onClick={() => void handleFetchAiSpots(aiFocusCategory, true)}
-                  title="清除已探索紀錄並重新推薦"
+                  title={t('清除已探索紀錄並重新推薦', '清除已探索记录并重新推荐', 'Reset discovery history')}
                   className="h-8 px-2.5 rounded-full bg-zinc-100 dark:bg-white/[0.08] text-zinc-600 dark:text-zinc-300 text-[11px] font-medium hover:text-zinc-900 dark:hover:text-white cursor-pointer whitespace-nowrap"
                 >
-                  重置紀錄
+                  {t('重置紀錄', '重置记录', 'Reset')}
                 </button>
               )}
               <button
@@ -1118,15 +1202,21 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                 className="h-8 px-3.5 rounded-full bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white text-xs font-semibold disabled:opacity-50 cursor-pointer shrink-0 flex items-center gap-1.5 shadow-sm whitespace-nowrap"
               >
                 <RefreshIcon className={`w-3.5 h-3.5 ${aiLoading ? 'animate-spin' : ''}`} />
-                <span>{aiLoading ? '搜尋中...' : '換一批'}</span>
+                <span>{aiLoading ? t('搜尋中...', '搜索中...', 'Searching...') : t('換一批', '换一批', 'Refresh Batch')}</span>
               </button>
             </div>
           </div>
 
           {aiBatchNum > 0 && !aiLoading && (
             <div className="flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400 px-0.5 font-num">
-              <span>第 {aiBatchNum} 批探索結果</span>
-              <span>已自動排除 {seenAiNamesRef.current.size} 個已看過／已收錄地點</span>
+              <span>{t(`第 ${aiBatchNum} 批探索結果`, `第 ${aiBatchNum} 批探索结果`, `Batch #${aiBatchNum}`)}</span>
+              <span>
+                {t(
+                  `已自動排除 ${seenAiNamesRef.current.size} 個已看過／已收錄地點`,
+                  `已自动排除 ${seenAiNamesRef.current.size} 个已看过／已收藏地点`,
+                  `${seenAiNamesRef.current.size} seen/saved spots excluded`
+                )}
+              </span>
             </div>
           )}
 
@@ -1134,7 +1224,11 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
             <div className="py-10 text-center space-y-2.5">
               <div className="w-8 h-8 rounded-full border-2 border-[#E11D48] border-t-transparent animate-spin mx-auto" />
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                正在精選 {intel.displayCity} 全新不重複的好去處...
+                {t(
+                  `正在精選 10 個 ${intel.displayCity} 全新不重複的好去處...`,
+                  `正在精选 10 个 ${intel.displayCity} 全新不重复的好去处...`,
+                  `Finding 10 fresh, non-repeating spots in ${intel.displayCity}...`
+                )}
               </p>
             </div>
           )}
@@ -1147,7 +1241,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                 onClick={() => void handleFetchAiSpots(aiFocusCategory)}
                 className="font-semibold underline cursor-pointer"
               >
-                重新嘗試
+                {t('重新嘗試', '重试', 'Try Again')}
               </button>
             </div>
           )}
@@ -1158,7 +1252,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                 const alreadySaved = savedPlaces.some(
                   (p) => p.name.trim().toLowerCase() === spot.name.trim().toLowerCase()
                 );
-                const meta = CATEGORY_META[spot.category] || CATEGORY_META.sightseeing;
+                const meta = categoryMeta[spot.category] || categoryMeta.sightseeing;
                 return (
                   <div
                     key={spot.name}
@@ -1191,7 +1285,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                           : 'bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white hover:opacity-90 shadow-sm'
                       }`}
                     >
-                      {alreadySaved ? '已收錄' : '+ 收錄'}
+                      {alreadySaved ? t('已收錄', '已收藏', 'Saved') : t('+ 收錄', '+ 收藏', '+ Save')}
                     </button>
                   </div>
                 );
@@ -1205,9 +1299,14 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
         open={Boolean(deletingPlace)}
         onClose={() => setDeletingPlace(null)}
         onConfirm={confirmDeletePlace}
-        title="移除此口袋地點？"
-        description={`確定要從口袋名單移除「${deletingPlace?.name || ''}」嗎？（若已排入時間軸，行程內的項目仍會保留）`}
-        confirmLabel="確認移除"
+        title={t('移除此口袋地點？', '移除此收藏地点？', 'Remove Saved Spot?')}
+        description={t(
+          `確定要從口袋名單移除「${deletingPlace?.name || ''}」嗎？（若已排入時間軸，行程內的項目仍會保留）`,
+          `确定要从收藏清单移除“${deletingPlace?.name || ''}”吗？（若已排入时间轴，行程内的项目仍会保留）`,
+          `Remove "${deletingPlace?.name || ''}" from saved spots? Any items already added to your timeline will remain.`
+        )}
+        confirmLabel={t('確認移除', '确认移除', 'Remove')}
+        cancelLabel={t('取消', '取消', 'Cancel')}
         tone="danger"
         icon={<TrashIcon className="w-6 h-6" />}
       />

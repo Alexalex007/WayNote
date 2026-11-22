@@ -22,6 +22,7 @@ import {
 } from '../services/firebaseClient';
 import { mergeTrips } from '../shared/syncMerge';
 import type { Trip, SyncDevice } from '../types';
+import { getStoredLanguage, tr } from '../shared/i18n';
 
 export type CloudSyncState = 'signed-out' | 'connecting' | 'synced' | 'syncing' | 'error';
 
@@ -49,7 +50,7 @@ function docToTrip(raw: Record<string, unknown>): Trip {
     activitiesOrderUpdatedAt: (raw.activitiesOrderUpdatedAt as Record<string, number>) || {},
     themesUpdatedAt: (raw.themesUpdatedAt as Record<string, number>) || {},
     tombstones: (raw.tombstones as Record<string, number>) || {},
-    name: String(raw.name || '我的旅程'),
+    name: String(raw.name || tr(getStoredLanguage(), '我的旅程', '我的旅程', 'My Trip')),
     destination: String(raw.destination || ''),
     startDate: String(raw.startDate || ''),
     endDate: String(raw.endDate || ''),
@@ -94,7 +95,10 @@ export function useCloudAccountSync({
   const onNotifyRef = useRef(onNotify);
 
   const safeSessionId = sanitizeValidId(clientId || 'browser_session');
-  const safeDeviceLabel = (deviceName || 'Web 裝置').trim().slice(0, 60) || 'Web 裝置';
+  const lang = getStoredLanguage();
+  const safeDeviceLabel =
+    (deviceName || tr(lang, 'Web 裝置', 'Web 设备', 'Web Device')).trim().slice(0, 60) ||
+    tr(lang, 'Web 裝置', 'Web 设备', 'Web Device');
   const normalizedTripScope = sanitizeValidId(activeTripId || 'HOME');
 
   useEffect(() => {
@@ -154,8 +158,9 @@ export function useCloudAccountSync({
 
       try {
         if (!user.emailVerified) {
+          const curLang = getStoredLanguage();
           setCloudStatus('error');
-          setCloudError('帳號電子郵件尚未完成驗證');
+          setCloudError(tr(curLang, '帳號電子郵件尚未完成驗證', '账号电子邮件尚未完成验证', 'Email address is not verified yet'));
           return;
         }
 
@@ -260,23 +265,26 @@ export function useCloudAccountSync({
             if (cancelled) return;
             setCloudStatus('error');
             if (isFirestoreQuotaError(error)) {
+              const curLang = getStoredLanguage();
               const url = `https://console.firebase.google.com/project/${FIREBASE_PROJECT_ID}/firestore/databases/${FIREBASE_DATABASE_ID}/data?openUpgradeDialog=true`;
               setQuotaUpgradeUrl(url);
-              setCloudError('今日雲端資料庫免費額度已達上限');
-              onNotifyRef.current?.('雲端免費額度已達上限，將於明日重置', 'error');
+              setCloudError(tr(curLang, '今日雲端資料庫免費額度已達上限', '今日云端数据库免费额度已达上限', 'Daily cloud database free quota reached'));
+              onNotifyRef.current?.(tr(curLang, '雲端免費額度已達上限，將於明日重置', '云端免费额度已达上限，将于明日重置', 'Cloud free quota reached; resets tomorrow'), 'error');
             } else {
-              setCloudError('雲端同步權限或連線發生問題');
+              const curLang = getStoredLanguage();
+              setCloudError(tr(curLang, '雲端同步權限或連線發生問題', '云端同步权限或连接发生问题', 'Cloud sync permission or connection error'));
               handleFirestoreError(error, OperationType.LIST, collectionPath);
             }
           }
         );
       } catch (err) {
         if (cancelled) return;
+        const curLang = getStoredLanguage();
         setCloudStatus('error');
         if (isFirestoreQuotaError(err)) {
-          setCloudError('今日雲端資料庫免費額度已達上限');
+          setCloudError(tr(curLang, '今日雲端資料庫免費額度已達上限', '今日云端数据库免费额度已达上限', 'Daily cloud database free quota reached'));
         } else {
-          setCloudError(err instanceof Error ? err.message : '雲端初始化失敗');
+          setCloudError(err instanceof Error ? err.message : tr(curLang, '雲端初始化失敗', '云端初始化失败', 'Cloud initialization failed'));
         }
       }
     };
@@ -347,7 +355,7 @@ export function useCloudAccountSync({
               list.push({
                 id: entryId,
                 tripId: String(d.tripId || 'HOME'),
-                deviceName: String(d.deviceName || 'Web 裝置'),
+                deviceName: String(d.deviceName || tr(getStoredLanguage(), 'Web 裝置', 'Web 设备', 'Web Device')),
                 clientUpdatedAt: Number(d.clientUpdatedAt || Date.now()),
               });
             });
@@ -420,7 +428,8 @@ export function useCloudAccountSync({
       } catch (err) {
         setCloudStatus('error');
         if (isFirestoreQuotaError(err)) {
-          setCloudError('今日雲端資料庫免費額度已達上限');
+          const curLang = getStoredLanguage();
+          setCloudError(tr(curLang, '今日雲端資料庫免費額度已達上限', '今日云端数据库免费额度已达上限', 'Daily cloud database free quota reached'));
         }
         throw err;
       }
@@ -478,18 +487,37 @@ export function useCloudAccountSync({
     }
     setLastCloudSyncAt(Date.now());
     setCloudStatus('synced');
-    onNotifyRef.current?.('已完成雲端同步', 'success');
+    const curLang = getStoredLanguage();
+    onNotifyRef.current?.(tr(curLang, '已完成雲端同步', '已完成云端同步', 'Cloud sync completed'), 'success');
   }, [user]);
 
   const signInWithGoogle = useCallback(async () => {
     const signedUser = await signInWithGooglePopup();
-    onNotifyRef.current?.(`已登入：${signedUser.displayName || signedUser.email || 'Google 帳號'}`, 'success');
+    const curLang = getStoredLanguage();
+    onNotifyRef.current?.(
+      tr(
+        curLang,
+        `已登入：${signedUser.displayName || signedUser.email || 'Google 帳號'}`,
+        `已登录：${signedUser.displayName || signedUser.email || 'Google 账号'}`,
+        `Signed in: ${signedUser.displayName || signedUser.email || 'Google Account'}`
+      ),
+      'success'
+    );
     return signedUser;
   }, []);
 
   const signInWithApple = useCallback(async () => {
     const signedUser = await signInWithApplePopup();
-    onNotifyRef.current?.(`已登入：${signedUser.displayName || signedUser.email || 'Apple 帳號'}`, 'success');
+    const curLang = getStoredLanguage();
+    onNotifyRef.current?.(
+      tr(
+        curLang,
+        `已登入：${signedUser.displayName || signedUser.email || 'Apple 帳號'}`,
+        `已登录：${signedUser.displayName || signedUser.email || 'Apple 账号'}`,
+        `Signed in: ${signedUser.displayName || signedUser.email || 'Apple Account'}`
+      ),
+      'success'
+    );
     return signedUser;
   }, []);
 
@@ -500,7 +528,8 @@ export function useCloudAccountSync({
       await removeCloudPresence(uid, safeSessionId).catch(() => undefined);
     }
     await signOutFirebase();
-    onNotifyRef.current?.('已登出雲端帳號', 'info');
+    const curLang = getStoredLanguage();
+    onNotifyRef.current?.(tr(curLang, '已登出雲端帳號', '已退出云端账号', 'Signed out of cloud account'), 'info');
   }, [user, safeSessionId]);
 
   const cloudPresenceDevices: SyncDevice[] = rawPresenceEntries

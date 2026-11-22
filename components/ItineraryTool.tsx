@@ -7,6 +7,16 @@ import {
   getDestinationLocalTime,
   resolveAirportByCode,
 } from '../shared/destinationIntel';
+import { useI18n } from '../hooks/useI18n';
+import {
+  AppLanguage,
+  formatDayBadge,
+  formatDurationLabel,
+  formatTimeDisplay,
+  formatWeekdayBadge,
+  localizeDestinationLabel,
+  tr,
+} from '../shared/i18n';
 import { WeatherModal, WeatherGlyph, useLiveWeather } from './WeatherModal';
 import { RouteMapModal, PreviousStopOption } from './RouteMapModal';
 import { AiPlannerModal, AiPlannedDay } from './AiPlannerModal';
@@ -69,39 +79,39 @@ const timezones = Array.from(new Set([...BASE_TIMEZONE_OFFSETS, ...EXTRA_HALF_OF
   .sort((a, b) => a - b)
   .map((offset) => ({ value: offset, label: formatGmtOffset(offset) }));
 
-const getTypeMeta = (type: string) => {
+const getTypeMeta = (type: string, lang: AppLanguage) => {
   switch (type) {
     case 'sightseeing':
       return {
-        label: '觀光',
+        label: tr(lang, '觀光', '观光', 'Sightseeing'),
         accentHex: '#6366F1',
         nodeBg: 'bg-indigo-500/14 dark:bg-indigo-400/18 text-indigo-600 dark:text-indigo-300',
         icon: CameraIcon,
       };
     case 'food':
       return {
-        label: '美食',
+        label: tr(lang, '美食', '美食', 'Dining'),
         accentHex: '#F43F5E',
         nodeBg: 'bg-rose-500/14 dark:bg-rose-400/18 text-rose-600 dark:text-rose-300',
         icon: DiningIcon,
       };
     case 'transport':
       return {
-        label: '交通',
+        label: tr(lang, '交通', '交通', 'Transit'),
         accentHex: '#10B981',
         nodeBg: 'bg-emerald-500/14 dark:bg-emerald-400/18 text-emerald-600 dark:text-emerald-300',
         icon: BusIcon,
       };
     case 'flight':
       return {
-        label: '航班',
+        label: tr(lang, '航班', '航班', 'Flight'),
         accentHex: '#0EA5E9',
         nodeBg: 'bg-sky-500/14 dark:bg-sky-400/18 text-sky-600 dark:text-sky-300',
         icon: PlaneIcon,
       };
     default:
       return {
-        label: '行程',
+        label: tr(lang, '行程', '行程', 'Activity'),
         accentHex: '#F59E0B',
         nodeBg: 'bg-amber-500/14 dark:bg-amber-400/18 text-amber-600 dark:text-amber-300',
         icon: MapIcon,
@@ -165,15 +175,7 @@ function getDestinationTodayAndMinutes(utcOffsetHours: number): { dateIso: strin
   };
 }
 
-function formatTime12h(timeStr: string): string {
-  const [hRaw, mRaw] = (timeStr || '09:00').split(':');
-  const h = parseInt(hRaw || '9', 10);
-  const m = mRaw || '00';
-  if (Number.isNaN(h)) return timeStr;
-  const suffix = h >= 12 ? 'pm' : 'am';
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${String(h12).padStart(2, '0')}:${m} ${suffix}`;
-}
+// Time display formatting is handled by shared formatTimeDisplay(timeStr, lang)
 
 const MarqueeText: React.FC<{ text: string; className?: string }> = ({ text, className = '' }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -216,12 +218,15 @@ const TimelineRow: React.FC<{
   onToggleComplete: (e: React.MouseEvent) => void;
   isLocked: boolean;
 }> = ({ activity, nextActivity, legProgress, isLast, onClick, onToggleComplete, isLocked }) => {
-  const meta = getTypeMeta(activity.type);
-  const nextMeta = nextActivity ? getTypeMeta(nextActivity.type) : meta;
+  const { lang, t } = useI18n();
+  const meta = getTypeMeta(activity.type, lang);
+  const nextMeta = nextActivity ? getTypeMeta(nextActivity.type, lang) : meta;
   const NodeIcon = meta.icon;
   const isFlight = activity.type === 'flight' && Boolean(activity.flightInfo);
   const flightInfo = activity.flightInfo;
   const displayTime = isFlight && flightInfo ? flightInfo.departureTime : activity.time;
+  const clockParts = formatTimeDisplay(displayTime, lang);
+  const formattedDisplayTime = `${clockParts.main}${clockParts.suffix ? ` ${clockParts.suffix}` : ''}`;
   const isNextDayArrival = Boolean(
     isFlight &&
       flightInfo?.arrivalDate &&
@@ -264,8 +269,16 @@ const TimelineRow: React.FC<{
             }
             onToggleComplete(e);
           }}
-          aria-label={activity.completed ? '標記為未完成' : '標記為已完成'}
-          title={activity.completed ? '標記未完成' : '點擊標記完成'}
+          aria-label={
+            activity.completed
+              ? t('標記為未完成', '标记为未完成', 'Mark as incomplete')
+              : t('標記為已完成', '标记为已完成', 'Mark as complete')
+          }
+          title={
+            activity.completed
+              ? t('標記未完成', '标记未完成', 'Mark incomplete')
+              : t('點擊標記完成', '点击标记完成', 'Tap to complete')
+          }
           className={`relative z-10 w-11 h-11 rounded-full flex items-center justify-center transition-transform active:scale-90 cursor-pointer shrink-0 ${
             activity.completed
               ? 'bg-emerald-500 text-white shadow-sm'
@@ -302,7 +315,11 @@ const TimelineRow: React.FC<{
         <div className="min-w-0 flex-1 space-y-0.5">
           <div className="flex items-center gap-2 min-w-0">
             <MarqueeText
-              text={isFlight && flightInfo ? `${flightInfo.flightNumber} 航班` : activity.title}
+              text={
+                isFlight && flightInfo
+                  ? t(`${flightInfo.flightNumber} 航班`, `${flightInfo.flightNumber} 航班`, `Flight ${flightInfo.flightNumber}`)
+                  : activity.title
+              }
               className={`font-display font-bold text-[15px] text-zinc-900 dark:text-zinc-50 leading-snug ${
                 activity.completed ? 'line-through decoration-zinc-400' : ''
               }`}
@@ -319,7 +336,11 @@ const TimelineRow: React.FC<{
           <div className="flex items-center gap-2.5 pt-1">
             {activity.duration && !isFlight && (
               <span className="text-[11px] font-num font-medium text-zinc-400 dark:text-zinc-500">
-                約 {activity.duration}
+                {t(
+                  `約 ${formatDurationLabel(activity.duration, lang)}`,
+                  `约 ${formatDurationLabel(activity.duration, lang)}`,
+                  `~${formatDurationLabel(activity.duration, lang)}`
+                )}
               </span>
             )}
             {!isFlight && isLocked && (
@@ -331,7 +352,7 @@ const TimelineRow: React.FC<{
                 className="inline-flex items-center gap-1 text-[11px] font-medium text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white transition-colors"
               >
                 <MapIcon className="w-3 h-3" />
-                <span>地圖</span>
+                <span>{t('地圖', '地图', 'Map')}</span>
               </a>
             )}
           </div>
@@ -342,7 +363,7 @@ const TimelineRow: React.FC<{
           {!isLocked ? (
             <div className="flex items-center gap-1.5 text-[#F26B3A] py-1">
               <span className="text-[11px] font-num font-semibold text-zinc-400 whitespace-nowrap">
-                {isFlight ? flightTimeRange : formatTime12h(displayTime)}
+                {isFlight ? flightTimeRange : formattedDisplayTime}
               </span>
               <span className="w-8 h-8 rounded-xl bg-[#F26B3A]/12 text-[#F26B3A] flex items-center justify-center">
                 <GripVerticalIcon className="w-4 h-4" />
@@ -351,10 +372,10 @@ const TimelineRow: React.FC<{
           ) : (
             <>
               <span className="text-xs font-num font-semibold text-zinc-600 dark:text-zinc-300 whitespace-nowrap">
-                {isFlight ? flightTimeRange : `(${formatTime12h(displayTime)})`}
+                {isFlight ? flightTimeRange : `(${formattedDisplayTime})`}
               </span>
               <span className="text-[11px] font-bold tracking-wide text-[#F26B3A] group-hover:underline">
-                查看詳情
+                {t('查看詳情', '查看详情', 'Details')}
               </span>
             </>
           )}
@@ -365,6 +386,7 @@ const TimelineRow: React.FC<{
 };
 
 const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focusDateSignal }) => {
+  const { lang, t } = useI18n();
   const [selectedDate, setSelectedDate] = useState<string>(trip.startDate);
   const [dates, setDates] = useState<string[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -445,13 +467,29 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
   const getActivityConfig = (type: string) => {
     switch (type) {
       case 'food':
-        return { label: '餐廳名稱', placeholder: '一蘭拉麵、築地市場', icon: DiningIcon };
+        return {
+          label: t('餐廳名稱', '餐厅名称', 'Restaurant'),
+          placeholder: t('一蘭拉麵、築地市場', '一兰拉面、筑地市场', 'Ichiran Ramen, Tsukiji Market'),
+          icon: DiningIcon,
+        };
       case 'transport':
-        return { label: '交通方式', placeholder: 'JR 山手線、新幹線', icon: BusIcon };
+        return {
+          label: t('交通方式', '交通方式', 'Transit Mode'),
+          placeholder: t('JR 山手線、新幹線', 'JR 山手线、新干线', 'Subway, Express Train'),
+          icon: BusIcon,
+        };
       case 'flight':
-        return { label: '項目名稱', placeholder: '航班或移動', icon: PlaneIcon };
+        return {
+          label: t('項目名稱', '项目名称', 'Item Name'),
+          placeholder: t('航班或移動', '航班或移动', 'Flight or Transfer'),
+          icon: PlaneIcon,
+        };
       default:
-        return { label: '景點名稱', placeholder: '淺草寺、明治神宮', icon: CameraIcon };
+        return {
+          label: t('景點名稱', '景点名称', 'Place Name'),
+          placeholder: t('淺草寺、明治神宮', '浅草寺、明治神宫', 'Senso-ji Temple, Meiji Shrine'),
+          icon: CameraIcon,
+        };
     }
   };
   const activityConfig = getActivityConfig(newActivity.type);
@@ -517,25 +555,21 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
     [currentActivities]
   );
 
-  const getDayName = (dateStr: string) => {
-    const d = new Date(`${dateStr}T00:00:00Z`);
-    const days = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
-    return days[d.getUTCDay()] || '';
-  };
+  const getDayName = (dateStr: string) => formatWeekdayBadge(dateStr, lang);
 
   const getDayOfMonth = (dateStr: string) => new Date(`${dateStr}T00:00:00Z`).getUTCDate();
 
   const getDayNumber = (dateStr: string) => {
     const start = Date.parse(`${trip.startDate}T00:00:00Z`);
     const current = Date.parse(`${dateStr}T00:00:00Z`);
-    if (Number.isNaN(start) || Number.isNaN(current)) return 'Day 1';
+    if (Number.isNaN(start) || Number.isNaN(current)) return formatDayBadge(1, lang);
     const diffDays = Math.max(0, Math.round((current - start) / 86400000));
-    return `Day ${diffDays + 1}`;
+    return formatDayBadge(diffDays + 1, lang);
   };
 
   const getHeaderLocation = () => {
     if (trip.type === 'Single' || !trip.stops || trip.stops.length === 0) {
-      return <span className="truncate">{trip.destination.split(',')[0]}</span>;
+      return <span className="truncate">{localizeDestinationLabel(trip.destination.split(',')[0], lang)}</span>;
     }
     for (let i = 0; i < trip.stops.length - 1; i++) {
       const currentStop = trip.stops[i];
@@ -543,15 +577,19 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
       if (selectedDate === currentStop.endDate && selectedDate === nextStop.startDate) {
         return (
           <div className="flex items-center gap-2 overflow-hidden min-w-0">
-            <span className="truncate">{currentStop.destination}</span>
+            <span className="truncate">{localizeDestinationLabel(currentStop.destination, lang)}</span>
             <ArrowLongRightIcon className="w-5 h-5 shrink-0 text-[#F26B3A]" />
-            <span className="truncate">{nextStop.destination}</span>
+            <span className="truncate">{localizeDestinationLabel(nextStop.destination, lang)}</span>
           </div>
         );
       }
     }
     const activeStop = trip.stops.find((s) => selectedDate >= s.startDate && selectedDate <= s.endDate);
-    return <span className="truncate">{activeStop ? activeStop.destination : trip.destination.split(',')[0]}</span>;
+    return (
+      <span className="truncate">
+        {localizeDestinationLabel(activeStop ? activeStop.destination : trip.destination.split(',')[0], lang)}
+      </span>
+    );
   };
 
   const activeWeatherCity = useMemo(() => {
@@ -576,10 +614,10 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
     return [trip.destination];
   }, [trip.type, trip.stops, trip.destination]);
 
-  const activeIntel = useMemo(() => detectDestinationIntel(activeWeatherCity), [activeWeatherCity]);
+  const activeIntel = useMemo(() => detectDestinationIntel(activeWeatherCity, lang), [activeWeatherCity, lang]);
   const liveWeather = useLiveWeather(activeWeatherCity);
   const effectiveUtcOffset = liveWeather.data?.utcOffsetHours ?? activeIntel.utcOffsetHours;
-  const localClock = getDestinationLocalTime(effectiveUtcOffset);
+  const localClock = getDestinationLocalTime(effectiveUtcOffset, lang);
   const destNowClock = getDestinationTodayAndMinutes(effectiveUtcOffset);
 
   const hotels = trip.hotels || [];
@@ -622,14 +660,14 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
       }
     }
     if (!bestFlight?.flightInfo?.arrivalCode) return null;
-    const resolved = resolveAirportByCode(bestFlight.flightInfo.arrivalCode);
+    const resolved = resolveAirportByCode(bestFlight.flightInfo.arrivalCode, lang);
     if (!resolved) return null;
     return {
       ...resolved,
       flightNumber: bestFlight.flightInfo.flightNumber,
       arrivalTime: bestFlight.flightInfo.arrivalTime,
     };
-  }, [trip.activities, selectedDate, newActivity.time]);
+  }, [trip.activities, selectedDate, newActivity.time, lang]);
 
   const closeModal = () => {
     if (flightLookupAbortRef.current) {
@@ -670,7 +708,12 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
     const code = (overrideCode ?? newFlight.flightNumber).trim().toUpperCase().replace(/\s+/g, '');
     const depDate = (overrideDate ?? newFlight.departureDate).trim();
     if (code.length < 3) {
-      if (!silent) onShowToast('請先輸入航班編號（例如 BR198、CX504）', 'error');
+      if (!silent) {
+        onShowToast(
+          t('請先輸入航班編號（例如 BR198、CX504）', '请先输入航班号（例如 BR198、CX504）', 'Enter a flight number first (e.g. BR198, CX504)'),
+          'error'
+        );
+      }
       return;
     }
 
@@ -692,15 +735,25 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
         body: JSON.stringify({
           flightNumber: code,
           date: depDate,
+          lang,
         }),
       });
       const ct = (res.headers.get('content-type') || '').toLowerCase();
       if (ct.includes('text/html')) {
-        throw new Error('純靜態託管環境無法使用自動航班查詢，請手動填寫下方機場與時間。');
+        throw new Error(
+          t(
+            '純靜態託管環境無法使用自動航班查詢，請手動填寫下方機場與時間。',
+            '纯静态托管环境无法使用自动航班查询，请手动填写下方机场与时间。',
+            'Auto flight lookup is unavailable on static hosting. Enter airport codes and times manually.'
+          )
+        );
       }
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error((data as { error?: string })?.error || '查無此航班資訊，請手動輸入。');
+        throw new Error(
+          (data as { error?: string })?.error ||
+            t('查無此航班資訊，請手動輸入。', '查无此航班信息，请手动输入。', 'Flight not found. Please enter details manually.')
+        );
       }
 
       const depOffset =
@@ -738,12 +791,17 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
         arrivalTimezone: formatGmtOffset(arrOffset),
       }));
       const airlineLabel = data.airline ? `${data.airline} ` : '';
-      const note = `已自動帶入 ${airlineLabel}${data.flightNumber || code} (${data.departureCode} → ${data.arrivalCode} · ${formatGmtOffset(depOffset)} → ${formatGmtOffset(arrOffset)})`;
+      const routeDetail = `${airlineLabel}${data.flightNumber || code} (${data.departureCode} → ${data.arrivalCode} · ${formatGmtOffset(depOffset)} → ${formatGmtOffset(arrOffset)})`;
+      const note = t(
+        `已自動帶入 ${routeDetail}`,
+        `已自动填入 ${routeDetail}`,
+        `Auto-filled ${routeDetail}`
+      );
       setFlightLookupNote(note);
       if (!silent) onShowToast(note, 'success');
     } catch (err) {
       if ((err as { name?: string })?.name === 'AbortError') return;
-      const msg = err instanceof Error ? err.message : '航班查詢失敗';
+      const msg = err instanceof Error ? err.message : t('航班查詢失敗', '航班查询失败', 'Flight lookup failed');
       setFlightLookupNote(msg);
       if (!silent) onShowToast(msg, 'error');
     } finally {
@@ -804,7 +862,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
         themesUpdatedAt: updatedThemesTs,
         updatedAt: now,
       });
-      onShowToast('已更新當日主題', 'success');
+      onShowToast(t('已更新當日主題', '已更新当日主题', 'Day theme updated'), 'success');
       closeModal();
       return;
     }
@@ -859,16 +917,17 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
       }
     } else {
       if (!newFlight.flightNumber.trim() || !newFlight.departureCode.trim() || !newFlight.arrivalCode.trim()) return;
+      const cleanFlightNum = newFlight.flightNumber.trim().toUpperCase();
       const flightData: Activity = {
         id: editingActivityId || generateUniqueId('flt'),
         time: newFlight.departureTime,
-        title: `Flight ${newFlight.flightNumber.trim()}`,
+        title: t(`${cleanFlightNum} 航班`, `${cleanFlightNum} 航班`, `Flight ${cleanFlightNum}`),
         location: `${newFlight.departureCode.trim()} → ${newFlight.arrivalCode.trim()}`,
         completed: false,
         type: 'flight',
         flightInfo: {
           ...newFlight,
-          flightNumber: newFlight.flightNumber.trim().toUpperCase(),
+          flightNumber: cleanFlightNum,
           departureCode: newFlight.departureCode.trim().toUpperCase(),
           arrivalCode: newFlight.arrivalCode.trim().toUpperCase(),
         },
@@ -893,7 +952,12 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
       activitiesOrderUpdatedAt: { ...trip.activitiesOrderUpdatedAt, [selectedDate]: now },
       updatedAt: now,
     });
-    onShowToast(editingActivityId ? '已更新行程' : '已新增行程', 'success');
+    onShowToast(
+      editingActivityId
+        ? t('已更新行程', '已更新行程', 'Activity updated')
+        : t('已新增行程', '已新增行程', 'Activity added'),
+      'success'
+    );
     closeModal();
   };
 
@@ -924,7 +988,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
       tombstones: { ...(trip.tombstones || {}), [editingActivityId]: now },
       updatedAt: now,
     });
-    onShowToast('已刪除行程項目');
+    onShowToast(t('已刪除行程項目', '已删除行程项目', 'Activity deleted'));
     closeModal();
   };
 
@@ -942,7 +1006,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
     });
     setDetailDeleteConfirmOpen(false);
     setDetailActivity(null);
-    onShowToast('已刪除行程項目');
+    onShowToast(t('已刪除行程項目', '已删除行程项目', 'Activity deleted'));
   };
 
   const handleReorderActivities = (reordered: Activity[]) => {
@@ -971,7 +1035,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
       activitiesOrderUpdatedAt: { ...trip.activitiesOrderUpdatedAt, [selectedDate]: now },
       updatedAt: now,
     });
-    onShowToast('已更新路線順序與對應時間', 'success');
+    onShowToast(t('已更新路線順序與對應時間', '已更新路线顺序与对应时间', 'Route order & times updated'), 'success');
   };
 
   const openHotelManager = () => {
@@ -1011,7 +1075,12 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
       checkIn: selectedDate || trip.startDate,
       checkOut: trip.endDate,
     });
-    onShowToast(editingHotelId ? '已更新住宿酒店' : '已新增住宿酒店', 'success');
+    onShowToast(
+      editingHotelId
+        ? t('已更新住宿酒店', '已更新住宿酒店', 'Hotel updated')
+        : t('已新增住宿酒店', '已新增住宿酒店', 'Hotel added'),
+      'success'
+    );
   };
 
   const handleDeleteHotel = (hotelId: string) => {
@@ -1023,7 +1092,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
       updatedAt: now,
     });
     if (editingHotelId === hotelId) setEditingHotelId(null);
-    onShowToast('已移除酒店');
+    onShowToast(t('已移除酒店', '已移除酒店', 'Hotel removed'));
   };
 
   const googleCalendarUrl = useMemo(() => {
@@ -1064,7 +1133,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
   const handleOpenRouteNav = () => {
     const locations = currentActivities.filter((a) => (a.location || a.title) && a.type !== 'flight');
     if (locations.length === 0) {
-      onShowToast('當日尚無可導航地點', 'info');
+      onShowToast(t('當日尚無可導航地點', '当日暂无可导航地点', 'No stops to navigate today'), 'info');
       return;
     }
     setRouteIsPreview(false);
@@ -1074,7 +1143,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
 
   const handleOpenAiRoutePreview = (aiStops: Activity[]) => {
     if (aiStops.length === 0) {
-      onShowToast('此日 AI 規劃尚無可用地點', 'info');
+      onShowToast(t('此日 AI 規劃尚無可用地點', '此日 AI 规划暂无可用地点', 'No stops available in this AI day plan'), 'info');
       return;
     }
     setRouteIsPreview(true);
@@ -1151,8 +1220,8 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
     setSelectedDate(startDate);
     onShowToast(
       days.length > 1
-        ? `已套用 ${days.length} 天 AI 行程至旅程`
-        : `已套用 AI 行程至 ${startDate.slice(5)}`,
+        ? t(`已套用 ${days.length} 天 AI 行程至旅程`, `已应用 ${days.length} 天 AI 行程至旅程`, `Applied ${days.length}-day AI itinerary`)
+        : t(`已套用 AI 行程至 ${startDate.slice(5)}`, `已应用 AI 行程至 ${startDate.slice(5)}`, `Applied AI plan to ${startDate.slice(5)}`),
       'success'
     );
   };
@@ -1247,7 +1316,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
           <button
             type="button"
             onClick={() => setShowWeatherModal(true)}
-            title="即時天氣與預報"
+            title={t('即時天氣與預報', '实时天气与预报', 'Live weather & forecast')}
             className="surface-elevated h-10 px-3.5 rounded-full flex items-center gap-2 hover:bg-white dark:hover:bg-zinc-800/70 active:scale-95 transition-all cursor-pointer"
           >
             {liveWeather.data ? (
@@ -1267,7 +1336,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
             ) : (
               <>
                 <SunIcon className="w-4 h-4 text-amber-500" />
-                <span className="text-xs font-semibold text-zinc-900 dark:text-white">天氣</span>
+                <span className="text-xs font-semibold text-zinc-900 dark:text-white">{t('天氣', '天气', 'Weather')}</span>
               </>
             )}
           </button>
@@ -1275,7 +1344,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
           <button
             type="button"
             onClick={openAddModal}
-            aria-label="新增行程"
+            aria-label={t('新增行程', '新增行程', 'Add activity')}
             className="w-10 h-10 rounded-full bg-[#F26B3A] hover:bg-[#E15A2A] text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer shadow-[0_8px_18px_-6px_rgba(242,107,58,0.6)]"
           >
             <PlusIcon className="w-5 h-5" />
@@ -1328,18 +1397,18 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                 className="min-h-[36px] px-3 sm:px-4 rounded-full surface-elevated flex items-center gap-1.5 text-zinc-800 dark:text-zinc-200 font-semibold text-xs hover:bg-white dark:hover:bg-zinc-800 transition-colors cursor-pointer whitespace-nowrap shrink-0"
               >
                 <NavigationArrowIcon className="w-3.5 h-3.5 text-[#F26B3A]" />
-                <span>路線</span>
+                <span>{t('路線', '路线', 'Route')}</span>
               </button>
 
               <button
                 type="button"
                 onClick={openHotelManager}
                 className="min-h-[36px] px-3 rounded-full surface-elevated flex items-center gap-1.5 text-zinc-800 dark:text-zinc-200 font-semibold text-xs hover:bg-white dark:hover:bg-zinc-800 transition-colors cursor-pointer max-w-[138px] sm:max-w-[155px] shrink-0"
-                title="管理入住酒店（可供路線出發地選用）"
+                title={t('管理入住酒店（可供路線出發地選用）', '管理入住酒店（可供路线出发地选用）', 'Manage hotels (available as route origin)')}
               >
                 <HomeIcon className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
                 <span className="truncate">
-                  {activeHotelForDay ? activeHotelForDay.name : '新增酒店'}
+                  {activeHotelForDay ? activeHotelForDay.name : t('新增酒店', '新增酒店', 'Add Hotel')}
                 </span>
               </button>
 
@@ -1349,7 +1418,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                 className="min-h-[36px] px-3 sm:px-3.5 rounded-full bg-[var(--tab-accent-soft)] hover:brightness-95 text-[var(--tab-accent)] border border-[var(--tab-accent)]/25 flex items-center gap-1.5 font-semibold text-xs transition-all cursor-pointer whitespace-nowrap shrink-0"
               >
                 <SparklesIcon className="w-3.5 h-3.5" />
-                <span>AI 規劃</span>
+                <span>{t('AI 規劃', 'AI 规划', 'AI Plan')}</span>
               </button>
             </div>
 
@@ -1357,8 +1426,8 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
               type="button"
               onClick={() => canSort && setIsLocked(!isLocked)}
               disabled={!canSort}
-              aria-label={isLocked ? '解鎖自由拖曳排序' : '鎖定排序'}
-              title={isLocked ? '解鎖自由拖曳排序' : '鎖定排序'}
+              aria-label={isLocked ? t('解鎖自由拖曳排序', '解锁自由拖拽排序', 'Unlock drag reorder') : t('鎖定排序', '锁定排序', 'Lock order')}
+              title={isLocked ? t('解鎖自由拖曳排序', '解锁自由拖拽排序', 'Unlock drag reorder') : t('鎖定排序', '锁定排序', 'Lock order')}
               className={`w-9 h-9 rounded-full flex items-center justify-center transition-all shrink-0 cursor-pointer ${
                 !canSort
                   ? 'opacity-40 cursor-not-allowed surface-elevated text-zinc-400'
@@ -1375,13 +1444,13 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
           <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar pb-6 lg:pb-10 pr-0.5">
             {!isLocked && canSort && (
               <div className="mb-3 px-4 py-2 rounded-2xl bg-[#F26B3A]/10 text-[#F26B3A] text-xs font-semibold flex items-center justify-between">
-                <span>長按或拖曳行程卡片即可自由調整順序</span>
+                <span>{t('長按或拖曳行程卡片即可自由調整順序', '长按或拖拽行程卡片即可自由调整顺序', 'Drag activity cards to reorder')}</span>
                 <button
                   type="button"
                   onClick={() => setIsLocked(true)}
                   className="underline font-bold cursor-pointer"
                 >
-                  完成
+                  {t('完成', '完成', 'Done')}
                 </button>
               </div>
             )}
@@ -1396,7 +1465,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                   <SparklesIcon className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">本日主題</p>
+                  <p className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">{t('本日主題', '本日主题', 'Day Theme')}</p>
                   <h3 className="text-zinc-900 dark:text-white font-semibold text-sm truncate">
                     {trip.themes[selectedDate]}
                   </h3>
@@ -1410,7 +1479,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                   <CoffeeIcon className="w-6 h-6" />
                 </div>
                 <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-                  尚無行程安排
+                  {t('尚無行程安排', '暂无行程安排', 'No activities planned yet')}
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-2.5">
                   <button
@@ -1419,7 +1488,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                     className="min-h-[42px] px-5 rounded-full bg-[#F26B3A] hover:bg-[#E15A2A] text-white font-semibold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm"
                   >
                     <PlusIcon className="w-4 h-4" />
-                    <span>手動新增</span>
+                    <span>{t('手動新增', '手动新增', 'Add Manually')}</span>
                   </button>
                   <button
                     type="button"
@@ -1427,7 +1496,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                     className="min-h-[42px] px-5 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-semibold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm"
                   >
                     <SparklesIcon className="w-4 h-4" />
-                    <span>AI 規劃行程</span>
+                    <span>{t('AI 規劃行程', 'AI 规划行程', 'Plan with AI')}</span>
                   </button>
                 </div>
               </div>
@@ -1502,21 +1571,23 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
         <div className="hidden lg:flex lg:col-span-4 flex-col min-h-0 h-full gap-4 overflow-y-auto no-scrollbar pb-10">
           <div className="ink-card rounded-3xl p-6 space-y-5">
             <div className="flex items-center justify-between">
-              <h3 className="font-display font-bold text-base text-white">當日概覽</h3>
-              <span className="text-xs font-num text-zinc-400">共 {dates.length} 天</span>
+              <h3 className="font-display font-bold text-base text-white">{t('當日概覽', '当日概览', 'Day Overview')}</h3>
+              <span className="text-xs font-num text-zinc-400">
+                {t(`共 ${dates.length} 天`, `共 ${dates.length} 天`, `${dates.length} ${dates.length === 1 ? 'day' : 'days'}`)}
+              </span>
             </div>
 
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <p className="text-[11px] text-zinc-400 mb-1">行程</p>
+                <p className="text-[11px] text-zinc-400 mb-1">{t('行程', '行程', 'Stops')}</p>
                 <p className="text-2xl font-display font-bold font-num text-white">{currentActivities.length}</p>
               </div>
               <div>
-                <p className="text-[11px] text-zinc-400 mb-1">已完成</p>
+                <p className="text-[11px] text-zinc-400 mb-1">{t('已完成', '已完成', 'Done')}</p>
                 <p className="text-2xl font-display font-bold font-num text-[#FF9E7B]">{completedCount}</p>
               </div>
               <div>
-                <p className="text-[11px] text-zinc-400 mb-1">當地時間</p>
+                <p className="text-[11px] text-zinc-400 mb-1">{t('當地時間', '当地时间', 'Local Time')}</p>
                 <p className="text-xl font-num font-bold text-white">{localClock.timeStr}</p>
               </div>
             </div>
@@ -1531,7 +1602,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                 onClick={() => setShowWeatherModal(true)}
                 className="text-[#FF9E7B] font-semibold hover:underline shrink-0 cursor-pointer ml-2"
               >
-                7 日預報 →
+                {t('7 日預報 →', '7 日预报 →', '7-Day Forecast →')}
               </button>
             </div>
 
@@ -1542,7 +1613,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                 className="min-h-[44px] rounded-full bg-[#F26B3A] hover:bg-[#E15A2A] text-white font-semibold text-xs flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer"
               >
                 <PlusIcon className="w-4 h-4" />
-                <span>新增行程 / 航班</span>
+                <span>{t('新增行程 / 航班', '新增行程 / 航班', 'Add Stop / Flight')}</span>
               </button>
               <button
                 type="button"
@@ -1550,14 +1621,14 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                 className="min-h-[44px] rounded-full bg-white/12 hover:bg-white/20 text-white font-semibold text-xs flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer"
               >
                 <SparklesIcon className="w-4 h-4 text-[#FF9E7B]" />
-                <span>AI 智慧規劃</span>
+                <span>{t('AI 智慧規劃', 'AI 智能规划', 'AI Planner')}</span>
               </button>
             </div>
           </div>
 
           {trip.type === 'Multi' && trip.stops && trip.stops.length > 0 && (
             <div className="surface-elevated rounded-3xl p-5 space-y-3">
-              <h3 className="font-display font-bold text-sm text-zinc-900 dark:text-white">行程站點</h3>
+              <h3 className="font-display font-bold text-sm text-zinc-900 dark:text-white">{t('行程站點', '行程站点', 'Route Stops')}</h3>
               <div className="space-y-2">
                 {trip.stops.map((stop, i) => {
                   const isCurrent = selectedDate >= stop.startDate && selectedDate <= stop.endDate;
@@ -1582,7 +1653,9 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                         >
                           {i + 1}
                         </span>
-                        <span className="font-semibold text-sm truncate">{stop.destination}</span>
+                        <span className="font-semibold text-sm truncate">
+                          {localizeDestinationLabel(stop.destination, lang)}
+                        </span>
                       </div>
                       <span
                         className={`text-[11px] font-num shrink-0 ml-2 ${
@@ -1614,7 +1687,15 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
         onClose={closeModal}
         bottomSheetOnMobile
         maxWidthClass="max-w-md"
-        title={<span>{modalMode === 'THEME' ? '當日主題' : editingActivityId ? '編輯行程' : '新增行程'}</span>}
+        title={
+          <span>
+            {modalMode === 'THEME'
+              ? t('當日主題', '当日主题', 'Day Theme')
+              : editingActivityId
+                ? t('編輯行程', '编辑行程', 'Edit Activity')
+                : t('新增行程', '新增行程', 'Add Activity')}
+          </span>
+        }
       >
         <SlidingSegmentedControl
           fullWidth
@@ -1623,9 +1704,9 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
           onChange={(mode) => setModalMode(mode)}
           className="mb-5 shrink-0"
           options={[
-            { id: 'PLAN', label: '行程', icon: <MapIcon className="w-3.5 h-3.5" />, accentFrom: '#F26B3A', accentTo: '#FB923C' },
-            { id: 'FLIGHT', label: '航班', icon: <PlaneIcon className="w-3.5 h-3.5" />, accentFrom: '#0EA5E9', accentTo: '#38BDF8' },
-            { id: 'THEME', label: '主題', icon: <SparklesIcon className="w-3.5 h-3.5" />, accentFrom: '#8B5CF6', accentTo: '#A78BFA' },
+            { id: 'PLAN', label: t('行程', '行程', 'Plan'), icon: <MapIcon className="w-3.5 h-3.5" />, accentFrom: '#F26B3A', accentTo: '#FB923C' },
+            { id: 'FLIGHT', label: t('航班', '航班', 'Flight'), icon: <PlaneIcon className="w-3.5 h-3.5" />, accentFrom: '#0EA5E9', accentTo: '#38BDF8' },
+            { id: 'THEME', label: t('主題', '主题', 'Theme'), icon: <SparklesIcon className="w-3.5 h-3.5" />, accentFrom: '#8B5CF6', accentTo: '#A78BFA' },
           ]}
         />
 
@@ -1633,13 +1714,13 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
           {modalMode === 'THEME' ? (
             <div className="space-y-2.5">
               <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 block">
-                本日主題（留空可清除）
+                {t('本日主題（留空可清除）', '本日主题（留空可清除）', 'Day theme (leave blank to clear)')}
               </label>
               <div className="bg-zinc-100 dark:bg-white/[0.05] border border-zinc-200/70 dark:border-white/10 rounded-2xl p-3.5 flex items-center gap-3">
                 <SparklesIcon className="w-5 h-5 text-[#F26B3A] shrink-0" />
                 <input
                   type="text"
-                  placeholder="老城散步、美食探索"
+                  placeholder={t('老城散步、美食探索', '老城漫步、美食探索', 'Old town walk, food tour')}
                   className="bg-transparent w-full text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none font-medium text-sm"
                   value={dailyTheme}
                   onChange={(e) => setDailyTheme(e.target.value)}
@@ -1652,11 +1733,11 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                 fullWidth
                 size="sm"
                 value={newActivity.type === 'flight' ? 'sightseeing' : newActivity.type}
-                onChange={(t) => {
+                onChange={(nextType) => {
                   setNewActivity((prev) => {
                     // Auto-suggest airport origin when switching to transport right after a flight
                     if (
-                      t === 'transport' &&
+                      nextType === 'transport' &&
                       !editingActivityId &&
                       !prev.title.trim() &&
                       !prev.location.trim() &&
@@ -1665,20 +1746,24 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                       const hotelTarget = activeHotelForDay || hotels[0];
                       return {
                         ...prev,
-                        type: t,
+                        type: nextType,
                         title: hotelTarget
                           ? `${precedingFlightAirport.name} → ${hotelTarget.name}`
-                          : `從 ${precedingFlightAirport.name} 出發`,
+                          : t(
+                              `從 ${precedingFlightAirport.name} 出發`,
+                              `从 ${precedingFlightAirport.name} 出发`,
+                              `Depart from ${precedingFlightAirport.name}`
+                            ),
                         location: `${precedingFlightAirport.name} (${precedingFlightAirport.code})`,
                       };
                     }
-                    return { ...prev, type: t };
+                    return { ...prev, type: nextType };
                   });
                 }}
                 options={[
-                  { id: 'sightseeing', label: '觀光', icon: <CameraIcon className="w-3.5 h-3.5" />, accentFrom: '#4F5DF5', accentTo: '#6366F1' },
-                  { id: 'food', label: '美食', icon: <DiningIcon className="w-3.5 h-3.5" />, accentFrom: '#F43F5E', accentTo: '#FB7185' },
-                  { id: 'transport', label: '交通', icon: <BusIcon className="w-3.5 h-3.5" />, accentFrom: '#0E9F76', accentTo: '#10B981' },
+                  { id: 'sightseeing', label: t('觀光', '观光', 'Sightseeing'), icon: <CameraIcon className="w-3.5 h-3.5" />, accentFrom: '#4F5DF5', accentTo: '#6366F1' },
+                  { id: 'food', label: t('美食', '美食', 'Dining'), icon: <DiningIcon className="w-3.5 h-3.5" />, accentFrom: '#F43F5E', accentTo: '#FB7185' },
+                  { id: 'transport', label: t('交通', '交通', 'Transit'), icon: <BusIcon className="w-3.5 h-3.5" />, accentFrom: '#0E9F76', accentTo: '#10B981' },
                 ]}
               />
 
@@ -1690,7 +1775,8 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                       <div className="flex items-center gap-1.5 text-[11px] font-semibold text-sky-600 dark:text-sky-300">
                         <PlaneIcon className="w-3.5 h-3.5 -rotate-45 shrink-0" />
                         <span>
-                          上筆航班抵達：{precedingFlightAirport.name} ({precedingFlightAirport.code})
+                          {t('上筆航班抵達：', '上笔航班抵达：', 'Previous flight arrived: ')}
+                          {precedingFlightAirport.name} ({precedingFlightAirport.code})
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
@@ -1698,24 +1784,33 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                           type="button"
                           onClick={() => {
                             const airportText = `${precedingFlightAirport.name} (${precedingFlightAirport.code})`;
+                            const departTitle = t(
+                              `從 ${precedingFlightAirport.name} 出發`,
+                              `从 ${precedingFlightAirport.name} 出发`,
+                              `Depart from ${precedingFlightAirport.name}`
+                            );
                             if (newActivity.type === 'sightseeing') {
                               setNewActivity((prev) => ({
                                 ...prev,
                                 type: 'transport',
-                                title: `從 ${precedingFlightAirport.name} 出發`,
+                                title: departTitle,
                                 location: airportText,
                               }));
                             } else {
                               setNewActivity((prev) => ({
                                 ...prev,
-                                title: prev.title.trim() || `從 ${precedingFlightAirport.name} 出發`,
+                                title: prev.title.trim() || departTitle,
                                 location: airportText,
                               }));
                             }
                           }}
                           className="h-7 px-3 rounded-full bg-sky-500/12 text-sky-700 dark:text-sky-300 text-[11px] font-semibold whitespace-nowrap shrink-0 cursor-pointer hover:bg-sky-500/20 transition-colors"
                         >
-                          設為起點：{precedingFlightAirport.code} 機場
+                          {t(
+                            `設為起點：${precedingFlightAirport.code} 機場`,
+                            `设为起点：${precedingFlightAirport.code} 机场`,
+                            `Origin: ${precedingFlightAirport.code} Airport`
+                          )}
                         </button>
                         {(activeHotelForDay || hotels[0]) && (
                           <button
@@ -1731,7 +1826,11 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                             }}
                             className="h-7 px-3 rounded-full bg-indigo-500/12 text-indigo-700 dark:text-indigo-300 text-[11px] font-semibold whitespace-nowrap shrink-0 cursor-pointer hover:bg-indigo-500/20 transition-colors"
                           >
-                            {precedingFlightAirport.code} 機場 → {(activeHotelForDay || hotels[0]).name}
+                            {t(
+                              `${precedingFlightAirport.code} 機場 → ${(activeHotelForDay || hotels[0]).name}`,
+                              `${precedingFlightAirport.code} 机场 → ${(activeHotelForDay || hotels[0]).name}`,
+                              `${precedingFlightAirport.code} → ${(activeHotelForDay || hotels[0]).name}`
+                            )}
                           </button>
                         )}
                       </div>
@@ -1742,7 +1841,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">
                         <HomeIcon className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                        <span>快速選擇已登記酒店</span>
+                        <span>{t('快速選擇已登記酒店', '快速选择已登记酒店', 'Saved Hotels Quick Fill')}</span>
                       </div>
                       <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
                         {hotels.map((h) => (
@@ -1750,58 +1849,60 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                             <button
                               type="button"
                               onClick={() => {
+                                const departLabel = t(`從 ${h.name} 出發`, `从 ${h.name} 出发`, `Depart ${h.name}`);
                                 if (newActivity.type === 'sightseeing') {
                                   const nextList = [...sightseeingList];
                                   const emptyIdx = nextList.findIndex((row) => !row.title.trim());
                                   if (emptyIdx !== -1) {
                                     nextList[emptyIdx] = {
                                       ...nextList[emptyIdx],
-                                      title: `從 ${h.name} 出發`,
+                                      title: departLabel,
                                       location: h.name,
                                     };
                                   } else {
-                                    nextList.push({ title: `從 ${h.name} 出發`, location: h.name, duration: '0.5h' });
+                                    nextList.push({ title: departLabel, location: h.name, duration: '0.5h' });
                                   }
                                   setSightseeingList(nextList);
                                 } else {
                                   setNewActivity((prev) => ({
                                     ...prev,
-                                    title: prev.title.trim() || `從 ${h.name} 出發`,
+                                    title: prev.title.trim() || departLabel,
                                     location: h.name,
                                   }));
                                 }
                               }}
                               className="h-7 px-3 rounded-full bg-white dark:bg-zinc-900/70 border border-zinc-200/80 dark:border-white/10 text-zinc-800 dark:text-zinc-200 text-[11px] font-semibold whitespace-nowrap shrink-0 cursor-pointer hover:border-indigo-400 transition-colors"
                             >
-                              從 {h.name} 出發
+                              {t(`從 ${h.name} 出發`, `从 ${h.name} 出发`, `From ${h.name}`)}
                             </button>
                             <button
                               type="button"
                               onClick={() => {
+                                const returnLabel = t(`返回酒店（${h.name}）`, `返回酒店（${h.name}）`, `Return to ${h.name}`);
                                 if (newActivity.type === 'sightseeing') {
                                   const nextList = [...sightseeingList];
                                   const emptyIdx = nextList.findIndex((row) => !row.title.trim());
                                   if (emptyIdx !== -1) {
                                     nextList[emptyIdx] = {
                                       ...nextList[emptyIdx],
-                                      title: `返回酒店（${h.name}）`,
+                                      title: returnLabel,
                                       location: h.name,
                                     };
                                   } else {
-                                    nextList.push({ title: `返回酒店（${h.name}）`, location: h.name, duration: '0.5h' });
+                                    nextList.push({ title: returnLabel, location: h.name, duration: '0.5h' });
                                   }
                                   setSightseeingList(nextList);
                                 } else {
                                   setNewActivity((prev) => ({
                                     ...prev,
-                                    title: `返回酒店（${h.name}）`,
+                                    title: returnLabel,
                                     location: h.name,
                                   }));
                                 }
                               }}
                               className="h-7 px-3 rounded-full bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 text-[11px] font-semibold whitespace-nowrap shrink-0 cursor-pointer hover:bg-indigo-500/20 transition-colors"
                             >
-                              返回 {h.name}
+                              {t(`返回 ${h.name}`, `返回 ${h.name}`, `Back to ${h.name}`)}
                             </button>
                           </React.Fragment>
                         ))}
@@ -1825,7 +1926,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                           </span>
                           <input
                             type="text"
-                            placeholder="景點名稱"
+                            placeholder={t('景點名稱', '景点名称', 'Place name')}
                             className="bg-transparent w-full text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none font-semibold text-sm"
                             value={item.title}
                             onChange={(e) => handleSightseeingChange(idx, 'title', e.target.value)}
@@ -1844,7 +1945,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                       <div className="flex gap-2 pt-2 border-t border-zinc-200/60 dark:border-white/10">
                         <input
                           type="text"
-                          placeholder="地點（選填）"
+                          placeholder={t('地點（選填）', '地点（选填）', 'Location (optional)')}
                           className="flex-1 bg-transparent text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none text-xs"
                           value={item.location}
                           onChange={(e) => handleSightseeingChange(idx, 'location', e.target.value)}
@@ -1856,7 +1957,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                         >
                           {Array.from({ length: 24 }, (_, i) => (i + 1) * 0.5).map((val) => (
                             <option key={val} value={`${val}h`} className="bg-white dark:bg-zinc-900">
-                              {val}h
+                              {formatDurationLabel(`${val}h`, lang)}
                             </option>
                           ))}
                         </select>
@@ -1869,7 +1970,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                     className="w-full min-h-[42px] border border-dashed border-zinc-300 dark:border-white/20 rounded-full text-zinc-600 dark:text-zinc-300 font-semibold text-xs flex items-center justify-center gap-1.5 hover:border-[#F26B3A] cursor-pointer"
                   >
                     <PlusIcon className="w-4 h-4" />
-                    <span>多加一站</span>
+                    <span>{t('多加一站', '多加一站', 'Add Another Stop')}</span>
                   </button>
                 </div>
               ) : (
@@ -1891,13 +1992,13 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                   </div>
                   <div>
                     <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1.5 block">
-                      地點
+                      {t('地點', '地点', 'Location')}
                     </label>
                     <div className="bg-zinc-100 dark:bg-white/[0.05] border border-zinc-200/70 dark:border-white/10 rounded-2xl p-3.5 flex items-center gap-3">
                       <MapIcon className="w-4 h-4 text-zinc-400 shrink-0" />
                       <input
                         type="text"
-                        placeholder="輸入地標或地址"
+                        placeholder={t('輸入地標或地址', '输入地标或地址', 'Landmark or address')}
                         className="bg-transparent w-full text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none font-medium text-sm"
                         value={newActivity.location}
                         onChange={(e) => setNewActivity({ ...newActivity, location: e.target.value })}
@@ -1910,7 +2011,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1.5 block">
-                    開始時間
+                    {t('開始時間', '开始时间', 'Start Time')}
                   </label>
                   <div className="bg-zinc-100 dark:bg-white/[0.05] border border-zinc-200/70 dark:border-white/10 rounded-2xl px-3.5 h-11 flex items-center gap-2">
                     <ClockIcon className="w-4 h-4 text-zinc-400 shrink-0" />
@@ -1925,7 +2026,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                 {!(newActivity.type === 'sightseeing' && !editingActivityId) && (
                   <div>
                     <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1.5 block">
-                      停留時間
+                      {t('停留時間', '停留时间', 'Duration')}
                     </label>
                     <div className="bg-zinc-100 dark:bg-white/[0.05] border border-zinc-200/70 dark:border-white/10 rounded-2xl px-3.5 h-11 flex items-center gap-2">
                       <HourglassIcon className="w-4 h-4 text-zinc-400 shrink-0" />
@@ -1936,7 +2037,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                       >
                         {Array.from({ length: 24 }, (_, i) => (i + 1) * 0.5).map((val) => (
                           <option key={val} value={`${val}h`} className="bg-white dark:bg-zinc-900">
-                            {val}h
+                            {formatDurationLabel(`${val}h`, lang)}
                           </option>
                         ))}
                       </select>
@@ -1947,12 +2048,12 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
 
               <div>
                 <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1.5 block">
-                  備註（選填）
+                  {t('備註（選填）', '备注（选填）', 'Notes (optional)')}
                 </label>
                 <div className="bg-zinc-100 dark:bg-white/[0.05] border border-zinc-200/70 dark:border-white/10 rounded-2xl p-3.5 flex items-start gap-3">
                   <DocumentTextIcon className="w-4 h-4 text-zinc-400 shrink-0 mt-0.5" />
                   <textarea
-                    placeholder="訂位代號、注意事項..."
+                    placeholder={t('訂位代號、注意事項...', '预订编号、注意事项...', 'Booking code, reminders...')}
                     className="bg-transparent w-full text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none text-sm resize-none h-16"
                     value={newActivity.description}
                     onChange={(e) => setNewActivity({ ...newActivity, description: e.target.value })}
@@ -1967,11 +2068,11 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
                   <div className="sm:col-span-6">
                     <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1 block">
-                      航班編號
+                      {t('航班編號', '航班号', 'Flight Number')}
                     </label>
                     <input
                       type="text"
-                      placeholder="例如：BR198、CX504"
+                      placeholder={t('例如：BR198、CX504', '例如：BR198、CX504', 'e.g. BR198, CX504')}
                       className="w-full h-11 rounded-2xl bg-zinc-100 dark:bg-white/[0.05] border border-zinc-200/70 dark:border-white/10 text-zinc-900 dark:text-white font-num font-bold text-center uppercase focus:outline-none px-3"
                       value={newFlight.flightNumber}
                       onChange={(e) => setNewFlight({ ...newFlight, flightNumber: e.target.value.toUpperCase() })}
@@ -1979,7 +2080,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                   </div>
                   <div className="sm:col-span-6">
                     <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1 block">
-                      出發日期
+                      {t('出發日期', '出发日期', 'Departure Date')}
                     </label>
                     <input
                       type="date"
@@ -1993,8 +2094,13 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                 <div className="flex items-center justify-between gap-2 px-1">
                   <p className="text-[11px] font-medium text-sky-600 dark:text-sky-400 truncate">
                     {flightLookupLoading
-                      ? '正在依航班號與日期自動抓取起降機場與時區...'
-                      : flightLookupNote || '輸入航班號與日期後將自動配對航線、時間與時區'}
+                      ? t('正在依航班號與日期自動抓取起降機場與時區...', '正在按航班号与日期自动获取起降机场与时区...', 'Looking up airports, schedule & timezones...')
+                      : flightLookupNote ||
+                        t(
+                          '輸入航班號與日期後將自動配對航線、時間與時區',
+                          '输入航班号与日期后将自动匹配航线、时间与时区',
+                          'Enter flight number & date to auto-fill route & timezones'
+                        )}
                   </p>
                   <button
                     type="button"
@@ -2003,7 +2109,11 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                     className="h-7 px-2.5 rounded-full bg-sky-500/12 hover:bg-sky-500/20 disabled:opacity-45 text-sky-600 dark:text-sky-300 text-[11px] font-semibold flex items-center gap-1 shrink-0 cursor-pointer transition-colors whitespace-nowrap"
                   >
                     <SparklesIcon className={`w-3 h-3 ${flightLookupLoading ? 'animate-spin' : ''}`} />
-                    <span>{flightLookupLoading ? '抓取中' : '重新抓取'}</span>
+                    <span>
+                      {flightLookupLoading
+                        ? t('抓取中', '获取中', 'Fetching')
+                        : t('重新抓取', '重新获取', 'Fetch')}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -2011,7 +2121,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1 block">
-                    出發機場
+                    {t('出發機場', '出发机场', 'Departure Airport')}
                   </label>
                   <input
                     type="text"
@@ -2023,7 +2133,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                 </div>
                 <div>
                   <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1 block">
-                    抵達機場
+                    {t('抵達機場', '抵达机场', 'Arrival Airport')}
                   </label>
                   <input
                     type="text"
@@ -2039,7 +2149,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                 <div className="flex items-center justify-between text-zinc-900 dark:text-white text-xs font-semibold">
                   <div className="flex items-center gap-2">
                     <PlaneIcon className="w-4 h-4 -rotate-45 text-sky-600" />
-                    <span>出發時間與時區</span>
+                    <span>{t('出發時間與時區', '出发时间与时区', 'Departure Time & Timezone')}</span>
                   </div>
                   <span className="text-[11px] font-num text-zinc-400">{newFlight.departureDate}</span>
                 </div>
@@ -2068,7 +2178,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                 <div className="flex items-center justify-between text-zinc-900 dark:text-white text-xs font-semibold">
                   <div className="flex items-center gap-2">
                     <MapIcon className="w-4 h-4 text-emerald-600" />
-                    <span>抵達時間與時區</span>
+                    <span>{t('抵達時間與時區', '抵达时间与时区', 'Arrival Time & Timezone')}</span>
                   </div>
                   {newFlight.duration && (
                     <span className="font-num text-[#F26B3A]">{newFlight.duration}</span>
@@ -2110,7 +2220,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
             <button
               type="button"
               onClick={() => setConfirmDeleteOpen(true)}
-              aria-label="刪除行程"
+              aria-label={t('刪除行程', '删除行程', 'Delete activity')}
               className="w-11 h-11 rounded-full bg-red-500/10 text-red-600 dark:text-red-400 flex items-center justify-center cursor-pointer shrink-0"
             >
               <TrashIcon className="w-4 h-4" />
@@ -2121,7 +2231,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
               href={googleCalendarUrl}
               target="_blank"
               rel="noopener noreferrer"
-              title="加入 Google 日曆"
+              title={t('加入 Google 日曆', '添加到 Google 日历', 'Add to Google Calendar')}
               className="w-11 h-11 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 flex items-center justify-center shrink-0 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
             >
               <CalendarIcon className="w-4 h-4" />
@@ -2137,7 +2247,9 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                 : 'bg-zinc-100 dark:bg-white/5 text-zinc-400 cursor-not-allowed'
             }`}
           >
-            {editingActivityId || modalMode === 'THEME' ? '儲存' : '確認新增'}
+            {editingActivityId || modalMode === 'THEME'
+              ? t('儲存', '保存', 'Save')
+              : t('確認新增', '确认新增', 'Add')}
           </button>
         </div>
       </LiquidModal>
@@ -2184,18 +2296,24 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                 className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
                   detailActivity.completed
                     ? 'bg-emerald-500 text-white'
-                    : getTypeMeta(detailActivity.type).nodeBg
+                    : getTypeMeta(detailActivity.type, lang).nodeBg
                 }`}
               >
                 {(() => {
-                  const Icon = detailActivity.completed ? CheckIcon : getTypeMeta(detailActivity.type).icon;
+                  const Icon = detailActivity.completed
+                    ? CheckIcon
+                    : getTypeMeta(detailActivity.type, lang).icon;
                   return <Icon className={`w-4 h-4 ${detailActivity.type === 'flight' ? '-rotate-45' : ''}`} />;
                 })()}
               </div>
               <span className="truncate text-base font-display font-bold">
                 {detailActivity.type === 'flight' && detailActivity.flightInfo
-                  ? `${detailActivity.flightInfo.flightNumber} 航班詳情`
-                  : getTypeMeta(detailActivity.type).label}
+                  ? t(
+                      `${detailActivity.flightInfo.flightNumber} 航班詳情`,
+                      `${detailActivity.flightInfo.flightNumber} 航班详情`,
+                      `Flight ${detailActivity.flightInfo.flightNumber} Details`
+                    )
+                  : getTypeMeta(detailActivity.type, lang).label}
               </span>
             </div>
           ) : null
@@ -2208,7 +2326,11 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                 <div className="flex items-start justify-between gap-3">
                   <h3 className="text-xl font-display font-bold text-zinc-900 dark:text-white leading-snug">
                     {detailActivity.type === 'flight' && detailActivity.flightInfo
-                      ? `${detailActivity.flightInfo.flightNumber} 航班`
+                      ? t(
+                          `${detailActivity.flightInfo.flightNumber} 航班`,
+                          `${detailActivity.flightInfo.flightNumber} 航班`,
+                          `Flight ${detailActivity.flightInfo.flightNumber}`
+                        )
                       : detailActivity.title}
                   </h3>
                   <button
@@ -2221,17 +2343,33 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                     }`}
                   >
                     <CheckIcon className="w-3.5 h-3.5" />
-                    <span>{detailActivity.completed ? '已完成' : '標記完成'}</span>
+                    <span>
+                      {detailActivity.completed
+                        ? t('已完成', '已完成', 'Completed')
+                        : t('標記完成', '标记完成', 'Mark Complete')}
+                    </span>
                   </button>
                 </div>
 
                 {detailActivity.type !== 'flight' && (
                   <div className="flex items-center gap-2.5 text-xs font-num text-zinc-500 dark:text-zinc-400">
-                    <span>{formatTime12h(detailActivity.time)} ({detailActivity.time})</span>
+                    <span>
+                      {(() => {
+                        const dt = formatTimeDisplay(detailActivity.time, lang);
+                        const formatted = `${dt.main}${dt.suffix ? ` ${dt.suffix}` : ''}`;
+                        return lang === 'en' ? formatted : `${formatted} (${detailActivity.time})`;
+                      })()}
+                    </span>
                     {detailActivity.duration && (
                       <>
                         <span aria-hidden="true">·</span>
-                        <span>停留約 {detailActivity.duration}</span>
+                        <span>
+                          {t(
+                            `停留約 ${formatDurationLabel(detailActivity.duration, lang)}`,
+                            `停留约 ${formatDurationLabel(detailActivity.duration, lang)}`,
+                            `Duration ~${formatDurationLabel(detailActivity.duration, lang)}`
+                          )}
+                        </span>
                       </>
                     )}
                   </div>
@@ -2246,7 +2384,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                         {detailActivity.flightInfo.departureCode}
                       </div>
                       <div className="text-[11px] text-zinc-400">
-                        {resolveAirportByCode(detailActivity.flightInfo.departureCode)?.name}
+                        {resolveAirportByCode(detailActivity.flightInfo.departureCode, lang)?.name}
                       </div>
                     </div>
                     <div className="flex flex-col items-center px-2">
@@ -2262,20 +2400,20 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                         {detailActivity.flightInfo.arrivalCode}
                       </div>
                       <div className="text-[11px] text-zinc-400">
-                        {resolveAirportByCode(detailActivity.flightInfo.arrivalCode)?.name}
+                        {resolveAirportByCode(detailActivity.flightInfo.arrivalCode, lang)?.name}
                       </div>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2 pt-3 border-t border-white/10 text-xs font-num">
                     <div>
-                      <div className="text-[10px] text-zinc-400">出發時間</div>
+                      <div className="text-[10px] text-zinc-400">{t('出發時間', '出发时间', 'Departure')}</div>
                       <div className="font-bold text-white mt-0.5">
                         {detailActivity.flightInfo.departureDate} {detailActivity.flightInfo.departureTime}
                       </div>
                       <div className="text-[10px] text-zinc-400">{detailActivity.flightInfo.departureTimezone}</div>
                     </div>
                     <div className="text-right">
-                      <div className="text-[10px] text-zinc-400">抵達時間</div>
+                      <div className="text-[10px] text-zinc-400">{t('抵達時間', '抵达时间', 'Arrival')}</div>
                       <div className="font-bold text-white mt-0.5">
                         {detailActivity.flightInfo.arrivalDate} {detailActivity.flightInfo.arrivalTime}
                       </div>
@@ -2290,7 +2428,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                       <div className="flex items-start gap-2.5 min-w-0">
                         <MapIcon className="w-4 h-4 text-[#F26B3A] shrink-0 mt-0.5" />
                         <div className="min-w-0">
-                          <div className="text-[11px] text-zinc-400">地點資訊</div>
+                          <div className="text-[11px] text-zinc-400">{t('地點資訊', '地点信息', 'Location')}</div>
                           <div className="text-sm font-medium text-zinc-900 dark:text-white break-words">
                             {detailActivity.location || detailActivity.title}
                           </div>
@@ -2304,7 +2442,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                         rel="noopener noreferrer"
                         className="h-8 px-3 rounded-full bg-white dark:bg-zinc-900/80 border border-zinc-200/80 dark:border-white/10 text-xs font-semibold text-zinc-800 dark:text-zinc-200 inline-flex items-center gap-1 shrink-0 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
                       >
-                        <span>地圖</span>
+                        <span>{t('地圖', '地图', 'Map')}</span>
                         <ArrowUpRightIcon className="w-3 h-3" />
                       </a>
                     </div>
@@ -2313,17 +2451,19 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                   <div className="rounded-2xl bg-zinc-100/80 dark:bg-white/[0.05] border border-zinc-200/70 dark:border-white/10 p-3.5 space-y-1">
                     <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
                       <DocumentTextIcon className="w-3.5 h-3.5" />
-                      <span>備註與詳細說明</span>
+                      <span>{t('備註與詳細說明', '备注与详细说明', 'Notes & Details')}</span>
                     </div>
                     <p className="text-sm text-zinc-700 dark:text-zinc-200 whitespace-pre-wrap leading-relaxed">
-                      {detailActivity.description?.trim() ? detailActivity.description : '尚未填寫備註'}
+                      {detailActivity.description?.trim()
+                        ? detailActivity.description
+                        : t('尚未填寫備註', '尚未填写备注', 'No notes added yet')}
                     </p>
                   </div>
                 </>
               )}
             </div>
 
-            {/* Bottom Fixed Actions: 刪除 & 編輯 */}
+            {/* Bottom Fixed Actions: Delete & Edit */}
             <div className="pt-3 flex items-center gap-2.5 shrink-0 border-t border-zinc-200/60 dark:border-white/10">
               <button
                 type="button"
@@ -2331,7 +2471,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                 className="h-11 px-4 rounded-full bg-red-500/12 hover:bg-red-500/20 text-red-600 dark:text-red-400 font-semibold text-xs flex items-center gap-1.5 cursor-pointer shrink-0 transition-colors whitespace-nowrap"
               >
                 <TrashIcon className="w-4 h-4" />
-                <span>刪除</span>
+                <span>{t('刪除', '删除', 'Delete')}</span>
               </button>
               <button
                 type="button"
@@ -2343,7 +2483,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                 className="flex-1 min-h-[46px] rounded-full bg-[#F26B3A] hover:bg-[#E15A2A] text-white font-semibold text-sm flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
               >
                 <EditIcon className="w-4 h-4" />
-                <span>編輯行程</span>
+                <span>{t('編輯行程', '编辑行程', 'Edit Activity')}</span>
               </button>
             </div>
           </div>
@@ -2359,7 +2499,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
         title={
           <div className="flex items-center gap-2">
             <HomeIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-            <span>住宿酒店設定</span>
+            <span>{t('住宿酒店設定', '住宿酒店设置', 'Hotels & Stays')}</span>
           </div>
         }
       >
@@ -2368,7 +2508,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
           {hotels.length > 0 && (
             <div className="space-y-2">
               <div className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 px-1">
-                已登記酒店 ({hotels.length})
+                {t(`已登記酒店 (${hotels.length})`, `已登记酒店 (${hotels.length})`, `Saved Hotels (${hotels.length})`)}
               </div>
               {hotels.map((h) => {
                 const isToday = selectedDate >= h.checkIn && selectedDate <= h.checkOut;
@@ -2401,13 +2541,19 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                         </span>
                         {isToday && (
                           <span className="px-2 py-0.5 rounded-full bg-indigo-600 text-white text-[10px] font-bold shrink-0">
-                            當日入住
+                            {t('當日入住', '当日入住', 'Staying Today')}
                           </span>
                         )}
                       </div>
                       <div className="text-[11px] font-num text-zinc-500 dark:text-zinc-400 truncate">
                         {h.checkIn} ~ {h.checkOut}
-                        {span ? ` · 共 ${span.nights} 晚` : ''}
+                        {span
+                          ? t(
+                              ` · 共 ${span.nights} 晚`,
+                              ` · 共 ${span.nights} 晚`,
+                              ` · ${span.nights} ${span.nights === 1 ? 'night' : 'nights'}`
+                            )
+                          : ''}
                       </div>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
@@ -2420,7 +2566,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                           e.stopPropagation();
                           handleDeleteHotel(h.id);
                         }}
-                        aria-label="刪除酒店"
+                        aria-label={t('刪除酒店', '删除酒店', 'Delete hotel')}
                         className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-400 hover:text-red-500 hover:bg-red-500/10 cursor-pointer"
                       >
                         <TrashIcon className="w-4 h-4" />
@@ -2448,7 +2594,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
               className="w-full min-h-[46px] rounded-2xl border border-dashed border-indigo-400/50 bg-indigo-500/8 hover:bg-indigo-500/14 text-indigo-600 dark:text-indigo-300 font-semibold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
             >
               <PlusIcon className="w-4 h-4" />
-              <span>新增其他酒店</span>
+              <span>{t('新增其他酒店', '新增其他酒店', 'Add Another Hotel')}</span>
             </button>
           ) : (
             <form
@@ -2457,7 +2603,11 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
             >
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
-                  {editingHotelId ? '編輯住宿酒店' : hotels.length > 0 ? '新增其他酒店' : '登記住宿酒店'}
+                  {editingHotelId
+                    ? t('編輯住宿酒店', '编辑住宿酒店', 'Edit Hotel')
+                    : hotels.length > 0
+                      ? t('新增其他酒店', '新增其他酒店', 'Add Another Hotel')
+                      : t('登記住宿酒店', '登记住宿酒店', 'Add Hotel')}
                 </span>
                 {hotels.length > 0 && (
                   <button
@@ -2468,19 +2618,19 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                     }}
                     className="text-[11px] font-semibold text-zinc-500 hover:text-zinc-800 dark:hover:text-white cursor-pointer"
                   >
-                    收合
+                    {t('收合', '收起', 'Collapse')}
                   </button>
                 )}
               </div>
 
               <div>
                 <label className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 block mb-1">
-                  酒店名稱（系統將自動配對地圖位置）
+                  {t('酒店名稱（系統將自動配對地圖位置）', '酒店名称（系统将自动匹配地图位置）', 'Hotel name (auto-matched on route map)')}
                 </label>
                 <input
                   required
                   type="text"
-                  placeholder="例如：新宿格拉斯麗酒店"
+                  placeholder={t('例如：新宿格拉斯麗酒店', '例如：新宿格拉斯丽酒店', 'e.g. Hotel Gracery Shinjuku')}
                   value={hotelDraft.name}
                   onChange={(e) => setHotelDraft({ ...hotelDraft, name: e.target.value })}
                   className="w-full h-11 px-3.5 rounded-xl bg-white dark:bg-zinc-900/70 text-sm font-semibold text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/35"
@@ -2490,22 +2640,29 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
-                    點選或滑動選擇入住與退房日期
+                    {t('點選或滑動選擇入住與退房日期', '点选或滑动选择入住与退房日期', 'Tap or drag check-in and check-out dates')}
                   </span>
                   {getDaySpanUtc(hotelDraft.checkIn, hotelDraft.checkOut) && (
                     <span className="text-[11px] font-num font-bold text-indigo-600 dark:text-indigo-400">
-                      共 {getDaySpanUtc(hotelDraft.checkIn, hotelDraft.checkOut)!.nights} 晚
+                      {(() => {
+                        const nights = getDaySpanUtc(hotelDraft.checkIn, hotelDraft.checkOut)!.nights;
+                        return t(
+                          `共 ${nights} 晚`,
+                          `共 ${nights} 晚`,
+                          `${nights} ${nights === 1 ? 'night' : 'nights'}`
+                        );
+                      })()}
                     </span>
                   )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 text-xs font-num">
                   <div className="bg-white dark:bg-zinc-900/70 px-3 py-2 rounded-xl border border-zinc-200/70 dark:border-white/10">
-                    <span className="text-[10px] text-zinc-400 block">入住日期</span>
+                    <span className="text-[10px] text-zinc-400 block">{t('入住日期', '入住日期', 'Check-in')}</span>
                     <span className="font-bold text-zinc-900 dark:text-white">{hotelDraft.checkIn}</span>
                   </div>
                   <div className="bg-white dark:bg-zinc-900/70 px-3 py-2 rounded-xl border border-zinc-200/70 dark:border-white/10">
-                    <span className="text-[10px] text-zinc-400 block">退房日期</span>
+                    <span className="text-[10px] text-zinc-400 block">{t('退房日期', '退房日期', 'Check-out')}</span>
                     <span className="font-bold text-zinc-900 dark:text-white">{hotelDraft.checkOut}</span>
                   </div>
                 </div>
@@ -2528,7 +2685,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                     }}
                     className="h-10 px-4 rounded-full bg-zinc-200 dark:bg-zinc-800 text-xs font-semibold text-zinc-700 dark:text-zinc-200 cursor-pointer"
                   >
-                    取消編輯
+                    {t('取消編輯', '取消编辑', 'Cancel')}
                   </button>
                 )}
                 <button
@@ -2536,7 +2693,9 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                   disabled={!hotelDraft.name.trim()}
                   className="flex-1 h-10 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs disabled:opacity-40 cursor-pointer"
                 >
-                  {editingHotelId ? '更新酒店資料' : '+ 確認新增酒店'}
+                  {editingHotelId
+                    ? t('更新酒店資料', '更新酒店信息', 'Save Hotel')
+                    : t('+ 確認新增酒店', '+ 确认新增酒店', '+ Add Hotel')}
                 </button>
               </div>
             </form>
@@ -2548,9 +2707,10 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
         open={confirmDeleteOpen}
         onClose={() => setConfirmDeleteOpen(false)}
         onConfirm={handleDeleteActivity}
-        title="刪除此行程？"
-        description="刪除後會同步從其他已連線裝置移除。"
-        confirmLabel="確認刪除"
+        title={t('刪除此行程？', '删除此行程？', 'Delete this activity?')}
+        description={t('刪除後會同步從其他已連線裝置移除。', '删除后会同步从其他已连接设备移除。', 'This will also remove it from synced devices.')}
+        confirmLabel={t('確認刪除', '确认删除', 'Delete')}
+        cancelLabel={t('取消', '取消', 'Cancel')}
         icon={<TrashIcon className="w-6 h-6" />}
       />
 
@@ -2558,9 +2718,10 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
         open={detailDeleteConfirmOpen}
         onClose={() => setDetailDeleteConfirmOpen(false)}
         onConfirm={handleDeleteDetailActivity}
-        title="刪除此行程？"
-        description="刪除後會同步從其他已連線裝置移除。"
-        confirmLabel="確認刪除"
+        title={t('刪除此行程？', '删除此行程？', 'Delete this activity?')}
+        description={t('刪除後會同步從其他已連線裝置移除。', '删除后会同步从其他已连接设备移除。', 'This will also remove it from synced devices.')}
+        confirmLabel={t('確認刪除', '确认删除', 'Delete')}
+        cancelLabel={t('取消', '取消', 'Cancel')}
         icon={<TrashIcon className="w-6 h-6" />}
       />
     </div>

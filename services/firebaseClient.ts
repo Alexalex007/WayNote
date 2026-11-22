@@ -20,6 +20,7 @@ import {
 import firebaseConfig from '../firebase-applet-config.json';
 import type { Trip } from '../types';
 import { generateSyncCode, normalizeSyncCode } from '../shared/syncMerge';
+import { getStoredLanguage, tr } from '../shared/i18n';
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
@@ -108,32 +109,70 @@ export class AuthActionError extends Error {
 }
 
 function mapFirebaseAuthError(err: unknown, provider: 'google' | 'apple'): AuthActionError {
+  const lang = getStoredLanguage();
   const firebaseErr = err as { code?: string; message?: string };
   const code = firebaseErr?.code || 'auth/unknown';
 
   if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
-    return new AuthActionError('已取消登入視窗', code);
+    return new AuthActionError(tr(lang, '已取消登入視窗', '已取消登录窗口', 'Sign-in window closed'), code);
   }
   if (code === 'auth/popup-blocked') {
-    return new AuthActionError('瀏覽器封鎖了登入視窗，請允許彈出視窗後再試一次', code);
+    return new AuthActionError(
+      tr(
+        lang,
+        '瀏覽器封鎖了登入視窗，請允許彈出視窗後再試一次',
+        '浏览器拦截了登录弹窗，请允许弹窗后重试',
+        'Pop-up blocked by browser. Please allow pop-ups and try again'
+      ),
+      code
+    );
   }
   if (code === 'auth/account-exists-with-different-credential') {
-    return new AuthActionError('此電子郵件已綁定其他登入方式，請改用原本的方式登入', code);
+    return new AuthActionError(
+      tr(
+        lang,
+        '此電子郵件已綁定其他登入方式，請改用原本的方式登入',
+        '此邮箱已绑定其他登录方式，请改用原方式登录',
+        'This email is linked to a different sign-in provider'
+      ),
+      code
+    );
   }
   if (code === 'auth/operation-not-allowed') {
     if (provider === 'apple') {
       return new AuthActionError(
-        'Apple 登入尚未於 Firebase Console 啟用 Service ID 與金鑰設定',
+        tr(
+          lang,
+          'Apple 登入尚未於 Firebase Console 啟用 Service ID 與金鑰設定',
+          'Apple 登录尚未在 Firebase Console 启用 Service ID 与密钥配置',
+          'Apple Sign-In is not enabled in Firebase Console yet'
+        ),
         code,
         true
       );
     }
-    return new AuthActionError('此登入方式目前尚未於 Firebase Console 啟用', code);
+    return new AuthActionError(
+      tr(
+        lang,
+        '此登入方式目前尚未於 Firebase Console 啟用',
+        '此登录方式尚未在 Firebase Console 启用',
+        'This sign-in provider is not enabled in Firebase Console'
+      ),
+      code
+    );
   }
   if (code === 'auth/unauthorized-domain') {
-    return new AuthActionError('目前網域尚未加入 Firebase Auth 授權網域清單', code);
+    return new AuthActionError(
+      tr(
+        lang,
+        '目前網域尚未加入 Firebase Auth 授權網域清單',
+        '当前域名尚未加入 Firebase Auth 授权域名列表',
+        'Current domain is not in Firebase Auth authorized domains'
+      ),
+      code
+    );
   }
-  return new AuthActionError(firebaseErr?.message || '登入失敗，請稍後再試', code);
+  return new AuthActionError(firebaseErr?.message || tr(lang, '登入失敗，請稍後再試', '登录失败，请稍后重试', 'Sign-in failed. Please try again'), code);
 }
 
 export async function signInWithGooglePopup(): Promise<User> {
@@ -148,10 +187,11 @@ export async function signInWithGooglePopup(): Promise<User> {
 }
 
 export async function signInWithApplePopup(): Promise<User> {
+  const lang = getStoredLanguage();
   const provider = new OAuthProvider('apple.com');
   provider.addScope('email');
   provider.addScope('name');
-  provider.setCustomParameters({ locale: 'zh_TW' });
+  provider.setCustomParameters({ locale: lang === 'en' ? 'en_US' : lang === 'zh-CN' ? 'zh_CN' : 'zh_TW' });
   try {
     const result = await signInWithPopup(auth, provider);
     return result.user;
@@ -197,8 +237,10 @@ export async function ensureUserProfile(user: User): Promise<void> {
   const ref = doc(db, 'users', uid);
 
   const primaryProvider = user.providerData?.[0]?.providerId || 'google.com';
-  const fallbackName = user.email ? user.email.split('@')[0] : 'Waynote 旅人';
-  const safeName = (user.displayName || fallbackName || 'Waynote 旅人').trim().slice(0, 100);
+  const lang = getStoredLanguage();
+  const travelerFallback = tr(lang, 'Waynote 旅人', 'Waynote 旅人', 'Waynote Traveler');
+  const fallbackName = user.email ? user.email.split('@')[0] : travelerFallback;
+  const safeName = (user.displayName || fallbackName || travelerFallback).trim().slice(0, 100);
   const safeProvider = String(primaryProvider).slice(0, 40);
 
   try {
@@ -236,9 +278,14 @@ export function buildFirestoreTripFields(trip: Trip, ownerId: string) {
   const safeSyncId = (rawSync || generateSyncCode()).slice(0, 32);
   const todayFallback = new Date().toISOString().slice(0, 10);
 
+  const lang = getStoredLanguage();
+  const exploreLabel = tr(lang, '探索', '探索', 'Explore');
+  const tripSuffix = tr(lang, '旅程', '旅程', 'Trip');
+  const defaultTripTitle = tr(lang, '我的旅程', '我的旅程', 'My Trip');
+
   const editableFields = stripUndefinedDeep({
     syncId: safeSyncId,
-    name: (trip.name || `${trip.destination || '探索'} 旅程`).trim().slice(0, 120) || '我的旅程',
+    name: (trip.name || `${trip.destination || exploreLabel} ${tripSuffix}`).trim().slice(0, 120) || defaultTripTitle,
     destination: (trip.destination || 'Tokyo').trim().slice(0, 200) || 'Tokyo',
     startDate: isValidIsoDate(trip.startDate) ? trip.startDate : todayFallback,
     endDate: isValidIsoDate(trip.endDate) ? trip.endDate : todayFallback,
@@ -351,7 +398,8 @@ export async function upsertCloudPresence(params: {
   const safeOwnerId = sanitizeValidId(params.userId);
   const safeSessionId = sanitizeValidId(params.sessionId);
   const safeTripId = sanitizeValidId(params.tripId || 'HOME');
-  const safeDeviceName = (params.deviceName || 'Web 裝置').trim().slice(0, 60) || 'Web 裝置';
+  const defaultDev = tr(getStoredLanguage(), 'Web 裝置', 'Web 设备', 'Web Device');
+  const safeDeviceName = (params.deviceName || defaultDev).trim().slice(0, 60) || defaultDev;
   const path = `users/${safeOwnerId}/presence/${safeSessionId}`;
   const ref = doc(db, 'users', safeOwnerId, 'presence', safeSessionId);
 
@@ -444,16 +492,17 @@ export async function uploadCloudFile(params: {
   );
 
   const buf = new Uint8Array(await params.file.arrayBuffer());
+  const lang = getStoredLanguage();
   if (buf.byteLength === 0) {
-    throw new Error('檔案內容為空');
+    throw new Error(tr(lang, '檔案內容為空', '文件内容为空', 'File is empty'));
   }
   if (buf.byteLength > MAX_CLOUD_FILE_BYTES) {
-    throw new Error('單一檔案上限為 20MB');
+    throw new Error(tr(lang, '單一檔案上限為 20MB', '单个文件上限为 20MB', 'Maximum single file size is 20MB'));
   }
 
   const totalChunks = Math.ceil(buf.byteLength / CLOUD_FILE_CHUNK_BYTES);
   if (totalChunks > 60) {
-    throw new Error('檔案過大，請控制在 20MB 以內');
+    throw new Error(tr(lang, '檔案過大，請控制在 20MB 以內', '文件过大，请控制在 20MB 以内', 'File is too large (max 20MB)'));
   }
 
   const safeFileName = (params.file.name || 'document').trim().slice(0, 255) || 'document';
@@ -530,21 +579,22 @@ export async function downloadCloudFileUrl(userId: string, fileId: string): Prom
 
   let chunkCount = 0;
   let mimeType = 'application/octet-stream';
+  const lang = getStoredLanguage();
   try {
     const snap = await getDoc(manifestRef);
     if (!snap.exists()) {
-      throw new Error('雲端檔案尚在同步或不存在');
+      throw new Error(tr(lang, '雲端檔案尚在同步或不存在', '云端文件仍在同步或不存在', 'Cloud file is still syncing or missing'));
     }
     const data = snap.data() as { chunkCount?: number; mimeType?: string };
     chunkCount = Number(data.chunkCount || 0);
     mimeType = String(data.mimeType || 'application/octet-stream');
   } catch (error) {
-    if (error instanceof Error && error.message.includes('不存在')) throw error;
+    if (error instanceof Error && (error.message.includes('不存在') || error.message.includes('missing'))) throw error;
     handleFirestoreError(error, OperationType.GET, manifestPath);
   }
 
   if (chunkCount <= 0) {
-    throw new Error('雲端檔案分段資訊無效');
+    throw new Error(tr(lang, '雲端檔案分段資訊無效', '云端文件分片信息无效', 'Invalid cloud file metadata'));
   }
 
   const chunkBuffers: Uint8Array[] = new Array(chunkCount);
@@ -555,12 +605,12 @@ export async function downloadCloudFileUrl(userId: string, fileId: string): Prom
     try {
       const cSnap = await getDoc(chunkRef);
       if (!cSnap.exists()) {
-        throw new Error(`檔案分段 ${index + 1} 不存在`);
+        throw new Error(tr(lang, `檔案分段 ${index + 1} 不存在`, `文件分片 ${index + 1} 不存在`, `File chunk ${index + 1} missing`));
       }
       const cData = cSnap.data() as { data?: string };
       chunkBuffers[index] = base64ToUint8(String(cData.data || ''));
     } catch (error) {
-      if (error instanceof Error && error.message.includes('不存在')) throw error;
+      if (error instanceof Error && (error.message.includes('不存在') || error.message.includes('missing'))) throw error;
       handleFirestoreError(error, OperationType.GET, chunkPath);
     }
   };

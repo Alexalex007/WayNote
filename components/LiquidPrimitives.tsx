@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { XMarkIcon, CheckIcon, DevicePhoneMobileIcon } from './Icons';
+import { useI18n } from '../hooks/useI18n';
 
 const modalCountListeners = new Set<(count: number) => void>();
 let activeModalCount = 0;
@@ -271,6 +272,7 @@ export const LiquidModal: React.FC<LiquidModalProps> = ({
   zIndexClass = 'z-[80]',
   bottomSheetOnMobile = false,
 }) => {
+  const { t } = useI18n();
   const [viewportMetrics, setViewportMetrics] = useState<{ keyboardInset: number; maxModalHeight: number | null }>({
     keyboardInset: 0,
     maxModalHeight: null,
@@ -385,7 +387,7 @@ export const LiquidModal: React.FC<LiquidModalProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  aria-label="關閉"
+                  aria-label={t('關閉', '关闭', 'Close')}
                   className="min-w-[40px] min-h-[40px] rounded-full bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-200/70 dark:border-zinc-700/60 flex items-center justify-center text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200/80 dark:hover:bg-zinc-700 active:scale-95 transition-all cursor-pointer shrink-0"
                 >
                   <XMarkIcon className="w-4 h-4" />
@@ -418,11 +420,14 @@ export const ConfirmSheet: React.FC<ConfirmSheetProps> = ({
   onConfirm,
   title,
   description,
-  confirmLabel = '確認',
-  cancelLabel = '取消',
+  confirmLabel,
+  cancelLabel,
   tone = 'danger',
   icon,
 }) => {
+  const { t } = useI18n();
+  const resolvedConfirm = confirmLabel || t('確認', '确认', 'Confirm');
+  const resolvedCancel = cancelLabel || t('取消', '取消', 'Cancel');
   return (
     <LiquidModal open={open} onClose={onClose} maxWidthClass="max-w-sm" zIndexClass="z-[110]">
       <div className="text-center pt-1">
@@ -445,7 +450,7 @@ export const ConfirmSheet: React.FC<ConfirmSheetProps> = ({
             onClick={onClose}
             className="flex-1 min-h-[46px] rounded-full font-semibold text-sm bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200/80 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
           >
-            {cancelLabel}
+            {resolvedCancel}
           </button>
           <button
             type="button"
@@ -459,7 +464,7 @@ export const ConfirmSheet: React.FC<ConfirmSheetProps> = ({
                 : 'bg-zinc-900 hover:bg-black text-white dark:bg-zinc-100 dark:hover:bg-white dark:text-zinc-900'
             }`}
           >
-            {confirmLabel}
+            {resolvedConfirm}
           </button>
         </div>
       </div>
@@ -517,6 +522,7 @@ export const TopSyncBubble: React.FC<{
   onPress?: (bubble: SyncBubbleMessage) => void;
   onDismiss?: () => void;
 }> = ({ bubble, onPress, onDismiss }) => {
+  const { t } = useI18n();
   return (
     <AnimatePresence>
       {bubble && (
@@ -547,7 +553,11 @@ export const TopSyncBubble: React.FC<{
             </span>
 
             <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-100 truncate">
-              剛剛編輯了「{bubble.sectionLabel}」
+              {t(
+                `剛剛編輯了「${bubble.sectionLabel}」`,
+                `刚刚编辑了「${bubble.sectionLabel}」`,
+                `Updated "${bubble.sectionLabel}"`
+              )}
             </span>
           </button>
         </motion.div>

@@ -1,17 +1,34 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant-TW">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
+    <meta id="waynote-apple-bar" name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta id="waynote-color-scheme" name="color-scheme" content="light dark" />
+    <meta id="waynote-theme-color" name="theme-color" content="#CFE4FC" />
     <style>
       html, body { background-color: #CFE4FC; }
-      html.dark, html.dark body { background-color: #080D1B; }
+      html.is-standalone, html.is-standalone body { background-color: #2E7CF6; }
+      html.dark, html.dark body { background-color: #080D1B !important; }
     </style>
     <script>
       (function () {
         try {
+          var lang = localStorage.getItem('waynote_language');
+          var root = document.documentElement;
+          if (lang === 'zh-CN') {
+            root.lang = 'zh-Hans-CN';
+            root.setAttribute('data-lang', 'zh-CN');
+          } else if (lang === 'en') {
+            root.lang = 'en';
+            root.setAttribute('data-lang', 'en');
+          } else {
+            root.lang = 'zh-Hant-TW';
+            root.setAttribute('data-lang', 'zh-TW');
+          }
+
           var mode = localStorage.getItem('sky_travel_theme_mode');
           if (!mode) {
             var legacy = localStorage.getItem('sky_travel_dark_mode');
@@ -19,8 +36,14 @@
           }
           var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
           var isDark = mode === 'dark' || (mode === 'system' && prefersDark);
-          var topTint = isDark ? '#080D1B' : '#CFE4FC';
-          var root = document.documentElement;
+          var isStandalone = (window.navigator && window.navigator.standalone === true) ||
+            (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+
+          if (isStandalone) {
+            root.classList.add('is-standalone');
+          }
+
+          var topTint = isDark ? '#080D1B' : (isStandalone ? '#2E7CF6' : '#CFE4FC');
           if (isDark) {
             root.classList.add('dark');
             root.style.colorScheme = 'dark';
@@ -28,44 +51,24 @@
             root.classList.remove('dark');
             root.style.colorScheme = 'light';
           }
+          root.style.setProperty('--safe-top-tint', topTint);
           root.style.backgroundColor = topTint;
 
-          var head = document.head || document.getElementsByTagName('head')[0];
-          if (head) {
-            var schemeMeta = document.createElement('meta');
-            schemeMeta.id = 'waynote-color-scheme';
-            schemeMeta.name = 'color-scheme';
-            schemeMeta.content = isDark ? 'dark' : 'light';
-            head.appendChild(schemeMeta);
+          var schemeMeta = document.getElementById('waynote-color-scheme');
+          if (schemeMeta) schemeMeta.setAttribute('content', isDark ? 'dark' : 'light');
 
-            var themeMeta = document.createElement('meta');
-            themeMeta.id = 'waynote-theme-color';
-            themeMeta.name = 'theme-color';
-            themeMeta.content = topTint;
-            head.appendChild(themeMeta);
-
-            var appleBarMeta = document.createElement('meta');
-            appleBarMeta.id = 'waynote-apple-bar';
-            appleBarMeta.name = 'apple-mobile-web-app-status-bar-style';
-            appleBarMeta.content = isDark ? 'black-translucent' : 'default';
-            head.appendChild(appleBarMeta);
-          }
+          var themeMeta = document.getElementById('waynote-theme-color');
+          if (themeMeta) themeMeta.setAttribute('content', topTint);
         } catch (e) {}
       })();
     </script>
-    <noscript>
-      <meta name="color-scheme" content="light dark" />
-      <meta name="theme-color" media="(prefers-color-scheme: light)" content="#CFE4FC" />
-      <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#080D1B" />
-      <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    </noscript>
     <title>Waynote — 簡約旅程規劃</title>
     <meta name="description" content="簡約現代的跨裝置旅程規劃工具，整合行程時間軸、AI 路線規劃、即時天氣、開支預算與百寶箱。" />
     <meta property="og:title" content="Waynote — 簡約旅程規劃" />
     <meta property="og:description" content="簡約現代的跨裝置旅程規劃工具，整合行程時間軸、AI 路線規劃、即時天氣、開支預算與百寶箱。" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,400&family=Noto+Sans+TC:wght@400;500;600;700;900&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;900&family=Noto+Sans+TC:wght@400;500;600;700;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   </head>
   <body class="antialiased min-h-[100dvh] selection:bg-sky-600 selection:text-white">
     <div id="root" class="min-h-[100dvh] w-full"></div>

@@ -8,6 +8,7 @@ import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
 import type { Trip, SyncDevice } from './types.ts';
 import { mergeTrips, normalizeSyncCode } from './shared/syncMerge.ts';
 import { detectDestinationIntel } from './shared/destinationIntel.ts';
+import { AppLanguage, normalizeAppLanguage, tr } from './shared/i18n.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -341,28 +342,34 @@ async function prewarmPhotoBinary(rawUrl: string) {
 
 type WeatherKind = 'clear' | 'partly' | 'cloudy' | 'fog' | 'rain' | 'snow' | 'storm';
 
-function mapWmoWeather(code: number): { label: string; kind: WeatherKind } {
-  if (code === 0) return { label: '晴朗無雲', kind: 'clear' };
-  if (code === 1 || code === 2) return { label: '晴時多雲', kind: 'partly' };
-  if (code === 3) return { label: '陰天多雲', kind: 'cloudy' };
-  if (code === 45 || code === 48) return { label: '有霧／薄霧', kind: 'fog' };
-  if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return { label: '有雨／陣雨', kind: 'rain' };
-  if ([71, 73, 75, 77, 85, 86].includes(code)) return { label: '降雪／雨夾雪', kind: 'snow' };
-  if ([95, 96, 99].includes(code)) return { label: '雷陣雨', kind: 'storm' };
-  return { label: '多雲', kind: 'partly' };
+function mapWmoWeather(code: number, lang: AppLanguage): { label: string; kind: WeatherKind } {
+  if (code === 0) return { label: tr(lang, '晴朗無雲', '晴朗无云', 'Clear Sky'), kind: 'clear' };
+  if (code === 1 || code === 2) return { label: tr(lang, '晴時多雲', '晴时多云', 'Partly Cloudy'), kind: 'partly' };
+  if (code === 3) return { label: tr(lang, '陰天多雲', '阴天多云', 'Overcast'), kind: 'cloudy' };
+  if (code === 45 || code === 48) return { label: tr(lang, '有霧／薄霧', '有雾／薄雾', 'Fog & Mist'), kind: 'fog' };
+  if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code)) {
+    return { label: tr(lang, '有雨／陣雨', '有雨／阵雨', 'Rain & Showers'), kind: 'rain' };
+  }
+  if ([71, 73, 75, 77, 85, 86].includes(code)) {
+    return { label: tr(lang, '降雪／雨夾雪', '降雪／雨夹雪', 'Snow & Sleet'), kind: 'snow' };
+  }
+  if ([95, 96, 99].includes(code)) return { label: tr(lang, '雷陣雨', '雷阵雨', 'Thunderstorm'), kind: 'storm' };
+  return { label: tr(lang, '多雲', '多云', 'Cloudy'), kind: 'partly' };
 }
 
-function mapMetNoSymbol(symbolCode: string): { label: string; kind: WeatherKind; isDay: boolean } {
+function mapMetNoSymbol(symbolCode: string, lang: AppLanguage): { label: string; kind: WeatherKind; isDay: boolean } {
   const s = (symbolCode || 'partlycloudy_day').toLowerCase();
   const isDay = !s.includes('night');
-  if (s.includes('thunder')) return { label: '雷陣雨', kind: 'storm', isDay };
-  if (s.includes('snow') || s.includes('sleet')) return { label: '降雪／雨夾雪', kind: 'snow', isDay };
-  if (s.includes('rain')) return { label: '有雨／陣雨', kind: 'rain', isDay };
-  if (s.includes('fog')) return { label: '有霧／薄霧', kind: 'fog', isDay };
-  if (s.startsWith('cloudy')) return { label: '陰天多雲', kind: 'cloudy', isDay };
-  if (s.startsWith('partlycloudy') || s.startsWith('fair')) return { label: '晴時多雲', kind: 'partly', isDay };
-  if (s.startsWith('clearsky')) return { label: '晴朗無雲', kind: 'clear', isDay };
-  return { label: '晴時多雲', kind: 'partly', isDay };
+  if (s.includes('thunder')) return { label: tr(lang, '雷陣雨', '雷阵雨', 'Thunderstorm'), kind: 'storm', isDay };
+  if (s.includes('snow') || s.includes('sleet')) return { label: tr(lang, '降雪／雨夾雪', '降雪／雨夹雪', 'Snow & Sleet'), kind: 'snow', isDay };
+  if (s.includes('rain')) return { label: tr(lang, '有雨／陣雨', '有雨／阵雨', 'Rain & Showers'), kind: 'rain', isDay };
+  if (s.includes('fog')) return { label: tr(lang, '有霧／薄霧', '有雾／薄雾', 'Fog & Mist'), kind: 'fog', isDay };
+  if (s.startsWith('cloudy')) return { label: tr(lang, '陰天多雲', '阴天多云', 'Overcast'), kind: 'cloudy', isDay };
+  if (s.startsWith('partlycloudy') || s.startsWith('fair')) {
+    return { label: tr(lang, '晴時多雲', '晴时多云', 'Partly Cloudy'), kind: 'partly', isDay };
+  }
+  if (s.startsWith('clearsky')) return { label: tr(lang, '晴朗無雲', '晴朗无云', 'Clear Sky'), kind: 'clear', isDay };
+  return { label: tr(lang, '晴時多雲', '晴时多云', 'Partly Cloudy'), kind: 'partly', isDay };
 }
 
 function getLocalPartsInTz(isoUtc: string, timeZone: string, fallbackOffsetHours: number): {
@@ -586,13 +593,14 @@ async function startServer() {
 
   app.get('/api/weather', async (req, res) => {
     const rawCity = String(req.query.city || '').trim();
+    const lang = normalizeAppLanguage(String(req.query.lang || 'zh-TW'));
     if (!rawCity) {
-      res.status(400).json({ error: '缺少城市名稱' });
+      res.status(400).json({ error: tr(lang, '缺少城市名稱', '缺少城市名称', 'Missing city name') });
       return;
     }
 
-    const intel = detectDestinationIntel(rawCity);
-    const cacheKey = `${rawCity.toLowerCase()}::${intel.cityQuery.toLowerCase()}`;
+    const intel = detectDestinationIntel(rawCity, lang);
+    const cacheKey = `${lang}::${rawCity.toLowerCase()}::${intel.cityQuery.toLowerCase()}`;
     const cached = weatherCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
       res.json(cached.data);
@@ -604,7 +612,8 @@ async function startServer() {
       let location: { name: string; country?: string; latitude: number; longitude: number; timezone?: string } | null = null;
 
       for (const q of tryQueries) {
-        const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1&language=zh&format=json`;
+        const geoLang = lang === 'en' ? 'en' : 'zh';
+        const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1&language=${geoLang}&format=json`;
         const geoRes = await fetch(geoUrl, { signal: AbortSignal.timeout(4000) });
         if (geoRes.ok) {
           const geoJson = (await geoRes.json()) as {
@@ -618,7 +627,14 @@ async function startServer() {
       }
 
       if (!location) {
-        res.status(404).json({ error: `找不到「${rawCity}」的天氣座標` });
+        res.status(404).json({
+          error: tr(
+            lang,
+            `找不到「${rawCity}」的天氣座標`,
+            `找不到「${rawCity}」的天气坐标`,
+            `Could not find weather coordinates for "${rawCity}"`
+          ),
+        });
         return;
       }
 
@@ -668,14 +684,14 @@ async function startServer() {
               };
             };
 
-            const currentMeta = mapWmoWeather(w.current.weather_code);
+            const currentMeta = mapWmoWeather(w.current.weather_code, lang);
             const currentTimePrefix = w.current.time.slice(0, 13);
             let startHourIdx = w.hourly.time.findIndex((t) => t.startsWith(currentTimePrefix));
             if (startHourIdx < 0) startHourIdx = 0;
 
             const hourly = w.hourly.time.slice(startHourIdx, startHourIdx + 12).map((time, offset) => {
               const idx = startHourIdx + offset;
-              const meta = mapWmoWeather(w.hourly.weather_code[idx] ?? 0);
+              const meta = mapWmoWeather(w.hourly.weather_code[idx] ?? 0, lang);
               return {
                 time,
                 temp: Math.round(w.hourly.temperature_2m[idx] ?? 0),
@@ -687,7 +703,7 @@ async function startServer() {
             });
 
             const daily = w.daily.time.map((date, idx) => {
-              const meta = mapWmoWeather(w.daily.weather_code[idx] ?? 0);
+              const meta = mapWmoWeather(w.daily.weather_code[idx] ?? 0, lang);
               return {
                 date,
                 tempMax: Math.round(w.daily.temperature_2m_max[idx] ?? 0),
@@ -702,9 +718,9 @@ async function startServer() {
             });
 
             payload = {
-              city: rawCity.split(/\s*[-→>/,]\s*/)[0]?.trim() || location.name,
+              city: intel.displayCity || location.name,
               resolvedName: location.name,
-              country: location.country || intel.countryLabel,
+              country: lang === 'en' ? (location.country || intel.countryLabel) : intel.countryLabel,
               timezone: w.timezone,
               utcOffsetHours: Math.round((w.utc_offset_seconds || 0) / 3600),
               fetchedAt: Date.now(),
@@ -735,7 +751,7 @@ async function startServer() {
           signal: AbortSignal.timeout(5000),
         });
         if (!metRes.ok) {
-          res.status(502).json({ error: '無法取得即時氣象資料' });
+          res.status(502).json({ error: tr(lang, '無法取得即時氣象資料', '无法获取实时气象数据', 'Unable to fetch live weather data') });
           return;
         }
 
@@ -769,7 +785,7 @@ async function startServer() {
 
         const series = metJson.properties?.timeseries || [];
         if (series.length === 0) {
-          res.status(502).json({ error: '無法取得即時氣象資料' });
+          res.status(502).json({ error: tr(lang, '無法取得即時氣象資料', '无法获取实时气象数据', 'Unable to fetch live weather data') });
           return;
         }
 
@@ -781,13 +797,12 @@ async function startServer() {
           nowEntry.data.next_1_hours?.summary?.symbol_code ||
           nowEntry.data.next_6_hours?.summary?.symbol_code ||
           'partlycloudy_day';
-        const nowMeta = mapMetNoSymbol(nowSymbol);
+        const nowMeta = mapMetNoSymbol(nowSymbol, lang);
         const tempC = Math.round(nowDetails.air_temperature ?? 20);
         const windKmh = Math.round((nowDetails.wind_speed ?? 2) * 3.6);
         const humidity = Math.round(nowDetails.relative_humidity ?? 60);
         const precipMm = nowEntry.data.next_1_hours?.details?.precipitation_amount ?? 0;
 
-        // Steadman-inspired simple apparent temp approximation
         const feelsLike = Math.round(
           tempC <= 10 && windKmh > 5
             ? tempC - windKmh * 0.14
@@ -812,7 +827,7 @@ async function startServer() {
             entry.data.next_1_hours?.summary?.symbol_code ||
             entry.data.next_6_hours?.summary?.symbol_code ||
             'partlycloudy_day';
-          const meta = mapMetNoSymbol(sym);
+          const meta = mapMetNoSymbol(sym, lang);
           const mm =
             entry.data.next_1_hours?.details?.precipitation_amount ??
             entry.data.next_6_hours?.details?.precipitation_amount ??
@@ -841,7 +856,7 @@ async function startServer() {
             entry.data.next_1_hours?.summary?.symbol_code ||
             entry.data.next_12_hours?.summary?.symbol_code ||
             'partlycloudy_day';
-          const meta = mapMetNoSymbol(sym);
+          const meta = mapMetNoSymbol(sym, lang);
           const mm =
             entry.data.next_6_hours?.details?.precipitation_amount ??
             entry.data.next_1_hours?.details?.precipitation_amount ??
@@ -872,14 +887,14 @@ async function startServer() {
               sunrise: '06:15',
               sunset: '17:45',
               kind: bucket.kinds[pickIdx] || 'partly',
-              label: bucket.labels[pickIdx] || '晴時多雲',
+              label: bucket.labels[pickIdx] || tr(lang, '晴時多雲', '晴时多云', 'Partly Cloudy'),
             };
           });
 
         payload = {
-          city: rawCity.split(/\s*[-→>/,]\s*/)[0]?.trim() || location.name,
+          city: intel.displayCity || location.name,
           resolvedName: location.name,
-          country: location.country || intel.countryLabel,
+          country: lang === 'en' ? (location.country || intel.countryLabel) : intel.countryLabel,
           timezone: tz,
           utcOffsetHours,
           fetchedAt: Date.now(),
@@ -906,14 +921,15 @@ async function startServer() {
       res.json(payload);
     } catch (err) {
       console.error('[SkyTravel Weather] Error:', err);
-      res.status(502).json({ error: '天氣服務暫時無法連線' });
+      res.status(502).json({ error: tr(lang, '天氣服務暫時無法連線', '天气服务暂时无法连接', 'Weather service temporarily unavailable') });
     }
   });
 
   app.get('/api/destination-photo', async (req, res) => {
     const rawCity = String(req.query.city || '').trim();
+    const lang = normalizeAppLanguage(String(req.query.lang || ''));
     if (!rawCity) {
-      res.status(400).json({ error: '缺少城市名稱' });
+      res.status(400).json({ error: tr(lang, '缺少城市名稱', '缺少城市名称', 'Missing city name') });
       return;
     }
 
@@ -1129,7 +1145,7 @@ async function startServer() {
     const syncId = normalizeSyncCode(req.params.syncId);
     const incomingTrip = req.body?.trip as Trip | undefined;
     const senderClientId = req.body?.clientId as string | undefined;
-    const senderDeviceName = (req.body?.deviceName as string | undefined) || '另一台裝置';
+    const senderDeviceName = (req.body?.deviceName as string | undefined) || 'Partner Device';
     const editedSection = req.body?.editedSection as string | undefined;
 
     if (!syncId || !incomingTrip) {
@@ -1184,15 +1200,18 @@ async function startServer() {
     '/api/documents/upload',
     express.raw({ type: '*/*', limit: '25mb' }),
     (req, res) => {
+      const lang = normalizeAppLanguage(
+        String(req.headers['x-app-lang'] || req.query.lang || '')
+      );
       try {
         ensureDataDir();
         const buf = req.body;
         if (!Buffer.isBuffer(buf) || buf.length === 0) {
-          res.status(400).json({ error: '未收到有效檔案內容' });
+          res.status(400).json({ error: tr(lang, '未收到有效檔案內容', '未收到有效文件内容', 'No valid file content received') });
           return;
         }
         if (buf.length > 22 * 1024 * 1024) {
-          res.status(413).json({ error: '檔案大小超過 20MB 上限' });
+          res.status(413).json({ error: tr(lang, '檔案大小超過 20MB 上限', '文件大小超过 20MB 上限', 'File exceeds the 20MB limit') });
           return;
         }
         const rawNameHeader = String(req.headers['x-file-name'] || 'document').trim();
@@ -1223,7 +1242,7 @@ async function startServer() {
         });
       } catch (err) {
         console.error('[Waynote Docs] Upload error:', err);
-        res.status(500).json({ error: '檔案儲存失敗，請稍後再試' });
+        res.status(500).json({ error: tr(lang, '檔案儲存失敗，請稍後再試', '文件保存失败，请稍后重试', 'Failed to store file. Please try again shortly.') });
       }
     }
   );
@@ -1390,13 +1409,21 @@ async function startServer() {
   };
 
   app.post('/api/flights/lookup', async (req, res) => {
+    const lang = normalizeAppLanguage(String(req.body?.lang || 'zh-TW'));
     const flightNumber = String(req.body?.flightNumber || '')
       .trim()
       .toUpperCase()
       .replace(/\s+/g, '');
     const date = String(req.body?.date || '').trim() || new Date().toISOString().slice(0, 10);
     if (!flightNumber || flightNumber.length < 3) {
-      res.status(400).json({ error: '請輸入正確的航班編號（例如 BR198、CX504）' });
+      res.status(400).json({
+        error: tr(
+          lang,
+          '請輸入正確的航班編號（例如 BR198、CX504）',
+          '请输入正确的航班号（例如 BR198、CX504）',
+          'Please enter a valid flight number (e.g. BR198, CX504)'
+        ),
+      });
       return;
     }
 
@@ -1619,16 +1646,43 @@ async function startServer() {
         }
       }
 
-      res.status(404).json({ error: `找不到航班「${flightNumber}」的公開班表資訊，請確認航班編號或手動填寫。` });
+      res.status(404).json({
+        error: tr(
+          lang,
+          `找不到航班「${flightNumber}」的公開班表資訊，請確認航班編號或手動填寫。`,
+          `找不到航班「${flightNumber}」的公开班表信息，请确认航班号或手动填写。`,
+          `No public schedule found for flight ${flightNumber}. Verify the code or enter manually.`
+        ),
+      });
     } catch (err: unknown) {
       const msg = (err as { message?: string })?.message || String(err);
       console.error('[Waynote Flight Lookup] Error:', msg);
-      res.status(404).json({ error: `目前無法查詢「${flightNumber}」班表資訊，請確認航班編號或手動填寫。` });
+      res.status(404).json({
+        error: tr(
+          lang,
+          `目前無法查詢「${flightNumber}」班表資訊，請確認航班編號或手動填寫。`,
+          `目前无法查询「${flightNumber}」班表信息，请确认航班号或手动填写。`,
+          `Unable to look up schedule for ${flightNumber} right now. Please enter details manually.`
+        ),
+      });
     }
   });
 
   app.post('/api/ai/plan-itinerary', async (req, res) => {
     const wantsNdjson = String(req.headers.accept || '').includes('application/x-ndjson');
+    const body = (req.body || {}) as {
+      destination?: string;
+      userPrompt?: string;
+      mode?: 'single_day' | 'multi_day';
+      daysCount?: number;
+      startDate?: string;
+      pace?: 'relaxed' | 'balanced' | 'packed';
+      hotels?: string[];
+      existingSummary?: string;
+      lang?: string;
+    };
+    const lang = normalizeAppLanguage(body.lang);
+
     const sendError = (status: number, errorMsg: string) => {
       if (wantsNdjson) {
         if (!res.headersSent) {
@@ -1643,25 +1697,30 @@ async function startServer() {
 
     const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
     if (!apiKey) {
-      sendError(503, '伺服器尚未設定 GEMINI_API_KEY，無法使用 AI 行程規劃功能。');
+      sendError(
+        503,
+        tr(
+          lang,
+          '伺服器尚未設定 GEMINI_API_KEY，無法使用 AI 行程規劃功能。',
+          '服务器尚未配置 GEMINI_API_KEY，无法使用 AI 行程规划功能。',
+          'AI itinerary planning is unavailable because GEMINI_API_KEY is not configured.'
+        )
+      );
       return;
     }
-
-    const body = (req.body || {}) as {
-      destination?: string;
-      userPrompt?: string;
-      mode?: 'single_day' | 'multi_day';
-      daysCount?: number;
-      startDate?: string;
-      pace?: 'relaxed' | 'balanced' | 'packed';
-      hotels?: string[];
-      existingSummary?: string;
-    };
 
     const destination = String(body.destination || '').trim().slice(0, 300);
     const userPrompt = String(body.userPrompt || '').trim().slice(0, 1500);
     if (!destination && !userPrompt) {
-      sendError(400, '請至少輸入想前往的目的地或景點需求。');
+      sendError(
+        400,
+        tr(
+          lang,
+          '請至少輸入想前往的目的地或景點需求。',
+          '请至少输入想前往的目的地或景点需求。',
+          'Please enter a destination or what you would like to visit.'
+        )
+      );
       return;
     }
 
@@ -1670,10 +1729,10 @@ async function startServer() {
     const daysCount = mode === 'single_day' ? 1 : Math.min(10, Math.max(1, Math.round(rawDays)));
     const paceLabel =
       body.pace === 'relaxed'
-        ? '悠閒慢活（每日約 3-4 站）'
+        ? tr(lang, '悠閒慢活（每日約 3-4 站）', '悠闲慢游（每日约 3-4 站）', 'Relaxed pace (3-4 stops/day)')
         : body.pace === 'packed'
-          ? '充實深度（每日約 5-6 站）'
-          : '適中順暢（每日約 4-5 站）';
+          ? tr(lang, '充實深度（每日約 5-6 站）', '充实深度（每日约 5-6 站）', 'Packed pace (5-6 stops/day)')
+          : tr(lang, '適中順暢（每日約 4-5 站）', '适中顺畅（每日约 4-5 站）', 'Balanced pace (4-5 stops/day)');
     const hotelList = Array.isArray(body.hotels)
       ? body.hotels.map((h) => String(h).trim()).filter(Boolean).slice(0, 5)
       : [];
@@ -1688,29 +1747,36 @@ async function startServer() {
       },
     });
 
+    const langRule = tr(
+      lang,
+      '台灣繁體中文（嚴禁出現簡體中文或多餘英文句子）',
+      '中国大陆简体中文（严禁出现繁体中文或多余英文句子）',
+      'crisp natural English ONLY (strictly zero Chinese characters anywhere)'
+    );
+
     const responseSchema = {
       type: Type.OBJECT,
       properties: {
-        summary: { type: Type.STRING, description: '簡潔行程摘要（1-2句，繁體中文）' },
-        routeTip: { type: Type.STRING, description: '順路動線與大眾運輸建議（繁體中文）' },
+        summary: { type: Type.STRING, description: `Concise trip summary (1-2 sentences) strictly in ${langRule}` },
+        routeTip: { type: Type.STRING, description: `Practical transit & route pacing tip strictly in ${langRule}` },
         days: {
           type: Type.ARRAY,
           items: {
             type: Type.OBJECT,
             properties: {
               dayNumber: { type: Type.INTEGER },
-              theme: { type: Type.STRING, description: '當日主題' },
+              theme: { type: Type.STRING, description: `Day theme title strictly in ${langRule}` },
               stops: {
                 type: Type.ARRAY,
                 items: {
                   type: Type.OBJECT,
                   properties: {
                     time: { type: Type.STRING, description: 'HH:MM' },
-                    title: { type: Type.STRING, description: '景點或餐廳名稱' },
-                    location: { type: Type.STRING, description: 'Google Maps 地標與城市名' },
-                    duration: { type: Type.STRING, description: '如 1h, 1.5h, 2h' },
+                    title: { type: Type.STRING, description: `Attraction or restaurant name strictly in ${langRule}` },
+                    location: { type: Type.STRING, description: `Landmark and city for Google Maps in ${langRule}` },
+                    duration: { type: Type.STRING, description: 'e.g. 1h, 1.5h, 2h' },
                     type: { type: Type.STRING, enum: ['sightseeing', 'food', 'transport'] },
-                    description: { type: Type.STRING, description: '精簡重點提示' },
+                    description: { type: Type.STRING, description: `Concise highlight tip strictly in ${langRule}` },
                   },
                   required: ['time', 'title', 'location', 'duration', 'type', 'description'],
                 },
@@ -1724,23 +1790,23 @@ async function startServer() {
     };
 
     const userMessage = [
-      `目的地（可為單一城市或多地串聯）：${destination || '依需求安排'}`,
-      `規劃天數：${daysCount} 天（${mode === 'single_day' ? '單日行程' : '多日行程'}）`,
-      body.startDate ? `起始日期：${body.startDate}` : '',
-      `行程節奏：${paceLabel}`,
-      hotelList.length > 0 ? `已訂住宿：${hotelList.join('、')}` : '',
-      existingSummary ? `現有行程參考：${existingSummary}` : '',
-      `用戶想去的地點與需求：${userPrompt || `規劃 ${destination} 最順路經典行程與在地美食`}`,
+      `Destination: ${destination || 'Flexible'}`,
+      `Duration: ${daysCount} day(s) (${mode === 'single_day' ? 'Single Day' : 'Multi-Day'})`,
+      body.startDate ? `Start Date: ${body.startDate}` : '',
+      `Pace: ${paceLabel}`,
+      hotelList.length > 0 ? `Booked Hotels: ${hotelList.join(', ')}` : '',
+      existingSummary ? `Existing Plans: ${existingSummary}` : '',
+      `User Request: ${userPrompt || `Design a smooth classic route and local food stops for ${destination}`}`,
     ]
       .filter(Boolean)
       .join('\n');
 
     const systemInstruction =
-      '你是精通各國動線規劃的台灣旅遊專家，請一律以台灣繁體中文簡潔精準作答。\n' +
-      '原則：\n' +
-      '1. 若用戶填寫多個目的地或景點，請依地理位置由近而遠串成順路不折返的動線（多日行程請合理分配至各天）。\n' +
-      '2. location 請填「地標名, 城市名」以利 Google Maps 精準定位。\n' +
-      '3. 回傳剛好指定天數的 days 陣列，每站時間 HH:MM 與時長（1h, 1.5h, 2h）須合理銜接，並包含早午餐、景點與晚餐。';
+      `You are an expert travel route planner. Output ALL text fields strictly in ${langRule}.\n` +
+      'Rules:\n' +
+      '1. Order stops geographically from near to far without backtracking across neighborhoods.\n' +
+      '2. Format location as "Landmark, City" for accurate Google Maps pins.\n' +
+      '3. Return exactly the requested number of days with realistic HH:MM times and durations (1h, 1.5h, 2h), including meals and sights.';
 
     const callModel = (model: string, thinkingLevel: ThinkingLevel, timeoutMs: number) =>
       ai.models.generateContent({
@@ -1790,7 +1856,7 @@ async function startServer() {
         .trim();
 
       if (!rawText) {
-        sendError(502, 'AI 未回傳有效行程內容，請重試。');
+        sendError(502, tr(lang, 'AI 未回傳有效行程內容，請重試。', 'AI 未返回有效行程内容，请重试。', 'AI did not return a valid itinerary. Please try again.'));
         return;
       }
 
@@ -1814,7 +1880,15 @@ async function startServer() {
 
       const normalizedDays = (parsed.days || []).slice(0, daysCount).map((d, idx) => ({
         dayNumber: Number(d.dayNumber) || idx + 1,
-        theme: String(d.theme || `${destination || '精選'} 第 ${idx + 1} 天`).trim(),
+        theme: String(
+          d.theme ||
+            tr(
+              lang,
+              `${destination || '精選'} 第 ${idx + 1} 天`,
+              `${destination || '精选'} 第 ${idx + 1} 天`,
+              `${destination || 'Curated'} Day ${idx + 1}`
+            )
+        ).trim(),
         stops: (d.stops || []).map((s, sIdx) => {
           const cleanTime = /^\d{1,2}:\d{2}$/.test(String(s.time || '').trim())
             ? String(s.time).trim().padStart(5, '0')
@@ -1827,7 +1901,7 @@ async function startServer() {
 
           return {
             time: cleanTime,
-            title: String(s.title || `第 ${sIdx + 1} 站`).trim(),
+            title: String(s.title || tr(lang, `第 ${sIdx + 1} 站`, `第 ${sIdx + 1} 站`, `Stop ${sIdx + 1}`)).trim(),
             location: String(s.location || s.title || destination).trim(),
             duration: cleanDur,
             type: cleanType,
@@ -1852,7 +1926,9 @@ async function startServer() {
       console.error('[Waynote AI Planner] Error:', err);
       const e = err as { status?: number; message?: string };
       let status = typeof e?.status === 'number' && e.status >= 400 && e.status < 600 ? e.status : 500;
-      let cleanMsg = e?.message || 'AI 行程規劃請求失敗，請稍後再試。';
+      let cleanMsg =
+        e?.message ||
+        tr(lang, 'AI 行程規劃請求失敗，請稍後再試。', 'AI 行程规划请求失败，请稍后再试。', 'AI planning request failed. Please try again shortly.');
       if (cleanMsg.startsWith('{')) {
         try {
           const nested = JSON.parse(cleanMsg) as { error?: { code?: number; message?: string; status?: string } };
@@ -1867,12 +1943,27 @@ async function startServer() {
         }
       }
       if (status === 503 || /high demand|UNAVAILABLE/i.test(cleanMsg)) {
-        cleanMsg = 'AI 服務目前連線人數較多，請稍等數秒後再按一次規劃。';
+        cleanMsg = tr(
+          lang,
+          'AI 服務目前連線人數較多，請稍等數秒後再按一次規劃。',
+          'AI 服务当前请求较多，请稍等几秒后重试。',
+          'AI service is busy right now. Please wait a few seconds and try again.'
+        );
       } else if (status === 429 || /quota|rate/i.test(cleanMsg)) {
-        cleanMsg = 'AI 請求頻率過高，請稍候片刻再試。';
+        cleanMsg = tr(
+          lang,
+          'AI 請求頻率過高，請稍候片刻再試。',
+          'AI 请求频率过高，请稍候片刻再试。',
+          'Too many AI requests right now. Please wait a moment and try again.'
+        );
       } else if (/abort|timeout/i.test(cleanMsg)) {
         status = 504;
-        cleanMsg = 'AI 規劃回應逾時，請稍後再按一次規劃。';
+        cleanMsg = tr(
+          lang,
+          'AI 規劃回應逾時，請稍後再按一次規劃。',
+          'AI 规划响应超时，请稍后重试。',
+          'AI planning timed out. Please try again.'
+        );
       }
       sendError(status, cleanMsg);
     } finally {
@@ -1884,28 +1975,44 @@ async function startServer() {
   });
 
   app.post('/api/ai/explore-spots', async (req, res) => {
-    const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
-    if (!apiKey) {
-      res.status(503).json({ error: '伺服器尚未設定 GEMINI_API_KEY，無法使用 AI 探索推薦功能。' });
-      return;
-    }
-
     const body = (req.body || {}) as {
       destination?: string;
       focusCategory?: string;
       excludeNames?: string[];
       batchSeed?: number;
+      lang?: string;
     };
+    const lang = normalizeAppLanguage(body.lang);
 
-    const destination = String(body.destination || '').trim().slice(0, 200);
-    if (!destination) {
-      res.status(400).json({ error: '缺少目的地城市資訊。' });
+    const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
+    if (!apiKey) {
+      res.status(503).json({
+        error: tr(
+          lang,
+          '伺服器尚未設定 GEMINI_API_KEY，無法使用 AI 探索推薦功能。',
+          '服务器尚未配置 GEMINI_API_KEY，无法使用 AI 探索推荐功能。',
+          'AI Explore is unavailable because GEMINI_API_KEY is not configured.'
+        ),
+      });
       return;
     }
 
-    const focusCategory = String(body.focusCategory || 'all').trim();
+    const destination = String(body.destination || '').trim().slice(0, 200);
+    if (!destination) {
+      res.status(400).json({ error: tr(lang, '缺少目的地城市資訊。', '缺少目的地城市信息。', 'Missing destination city.') });
+      return;
+    }
+
+    const rawFocus = String(body.focusCategory || 'sightseeing').trim().toLowerCase();
+    const focusCategory: 'sightseeing' | 'food' | 'shopping' =
+      rawFocus === 'food' || rawFocus === 'cafe'
+        ? 'food'
+        : rawFocus === 'shopping'
+          ? 'shopping'
+          : 'sightseeing';
+
     const excludeNames = Array.isArray(body.excludeNames)
-      ? body.excludeNames.map((n) => String(n).trim()).filter(Boolean).slice(-120)
+      ? body.excludeNames.map((n) => String(n).trim()).filter(Boolean).slice(-140)
       : [];
     const batchSeed = Math.max(1, Number(body.batchSeed) || 1);
 
@@ -1926,6 +2033,13 @@ async function startServer() {
       },
     });
 
+    const langRule = tr(
+      lang,
+      '台灣繁體中文（嚴禁簡體中文）',
+      '中国大陆简体中文（严禁繁体中文）',
+      'English ONLY (strictly zero Chinese characters)'
+    );
+
     const responseSchema = {
       type: Type.OBJECT,
       properties: {
@@ -1934,11 +2048,11 @@ async function startServer() {
           items: {
             type: Type.OBJECT,
             properties: {
-              name: { type: Type.STRING, description: '實際存在且具體的景點、餐廳、咖啡廳或商店名稱（繁體中文）' },
-              category: { type: Type.STRING, enum: ['sightseeing', 'food', 'cafe', 'shopping'] },
-              area: { type: Type.STRING, description: '所在區域或地鐵站周邊（如 新宿、淺草、聖日耳曼）' },
-              note: { type: Type.STRING, description: '特色亮點、推薦品項或避開人潮小提示（35字以內）' },
-              estimatedCost: { type: Type.NUMBER, description: '當地幣別大致一人預估花費（免費填 0）' },
+              name: { type: Type.STRING, description: `Real, specific place name strictly in ${langRule}` },
+              category: { type: Type.STRING, enum: [focusCategory] },
+              area: { type: Type.STRING, description: `Neighborhood or transit station area strictly in ${langRule}` },
+              note: { type: Type.STRING, description: `Highlights and tips (under 35 words/chars) strictly in ${langRule}` },
+              estimatedCost: { type: Type.NUMBER, description: 'Rough per-person spend in local currency (0 if free)' },
             },
             required: ['name', 'category', 'area', 'note', 'estimatedCost'],
           },
@@ -1949,30 +2063,26 @@ async function startServer() {
 
     const categoryHint =
       focusCategory === 'food'
-        ? '只推薦在地人氣美食與必吃名店'
-        : focusCategory === 'cafe'
-          ? '只推薦特色咖啡廳、甜點與下午茶'
-          : focusCategory === 'shopping'
-            ? '只推薦質感選物店、商場與伴手禮名產'
-            : focusCategory === 'sightseeing'
-              ? '只推薦經典必訪地標與深度風景秘境'
-              : '均衡包含經典景點、在地美食、特色咖啡與逛街好去處';
+        ? 'ONLY restaurants, local specialties, street food, cafes, coffee roasters, bakeries, and dessert shops. STRICTLY EXCLUDE museums, temples, parks, scenic viewpoints, clothing/shopping malls.'
+        : focusCategory === 'shopping'
+          ? 'ONLY shopping streets, department stores, boutiques, select shops, markets, vintage/craft stores, and souvenir shops. STRICTLY EXCLUDE scenic parks, temples, viewpoints, or standalone restaurants/cafes.'
+          : 'ONLY scenic spots, natural landscapes, viewpoints, observation decks, parks, gardens, shrines, temples, castles, historic landmarks, waterfronts, and museums. STRICTLY EXCLUDE cafes, coffee shops, bakeries, dessert shops, restaurants, bars, izakayas, ramen shops, or shopping malls.';
 
     const explorationAngles = [
-      '優先探索不同生活圈與地鐵沿線的特色亮點',
-      '刻意換成遊客較少知道的在地私房名店、職人巷弄與建築美學去處',
-      '從夕陽散步、下町老街或設計感選物空間切入推薦全新名單',
-      '換到其他區域或不同價格帶，挑選評價極佳但較少出現在第一輪清單的場所',
+      'Prioritize iconic sights and well-loved neighborhoods across distinct transit lines',
+      'Focus on less-touristy hidden gems, artisan alleys, waterfront promenades, and architectural highlights',
+      'Explore sunset viewpoints, traditional historic districts, and lesser-known cultural sanctuaries',
+      'Discover distinct neighborhoods outside the main central station hub with high traveler ratings',
     ];
     const angleHint = explorationAngles[(batchSeed - 1) % explorationAngles.length];
 
     const prompt = [
-      `目的地：${destination}`,
-      `推薦類型：${categoryHint}`,
-      `探索視角（第 ${batchSeed} 批）：${angleHint}。`,
-      `請精選 10 個真實存在且評價極高的具體地點，涵蓋多個不同區域，並確保彼此完全不重複。`,
+      `Destination: ${destination}`,
+      `Strict Category Requirement (${focusCategory}): ${categoryHint}`,
+      `Exploration Angle (Batch #${batchSeed}): ${angleHint}.`,
+      `Curate 16 real, existing, highly rated places strictly matching "${focusCategory}" across diverse neighborhoods, with zero duplicates.`,
       excludeNames.length > 0
-        ? `【絕對不可重複或使用同義／簡稱出現的地點清單（務必跳過這些，換成全新名單）】：\n${excludeNames.join('、')}`
+        ? `FORBIDDEN LIST (never repeat these or slight name variants/abbreviations):\n${excludeNames.join(' | ')}`
         : '',
     ]
       .filter(Boolean)
@@ -1984,7 +2094,8 @@ async function startServer() {
         contents: prompt,
         config: {
           systemInstruction:
-            '你是熟門熟路的台灣旅遊顧問，一律以台灣繁體中文簡潔精準推薦真實存在的地點，絕不編造不存在的店名，且絕對禁止重複清單中已出現過的任何地點。',
+            `You are a hyper-accurate travel curator. Output ALL text strictly in ${langRule}. ` +
+            `Every single spot MUST strictly belong to category "${focusCategory}" — never mix cafes or restaurants into sightseeing, and never mix landmarks into food or shopping. Never invent fake places and never repeat any item in the forbidden list.`,
           responseMimeType: 'application/json',
           responseSchema,
           temperature: 1.0,
@@ -1993,12 +2104,33 @@ async function startServer() {
         },
       });
 
+    // Strict server-side contamination guards per category
+    const matchesStrictCategory = (spot: { name: string; note: string }): boolean => {
+      const text = `${spot.name} ${spot.note}`.toLowerCase();
+      if (focusCategory === 'sightseeing') {
+        const cafeFoodRe =
+          /(咖啡廳|咖啡厅|咖啡店|咖啡館|咖啡馆|手沖咖啡|手冲咖啡|精品咖啡|甜點|甜品|蛋糕店|烘焙|麵包店|面包店|下午茶|早午餐|拉麵|拉面|燒肉|烧肉|居酒屋|壽司店|寿司店|餐廳|餐厅|食堂|火鍋|火锅|bistro|izakaya|patisserie|bakery|roastery|brunch|espresso|latte|\bcafe\b|\bcoffee\b|\brestaurant\b)/i;
+        const scenicAnchorRe =
+          /(公園|公园|神社|寺|神宮|神宫|城|展望|塔|觀景|观景|海岸|海濱|海滨|湖|山|峽谷|峡谷|橋|桥|美術館|美术馆|博物館|博物馆|庭園|庭园|老街|竹林|遺跡|遗址|park|shrine|temple|castle|observatory|tower|museum|garden|beach|lake|mountain|bridge|palace|cathedral)/i;
+        if (cafeFoodRe.test(text) && !scenicAnchorRe.test(spot.name.toLowerCase())) {
+          return false;
+        }
+      } else if (focusCategory === 'shopping') {
+        const diningOnlyRe = /(居酒屋|拉麵|拉面|火鍋|火锅|燒肉|烧肉|早午餐|izakaya|\bramen\b)/i;
+        const shopAnchorRe = /(百貨|百货|商場|商场|選物|选物|商店街|市場|市场|伴手禮|伴手礼|免稅|免税|藥妝|药妆|mall|market|outlet|store|shop|boutique|department|street)/i;
+        if (diningOnlyRe.test(text) && !shopAnchorRe.test(spot.name.toLowerCase())) {
+          return false;
+        }
+      }
+      return true;
+    };
+
     try {
       let response;
       try {
-        response = await callExploreModel('gemini-3.1-flash-lite', ThinkingLevel.MINIMAL, 20000);
+        response = await callExploreModel('gemini-3.1-flash-lite', ThinkingLevel.MINIMAL, 22000);
       } catch {
-        response = await callExploreModel('gemini-4-hydrogen', ThinkingLevel.LOW, 22000);
+        response = await callExploreModel('gemini-4-hydrogen', ThinkingLevel.LOW, 24000);
       }
 
       const rawText = (response.text || '')
@@ -2020,26 +2152,20 @@ async function startServer() {
       };
 
       const seenBatchKeys = new Set<string>();
-      const spots = (parsed.spots || [])
-        .map((s) => {
-          const rawCat = String(s.category || '').toLowerCase();
-          const cat =
-            rawCat === 'food' || rawCat === 'cafe' || rawCat === 'shopping' ? rawCat : 'sightseeing';
-          return {
-            name: String(s.name || '').trim(),
-            category: cat as 'sightseeing' | 'food' | 'cafe' | 'shopping',
-            area: String(s.area || destination).trim(),
-            note: String(s.note || '').trim(),
-            estimatedCost: Math.max(0, Number(s.estimatedCost) || 0),
-          };
-        })
+      const dedupedCandidates = (parsed.spots || [])
+        .map((s) => ({
+          name: String(s.name || '').trim(),
+          category: focusCategory,
+          area: String(s.area || destination).trim(),
+          note: String(s.note || '').trim(),
+          estimatedCost: Math.max(0, Number(s.estimatedCost) || 0),
+        }))
         .filter((s) => {
           if (!s.name) return false;
           const key = normalizeSpotKey(s.name);
           if (!key) return false;
           if (seenBatchKeys.has(key)) return false;
           if (excludedKeys.has(key)) return false;
-          // Catch slight suffix/prefix variations like "淺草寺" vs "東京淺草寺"
           for (const exKey of excludedKeys) {
             if (exKey.length >= 3 && key.length >= 3 && (exKey.includes(key) || key.includes(exKey))) {
               return false;
@@ -2047,13 +2173,22 @@ async function startServer() {
           }
           seenBatchKeys.add(key);
           return true;
-        })
-        .slice(0, 6);
+        });
+
+      const strictFiltered = dedupedCandidates.filter(matchesStrictCategory);
+      const spots = (strictFiltered.length >= 6 ? strictFiltered : dedupedCandidates).slice(0, 10);
 
       res.json({ spots });
     } catch (err: unknown) {
       console.error('[Waynote AI Explore] Error:', err);
-      res.status(502).json({ error: '目前無法取得 AI 探索推薦，請稍後再試。' });
+      res.status(502).json({
+        error: tr(
+          lang,
+          '目前無法取得 AI 探索推薦，請稍後再試。',
+          '目前无法获取 AI 探索推荐，请稍后再试。',
+          'Unable to load AI Explore recommendations right now. Please try again.'
+        ),
+      });
     }
   });
 
@@ -2143,7 +2278,7 @@ async function startServer() {
               type: 'trip:remote_update',
               trip: merged,
               sourceClientId: clientId,
-              sourceDeviceName: clientEntry?.deviceName || '另一台裝置',
+              sourceDeviceName: clientEntry?.deviceName || 'Partner Device',
               editedSection: typeof msg.editedSection === 'string' ? msg.editedSection : undefined,
             },
             clientId

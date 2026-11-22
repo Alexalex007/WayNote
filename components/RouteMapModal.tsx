@@ -13,6 +13,8 @@ import {
 } from '@vis.gl/react-google-maps';
 import { Activity, HotelBooking } from '../types';
 import { DestinationAirport } from '../shared/destinationIntel';
+import { AppLanguage, formatStopsCount, formatTimeDisplay } from '../shared/i18n';
+import { useI18n } from '../hooks/useI18n';
 import { LiquidModal, SlidingSegmentedControl } from './LiquidPrimitives';
 import {
   NavigationArrowIcon,
@@ -77,12 +79,18 @@ function isQuotaError(err: unknown): boolean {
   );
 }
 
-function formatDurationMs(ms?: number | null): string {
+function formatDurationMs(ms?: number | null, lang: AppLanguage = 'zh-TW'): string {
   if (!ms || ms <= 0) return '';
   const totalMin = Math.max(1, Math.round(ms / 60000));
-  if (totalMin < 60) return `約 ${totalMin} 分鐘`;
+  if (totalMin < 60) {
+    if (lang === 'en') return `~${totalMin} min`;
+    if (lang === 'zh-CN') return `约 ${totalMin} 分钟`;
+    return `約 ${totalMin} 分鐘`;
+  }
   const h = Math.floor(totalMin / 60);
   const m = totalMin % 60;
+  if (lang === 'en') return m > 0 ? `~${h}h ${m}m` : `~${h}h`;
+  if (lang === 'zh-CN') return m > 0 ? `约 ${h} 小时 ${m} 分` : `约 ${h} 小时`;
   return m > 0 ? `約 ${h} 小時 ${m} 分` : `約 ${h} 小時`;
 }
 
@@ -124,6 +132,7 @@ const RouteMapInner: React.FC<RouteMapInnerProps> = ({
   onResolvedChange,
   onRouteSummary,
 }) => {
+  const { lang, t } = useI18n();
   const map = useMap();
   const placesLib = useMapsLibrary('places');
   const routesLib = useMapsLibrary('routes');
@@ -160,7 +169,7 @@ const RouteMapInner: React.FC<RouteMapInnerProps> = ({
           textQuery: query,
           fields: ['location', 'displayName', 'formattedAddress'],
           maxResultCount: 1,
-          language: 'zh-TW',
+          language: lang === 'en' ? 'en' : lang === 'zh-CN' ? 'zh-CN' : 'zh-TW',
         });
         const first = response.places?.[0];
         if (first?.location) {
@@ -187,11 +196,11 @@ const RouteMapInner: React.FC<RouteMapInnerProps> = ({
     const resolveAll = async () => {
       const itemsToCheck: { key: string; query: string }[] = stops.map((stop) => {
         const q = buildQuery(stop.location || stop.title || '');
-        return { key: `${stop.id}::${q}`, query: q };
+        return { key: `${stop.id}::${q}::${lang}`, query: q };
       });
       if (originCandidate) {
         const oq = originCandidate.query.trim();
-        itemsToCheck.push({ key: `origin::${originCandidate.id}::${oq}`, query: oq });
+        itemsToCheck.push({ key: `origin::${originCandidate.id}::${oq}::${lang}`, query: oq });
       }
 
       const hasPending = itemsToCheck.some((item) => !(item.key in coordsCacheRef.current));
@@ -203,14 +212,14 @@ const RouteMapInner: React.FC<RouteMapInnerProps> = ({
       for (const stop of stops) {
         if (cancelled) return;
         const q = buildQuery(stop.location || stop.title || '');
-        const key = `${stop.id}::${q}`;
+        const key = `${stop.id}::${q}::${lang}`;
         nextResolved[stop.id] = await resolveSingle(key, q, stop.title);
       }
 
       let nextOrigin: ResolvedStop | null = null;
       if (originCandidate && !cancelled) {
         const oq = originCandidate.query.trim();
-        const oKey = `origin::${originCandidate.id}::${oq}`;
+        const oKey = `origin::${originCandidate.id}::${oq}::${lang}`;
         nextOrigin = await resolveSingle(oKey, oq, originCandidate.label);
       }
 
@@ -225,7 +234,7 @@ const RouteMapInner: React.FC<RouteMapInnerProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [placesLib, stops, originCandidate, destinationCity]);
+  }, [placesLib, stops, originCandidate, destinationCity, lang]);
 
   const orderedPoints = useMemo(() => {
     return stops
@@ -417,7 +426,7 @@ const RouteMapInner: React.FC<RouteMapInnerProps> = ({
 
           onRouteSummary({
             distanceText: formatDistanceMeters(totalDistance),
-            durationText: formatDurationMs(totalDuration),
+            durationText: formatDurationMs(totalDuration, lang),
             usedFallback: anyFallback,
           });
           return;
@@ -443,7 +452,7 @@ const RouteMapInner: React.FC<RouteMapInnerProps> = ({
           const drawn = drawPrimaryRoute(primaryRoute, cappedPoints);
           onRouteSummary({
             distanceText: formatDistanceMeters(primaryRoute.distanceMeters),
-            durationText: formatDurationMs(primaryRoute.durationMillis),
+            durationText: formatDurationMs(primaryRoute.durationMillis, lang),
             usedFallback: !drawn,
           });
         } else {
@@ -466,7 +475,7 @@ const RouteMapInner: React.FC<RouteMapInnerProps> = ({
       cancelled = true;
       activePolylines.forEach((pl) => pl.setMap(null));
     };
-  }, [map, routesLib, fullRouteCoords, travelMode]);
+  }, [map, routesLib, fullRouteCoords, travelMode, lang]);
 
   const selectedEntry = orderedPoints.find((item) => item.stop.id === selectedStopId) || null;
   const isOriginSelected = selectedStopId === '__ORIGIN__' && Boolean(resolvedOrigin);
@@ -477,7 +486,7 @@ const RouteMapInner: React.FC<RouteMapInnerProps> = ({
         <AdvancedMarker
           key={`origin_${originCandidate.id}`}
           position={{ lat: resolvedOrigin.lat, lng: resolvedOrigin.lng }}
-          title={`起點：${originCandidate.label}`}
+          title={t(`起點：${originCandidate.label}`, `起点：${originCandidate.label}`, `Origin: ${originCandidate.label}`)}
           zIndex={isOriginSelected ? 45 : 30}
           onClick={() => onSelectStop('__ORIGIN__')}
         >
@@ -487,7 +496,7 @@ const RouteMapInner: React.FC<RouteMapInnerProps> = ({
             glyphColor="#ffffff"
             scale={isOriginSelected ? 1.15 : 1.05}
           >
-            <span className="font-bold text-[10px] leading-none text-white">起</span>
+            <span className="font-bold text-[10px] leading-none text-white">{t('起', '起', 'O')}</span>
           </Pin>
         </AdvancedMarker>
       )}
@@ -526,7 +535,7 @@ const RouteMapInner: React.FC<RouteMapInnerProps> = ({
           <div className="min-w-[160px] max-w-[230px] p-0.5 text-zinc-900">
             <div className="flex items-center gap-1.5 mb-0.5">
               <span className="px-1.5 h-4 rounded-full bg-zinc-900 text-white text-[10px] font-bold inline-flex items-center justify-center shrink-0">
-                起點
+                {t('起點', '起点', 'Origin')}
               </span>
               <span className="font-bold text-xs truncate">{originCandidate.label}</span>
             </div>
@@ -555,7 +564,10 @@ const RouteMapInner: React.FC<RouteMapInnerProps> = ({
             </p>
             {selectedEntry.stop.time && (
               <p className="text-[10px] font-num font-semibold text-[#F26B3A] mt-1">
-                {selectedEntry.stop.time}
+                {(() => {
+                  const td = formatTimeDisplay(selectedEntry.stop.time, lang);
+                  return td.suffix ? `${td.main} ${td.suffix}` : td.main;
+                })()}
               </p>
             )}
           </div>
@@ -578,6 +590,7 @@ export const RouteMapModal: React.FC<Props> = ({
   onApplyToDay,
   onOpenHotelsManager,
 }) => {
+  const { lang, t } = useI18n();
   const [apiKey, setApiKey] = useState<string>(
     () => (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined) || ''
   );
@@ -717,9 +730,9 @@ export const RouteMapModal: React.FC<Props> = ({
       title={
         <div className="flex items-center gap-2">
           <NavigationArrowIcon className="w-5 h-5 text-[#F26B3A]" />
-          <span>行程路線地圖</span>
+          <span>{t('行程路線地圖', '行程路线地图', 'Route Map')}</span>
           <span className="text-xs font-num font-semibold text-zinc-400 dark:text-zinc-500">
-            ({stops.length} 站)
+            ({formatStopsCount(stops.length, lang)})
           </span>
         </div>
       }
@@ -733,9 +746,9 @@ export const RouteMapModal: React.FC<Props> = ({
               value={travelMode}
               onChange={(val) => setTravelMode(val)}
               options={[
-                { id: 'TRANSIT', label: '大眾運輸 (鐵路)', accentFrom: '#4F46E5', accentTo: '#6366F1' },
-                { id: 'WALKING', label: '步行', accentFrom: '#0E9F76', accentTo: '#10B981' },
-                { id: 'DRIVING', label: '駕車', accentFrom: '#F26B3A', accentTo: '#FB923C' },
+                { id: 'TRANSIT', label: t('大眾運輸 (鐵路)', '公共交通 (铁路)', 'Transit (Rail)'), accentFrom: '#4F46E5', accentTo: '#6366F1' },
+                { id: 'WALKING', label: t('步行', '步行', 'Walk'), accentFrom: '#0E9F76', accentTo: '#10B981' },
+                { id: 'DRIVING', label: t('駕車', '驾车', 'Drive'), accentFrom: '#F26B3A', accentTo: '#FB923C' },
               ]}
             />
 
@@ -759,7 +772,7 @@ export const RouteMapModal: React.FC<Props> = ({
           <div className="rounded-2xl bg-zinc-100/80 dark:bg-white/[0.04] border border-zinc-200/70 dark:border-white/10 p-2.5 space-y-2 shrink-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 px-1.5 shrink-0">
-                出發起點：
+                {t('出發起點：', '出发起点：', 'Start from:')}
               </span>
               <div className="overflow-x-auto no-scrollbar max-w-full">
                 <SlidingSegmentedControl
@@ -767,10 +780,10 @@ export const RouteMapModal: React.FC<Props> = ({
                   value={originMode}
                   onChange={(val) => setOriginMode(val)}
                   options={[
-                    { id: 'NONE', label: '首站出發', accentFrom: '#27272A', accentTo: '#3F3F46' },
-                    { id: 'HOTEL', label: '酒店出發', accentFrom: '#F26B3A', accentTo: '#FB923C' },
-                    { id: 'AIRPORT', label: '所在城市機場', accentFrom: '#4F46E5', accentTo: '#6366F1' },
-                    { id: 'PREV_STOP', label: '上一站', accentFrom: '#0E9F76', accentTo: '#10B981' },
+                    { id: 'NONE', label: t('首站出發', '首站出发', 'First Stop'), accentFrom: '#27272A', accentTo: '#3F3F46' },
+                    { id: 'HOTEL', label: t('酒店出發', '酒店出发', 'Hotel'), accentFrom: '#F26B3A', accentTo: '#FB923C' },
+                    { id: 'AIRPORT', label: t('所在城市機場', '所在城市机场', 'Airport'), accentFrom: '#4F46E5', accentTo: '#6366F1' },
+                    { id: 'PREV_STOP', label: t('上一站', '上一站', 'Prev Stop'), accentFrom: '#0E9F76', accentTo: '#10B981' },
                   ]}
                 />
               </div>
@@ -781,7 +794,7 @@ export const RouteMapModal: React.FC<Props> = ({
               <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-zinc-200/60 dark:border-white/10">
                 {hotels.length === 0 ? (
                   <div className="flex items-center justify-between w-full px-1.5 text-xs text-zinc-500 dark:text-zinc-400">
-                    <span>尚未設定酒店位置</span>
+                    <span>{t('尚未設定酒店位置', '尚未设置酒店位置', 'No hotel saved yet')}</span>
                     {onOpenHotelsManager && (
                       <button
                         type="button"
@@ -791,7 +804,7 @@ export const RouteMapModal: React.FC<Props> = ({
                         }}
                         className="text-xs font-semibold text-[#F26B3A] underline cursor-pointer"
                       >
-                        立即新增酒店 →
+                        {t('立即新增酒店 →', '立即添加酒店 →', 'Add hotel →')}
                       </button>
                     )}
                   </div>
@@ -848,7 +861,7 @@ export const RouteMapModal: React.FC<Props> = ({
               <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-zinc-200/60 dark:border-white/10">
                 {previousStops.length === 0 ? (
                   <span className="px-1.5 text-xs text-zinc-500 dark:text-zinc-400">
-                    前面幾天尚無已安排的地點
+                    {t('前面幾天尚無已安排的地點', '前面几天尚无已安排的地点', 'No earlier stops scheduled')}
                   </span>
                 ) : (
                   previousStops.slice(0, 6).map((item) => {
@@ -879,7 +892,10 @@ export const RouteMapModal: React.FC<Props> = ({
             {/* Embedded Interactive Google Map */}
             <div className="lg:col-span-7 relative rounded-2xl overflow-hidden border border-zinc-200/70 dark:border-white/10 bg-zinc-100 dark:bg-zinc-900 h-[230px] sm:h-[320px] shrink-0">
               {apiKey ? (
-                <APIProvider apiKey={apiKey} language="zh-TW">
+                <APIProvider
+                  apiKey={apiKey}
+                  language={lang === 'en' ? 'en' : lang === 'zh-CN' ? 'zh-CN' : 'zh-TW'}
+                >
                   <GoogleMap
                     mapId="DEMO_MAP_ID"
                     internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
@@ -911,14 +927,20 @@ export const RouteMapModal: React.FC<Props> = ({
                 <div className="w-full h-full flex flex-col items-center justify-center text-center px-6 gap-2">
                   <MapIcon className="w-8 h-8 text-zinc-400" />
                   <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                    {keyChecked ? '地圖載入受限，仍可使用下方拖曳排序並跳轉 Google Maps' : '正在載入互動地圖...'}
+                    {keyChecked
+                      ? t(
+                          '地圖載入受限，仍可使用下方拖曳排序並跳轉 Google Maps',
+                          '地图加载受限，仍可使用下方拖拽排序并跳转 Google Maps',
+                          'Map preview unavailable. You can still reorder stops below and open Google Maps.'
+                        )
+                      : t('正在載入互動地圖...', '正在加载交互地图...', 'Loading interactive map...')}
                   </p>
                 </div>
               )}
 
               {isResolving && apiKey && (
                 <div className="pointer-events-none absolute top-3 left-3 z-10 px-3 py-1 rounded-full bg-white/92 dark:bg-zinc-900/90 border border-zinc-200/70 dark:border-white/10 text-[11px] font-medium text-zinc-700 dark:text-zinc-200 shadow-sm">
-                  正在定位座標與鐵路路線...
+                  {t('正在定位座標與鐵路路線...', '正在定位坐标与铁路路线...', 'Locating stops & transit routes...')}
                 </div>
               )}
             </div>
@@ -926,8 +948,8 @@ export const RouteMapModal: React.FC<Props> = ({
             {/* Drag-and-drop Reorderable Stop List */}
             <div className="lg:col-span-5 flex flex-col min-h-0">
               <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400 mb-2 px-0.5 shrink-0">
-                <span>拖曳手柄即可自由調整路線順序</span>
-                <span className="font-num">{stops.length} 站</span>
+                <span>{t('拖曳手柄即可自由調整路線順序', '拖拽手柄即可自由调整路线顺序', 'Drag handles to reorder stops')}</span>
+                <span className="font-num">{formatStopsCount(stops.length, lang)}</span>
               </div>
 
               <div className="lg:flex-1 lg:max-h-[294px] lg:overflow-y-auto no-scrollbar pr-0.5 space-y-2 pb-1">
@@ -941,12 +963,14 @@ export const RouteMapModal: React.FC<Props> = ({
                     }`}
                   >
                     <div className="w-6 h-6 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 flex items-center justify-center font-bold text-[10px] shrink-0">
-                      起
+                      {t('起', '起', 'S')}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold text-xs truncate">{activeOriginCandidate.label}</div>
                       <div className="text-[11px] opacity-70 truncate">
-                        {resolvedOriginPoint?.formattedAddress || activeOriginCandidate.subtitle || '出發起點'}
+                        {resolvedOriginPoint?.formattedAddress ||
+                          activeOriginCandidate.subtitle ||
+                          t('出發起點', '出发起点', 'Starting point')}
                       </div>
                     </div>
                   </div>
@@ -995,14 +1019,18 @@ export const RouteMapModal: React.FC<Props> = ({
                             {loc.title}
                           </div>
                           <div className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
-                            {resolved?.formattedAddress || loc.location || '行程站點'}
+                            {resolved?.formattedAddress || loc.location || t('行程站點', '行程站点', 'Stop')}
                           </div>
                         </div>
-                        {loc.time && (
-                          <span className="text-[11px] font-num font-semibold text-zinc-400 shrink-0">
-                            {loc.time}
-                          </span>
-                        )}
+                        {loc.time && (() => {
+                          const fmt = formatTimeDisplay(loc.time, lang);
+                          return (
+                            <span className="text-[11px] font-num font-semibold text-zinc-400 shrink-0">
+                              {fmt.main}
+                              {fmt.suffix ? ` ${fmt.suffix}` : ''}
+                            </span>
+                          );
+                        })()}
                       </Reorder.Item>
                     );
                   })}
@@ -1024,7 +1052,7 @@ export const RouteMapModal: React.FC<Props> = ({
               className="sm:flex-1 min-h-[44px] px-4 rounded-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-semibold text-xs flex items-center justify-center gap-1.5 cursor-pointer hover:opacity-90 transition-opacity"
             >
               <CheckIcon className="w-4 h-4" />
-              <span>套用此順序並更新時間</span>
+              <span>{t('套用此順序並更新時間', '应用此顺序并更新时间', 'Apply Order & Update Times')}</span>
             </button>
           )}
           <a
@@ -1035,7 +1063,7 @@ export const RouteMapModal: React.FC<Props> = ({
             className="sm:flex-1 min-h-[44px] px-5 bg-[var(--tab-accent)] hover:bg-[var(--tab-accent-hover)] text-white rounded-full font-semibold text-sm flex items-center justify-center gap-2 shadow-sm transition-colors"
           >
             <MapIcon className="w-4 h-4" />
-            <span>開啟 Google Maps</span>
+            <span>{t('開啟 Google Maps', '打开 Google Maps', 'Open in Google Maps')}</span>
           </a>
         </div>
       </div>

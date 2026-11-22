@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ChevronLeftIcon, ChevronRightIcon } from './Icons';
+import { useI18n } from '../hooks/useI18n';
+import { formatMonthHeading, getWeekdayHeaders } from '../shared/i18n';
 
 export function getTodayLocalIso(): string {
   const now = new Date();
@@ -33,14 +35,14 @@ interface DateRangeCalendarProps {
   minDate?: string;
 }
 
-const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
-
 export const DateRangeCalendar: React.FC<DateRangeCalendarProps> = ({
   startDate,
   endDate,
   onChangeRange,
   minDate,
 }) => {
+  const { lang, t } = useI18n();
+  const weekdays = useMemo(() => getWeekdayHeaders(lang), [lang]);
   const todayIso = useMemo(() => getTodayLocalIso(), []);
 
   const initialAnchor = startDate || todayIso;
@@ -230,7 +232,7 @@ export const DateRangeCalendar: React.FC<DateRangeCalendarProps> = ({
     };
   };
 
-  const monthLabel = `${viewYear} 年 ${viewMonth + 1} 月`;
+  const monthLabel = formatMonthHeading(viewYear, viewMonth, lang);
 
   return (
     <div className="surface-elevated rounded-3xl p-4 sm:p-5 space-y-3 select-none">
@@ -239,7 +241,7 @@ export const DateRangeCalendar: React.FC<DateRangeCalendarProps> = ({
         <button
           type="button"
           onClick={handlePrevMonth}
-          aria-label="上個月"
+          aria-label={t('上個月', '上个月', 'Previous month')}
           className="w-9 h-9 rounded-full bg-zinc-100 dark:bg-white/[0.06] hover:bg-zinc-200/70 dark:hover:bg-white/10 flex items-center justify-center text-zinc-700 dark:text-zinc-200 transition-colors cursor-pointer"
         >
           <ChevronLeftIcon className="w-4 h-4" />
@@ -250,14 +252,18 @@ export const DateRangeCalendar: React.FC<DateRangeCalendarProps> = ({
             {monthLabel}
           </div>
           <div className="text-[11px] text-zinc-400 dark:text-zinc-500">
-            {isDragging ? '拖曳選擇回程日期中…' : pickPhase === 'END' ? '點選回程日期或拖曳選區間' : '點選或按住拖曳出發 → 回程'}
+            {isDragging
+              ? t('拖曳選擇回程日期中…', '拖拽选择返程日期中…', 'Dragging to set return date…')
+              : pickPhase === 'END'
+                ? t('點選回程日期或拖曳選區間', '点击返程日期或拖拽选区间', 'Tap return date or drag range')
+                : t('點選或按住拖曳出發 → 回程', '点击或按住拖拽出发 → 返程', 'Tap or drag departure → return')}
           </div>
         </div>
 
         <button
           type="button"
           onClick={handleNextMonth}
-          aria-label="下個月"
+          aria-label={t('下個月', '下个月', 'Next month')}
           className="w-9 h-9 rounded-full bg-zinc-100 dark:bg-white/[0.06] hover:bg-zinc-200/70 dark:hover:bg-white/10 flex items-center justify-center text-zinc-700 dark:text-zinc-200 transition-colors cursor-pointer"
         >
           <ChevronRightIcon className="w-4 h-4" />
@@ -266,7 +272,7 @@ export const DateRangeCalendar: React.FC<DateRangeCalendarProps> = ({
 
       {/* Weekday Labels */}
       <div className="grid grid-cols-7 text-center">
-        {WEEKDAYS.map((w) => (
+        {weekdays.map((w) => (
           <span key={w} className="text-[11px] font-semibold text-zinc-400 dark:text-zinc-500 py-1">
             {w}
           </span>

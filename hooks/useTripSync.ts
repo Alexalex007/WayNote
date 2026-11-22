@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Trip, SyncConnectionState, SyncDevice } from '../types';
 import { mergeTrips, normalizeSyncCode } from '../shared/syncMerge';
+import { getStoredLanguage, tr } from '../shared/i18n';
 
 function getOrCreateClientId(): string {
   if (typeof window === 'undefined') return 'server';
@@ -20,14 +21,15 @@ function getOrCreateClientId(): string {
 }
 
 function getDeviceLabel(): string {
-  if (typeof navigator === 'undefined') return 'Browser';
+  const lang = getStoredLanguage();
+  if (typeof navigator === 'undefined') return tr(lang, '瀏覽器', '浏览器', 'Browser');
   const ua = navigator.userAgent;
   if (/iPhone/i.test(ua)) return 'iPhone';
   if (/iPad/i.test(ua)) return 'iPad';
-  if (/Android/i.test(ua)) return 'Android 手機';
+  if (/Android/i.test(ua)) return tr(lang, 'Android 手機', 'Android 手机', 'Android Phone');
   if (/Macintosh|Mac OS X/i.test(ua)) return 'Mac';
   if (/Windows/i.test(ua)) return 'Windows PC';
-  return 'Web 裝置';
+  return tr(lang, 'Web 裝置', 'Web 设备', 'Web Device');
 }
 
 export type RemoteSyncSectionTarget = 'ITINERARY' | 'EXPLORE' | 'EXPENSES' | 'TOOLBOX' | 'SETTINGS';
@@ -42,36 +44,37 @@ export function detectEditedSection(
   prev: Trip | null | undefined,
   next: Trip
 ): { sectionLabel: string; targetTab: RemoteSyncSectionTarget } | null {
+  const lang = getStoredLanguage();
   if (!prev) {
-    return { sectionLabel: '旅程內容', targetTab: 'ITINERARY' };
+    return { sectionLabel: tr(lang, '旅程內容', '旅程内容', 'Trip details'), targetTab: 'ITINERARY' };
   }
   if (JSON.stringify(prev.hotels || []) !== JSON.stringify(next.hotels || [])) {
-    return { sectionLabel: '住宿酒店', targetTab: 'ITINERARY' };
+    return { sectionLabel: tr(lang, '住宿酒店', '住宿酒店', 'Accommodations'), targetTab: 'ITINERARY' };
   }
   if (
     JSON.stringify(prev.activities || {}) !== JSON.stringify(next.activities || {}) ||
     JSON.stringify(prev.themes || {}) !== JSON.stringify(next.themes || {}) ||
     JSON.stringify(prev.activitiesOrderUpdatedAt || {}) !== JSON.stringify(next.activitiesOrderUpdatedAt || {})
   ) {
-    return { sectionLabel: '行程規劃', targetTab: 'ITINERARY' };
+    return { sectionLabel: tr(lang, '行程規劃', '行程规划', 'Itinerary'), targetTab: 'ITINERARY' };
   }
   if (JSON.stringify(prev.savedPlaces || []) !== JSON.stringify(next.savedPlaces || [])) {
-    return { sectionLabel: '探索口袋名單', targetTab: 'EXPLORE' };
+    return { sectionLabel: tr(lang, '探索口袋名單', '探索口袋名单', 'Saved places'), targetTab: 'EXPLORE' };
   }
   if (JSON.stringify(prev.expenses || []) !== JSON.stringify(next.expenses || [])) {
-    return { sectionLabel: '開支紀錄', targetTab: 'EXPENSES' };
+    return { sectionLabel: tr(lang, '開支紀錄', '开支记录', 'Expenses'), targetTab: 'EXPENSES' };
   }
   if (
     JSON.stringify(prev.budget || {}) !== JSON.stringify(next.budget || {}) ||
     (prev.budgetUpdatedAt || 0) !== (next.budgetUpdatedAt || 0)
   ) {
-    return { sectionLabel: '預算設定', targetTab: 'EXPENSES' };
+    return { sectionLabel: tr(lang, '預算設定', '预算设置', 'Budget'), targetTab: 'EXPENSES' };
   }
   if (JSON.stringify(prev.packingList || []) !== JSON.stringify(next.packingList || [])) {
-    return { sectionLabel: '旅行清單', targetTab: 'TOOLBOX' };
+    return { sectionLabel: tr(lang, '旅行清單', '旅行清单', 'Packing list'), targetTab: 'TOOLBOX' };
   }
   if (JSON.stringify(prev.documents || []) !== JSON.stringify(next.documents || [])) {
-    return { sectionLabel: '文件庫', targetTab: 'TOOLBOX' };
+    return { sectionLabel: tr(lang, '文件庫', '文件库', 'Documents'), targetTab: 'TOOLBOX' };
   }
   if (
     prev.name !== next.name ||
@@ -80,7 +83,7 @@ export function detectEditedSection(
     prev.endDate !== next.endDate ||
     JSON.stringify(prev.stops || []) !== JSON.stringify(next.stops || [])
   ) {
-    return { sectionLabel: '旅程設定', targetTab: 'SETTINGS' };
+    return { sectionLabel: tr(lang, '旅程設定', '旅程设置', 'Trip settings'), targetTab: 'SETTINGS' };
   }
   return null;
 }
@@ -280,10 +283,11 @@ export function useTripSync({ trip, onRemoteTrip, onRemoteChangeMeta }: UseTripS
             setLastSyncedAt(Date.now());
 
             if (diff && onRemoteChangeMetaRef.current) {
+              const lang = getStoredLanguage();
               const sourceDevice =
                 typeof msg.sourceDeviceName === 'string' && msg.sourceDeviceName.trim()
                   ? msg.sourceDeviceName.trim()
-                  : '另一台裝置';
+                  : tr(lang, '另一台裝置', '另一台设备', 'Another device');
               const customLabel =
                 typeof msg.editedSection === 'string' && msg.editedSection.trim()
                   ? msg.editedSection.trim()
@@ -302,7 +306,8 @@ export function useTripSync({ trip, onRemoteTrip, onRemoteChangeMeta }: UseTripS
 
       ws.onerror = () => {
         if (!isUnmounted) {
-          setSyncError('連線不穩定，正在重新連線');
+          const lang = getStoredLanguage();
+          setSyncError(tr(lang, '連線不穩定，正在重新連線', '连接不稳定，正在重新连接', 'Unstable connection, reconnecting...'));
         }
       };
 
@@ -399,18 +404,26 @@ export function useTripSync({ trip, onRemoteTrip, onRemoteChangeMeta }: UseTripS
   }, [activeSyncId, sendPushOverWs]);
 
   const joinSyncTripByCode = useCallback(async (rawCode: string): Promise<Trip | null> => {
+    const lang = getStoredLanguage();
     const code = normalizeSyncCode(rawCode);
-    if (!code) throw new Error('請輸入有效的同步代碼');
+    if (!code) throw new Error(tr(lang, '請輸入有效的同步代碼', '请输入有效的同步代码', 'Please enter a valid sync code'));
 
     const res = await fetch(`/api/trips/${encodeURIComponent(code)}`);
     if (!res.ok) {
       if (res.status === 404) {
-        throw new Error('找不到此同步代碼的旅程，請確認主裝置已開啟並連線同步');
+        throw new Error(
+          tr(
+            lang,
+            '找不到此同步代碼的旅程，請確認主裝置已開啟並連線同步',
+            '找不到此同步代码的旅程，请确认主设备已打开并连线同步',
+            'No trip found for this sync code. Check that the host device is online.'
+          )
+        );
       }
-      throw new Error('無法連線至同步伺服器');
+      throw new Error(tr(lang, '無法連線至同步伺服器', '无法连接到同步服务器', 'Unable to reach sync server'));
     }
     const data = await res.json();
-    if (!data.trip) throw new Error('同步資料格式無效');
+    if (!data.trip) throw new Error(tr(lang, '同步資料格式無效', '同步数据格式无效', 'Invalid sync payload'));
     setLastSyncedAt(Date.now());
     return data.trip as Trip;
   }, []);

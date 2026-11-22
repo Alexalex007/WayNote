@@ -6,6 +6,16 @@ import { useCloudAccountSync } from './hooks/useCloudAccountSync';
 import { fetchDestinationPhotoFast } from './hooks/useDestinationPhoto';
 import { mergeTrips, generateSyncCode, normalizeSyncCode } from './shared/syncMerge';
 import { detectDestinationIntel, getDestinationLocalTime } from './shared/destinationIntel';
+import { useI18n } from './hooks/useI18n';
+import {
+  AppLanguage,
+  LANGUAGE_OPTIONS,
+  formatDayProgress,
+  formatHomeCardDateParts,
+  getChangelogItems,
+  localizeDestinationLabel,
+  tr,
+} from './shared/i18n';
 import ItineraryTool from './components/ItineraryTool';
 import ExploreTool from './components/ExploreTool';
 import ExpensesTool from './components/FoodTool';
@@ -58,141 +68,6 @@ import {
 } from './components/Icons';
 
 const APP_VERSION = 'v6.0.0';
-
-const CHANGELOG_DATA = [
-  {
-    version: 'v6.0.0',
-    date: '2026-11-21',
-    items: [
-      '全新統一「晴空雲霧（日光）／宇宙星光（夜間）」全域雙背景架構與統一頂部狀態列色系，徹底解決 iPhone 動態島與電腦頂部橫向斷層',
-      '背景內建低調 3D 向量地球儀：依目前檢視或編輯的城市自動旋轉聚焦國家與城市位置（例如東京即居中鎖定日本與東京座標）',
-      '新增第 5 大核心分頁「探索口袋名單」：收藏必去景點、餐廳、咖啡館與購物清單，支援 AI 智慧推薦靈感及一鍵排入每日行程時間軸',
-      '徹底修復進入行程頁面時底部 Dock「行程」按鈕偶發消失的顯示異常',
-      '全新設計首頁旅程卡片視覺：大字距英文月份與日期排版搭配清晰目的地與天氣資訊，全站英數字升級乾淨幾何無襯線字體',
-    ],
-  },
-  {
-    version: 'v5.8.0',
-    date: '2026-11-20',
-    items: [
-      '內建 AI 智能行程與路線規劃：自由輸入想去的地點、天數與步調，一鍵自動生成每日主題與完整時間軸並支援互動地圖預覽與套用',
-      '全新 4 大分頁柔和主題色（行程珊瑚杏橘／開支霧藍靛／百寶箱尤加利薄荷／設定柔和紫丁香），全面適配日光與夜間模式',
-      '底部 Dock、桌面側邊欄及全站所有切換按鈕升級滑動漸層動畫，切換分頁時指示膠囊於移動過程中呈現 A→B 漸變過渡',
-      '平板橫向與桌機大螢幕優化：主頁、建立旅程、行程、開支、百寶箱與設定皆於寬螢幕啟用雙欄／多欄橫置排版，手機直式維持原樣',
-      '主頁與建立旅程「探索靈感」擴充至 40 個全球熱門城市實景輪播，並加入預先載入與柔和淡入淡出（Crossfade）轉場動畫',
-      '徹底修正 iPhone 頂部安全區域／動態島在日光與夜間模式下的白邊與色塊斷層，背景漸層與頂部狀態列無縫貼合',
-    ],
-  },
-  {
-    version: 'v5.7.1',
-    date: '2026-11-20',
-    items: [
-      '消除首頁與行程卡在 iOS Safari / 滑動容器下的閃爍現象，同時完整保留高畫質城市攝影封面',
-      '首頁有多趟旅程時自動將距離今天最近（進行中或最近出發）的旅程優先排在第一張與倒數首項',
-      '修正「行程路線地圖」在新增多間酒店時無法向下滑動查看地圖與站點的問題，改為順暢整頁捲動並固定底部按鈕列',
-      '升級跨裝置在線偵測與心跳機制（每 0.5 秒更新並支援離開頁面即時通知），另一台裝置退出時可於半秒內即時消失',
-      '修正 iPhone 頂部安全區域／動態島周圍偶發顯示白底斷層的問題，確保頂部柔和漸層一路延展至螢幕最頂端',
-      '平板橫向／直向檢視下，開啟編輯行程、開支或設定等任何彈窗時自動暫時收合側邊與底部 Dock 欄，關閉後自動恢復',
-      '開支明細表針對設定「多人攤分」的項目於金額旁簡潔標註「人均」二字，一眼辨識分帳消費',
-    ],
-  },
-  {
-    version: 'v5.7.0',
-    date: '2026-11-20',
-    items: [
-      '新增全域頂部「同步位置小泡泡」：雙裝置共同編輯時，於任一畫面頂端彈出與 Dock 同弧度設計的小氣泡，即時提示哪台裝置剛剛更新了哪個區域（不含敏感完整內容）',
-      '修復主畫面目的地圖片快取判定邏輯，清除舊版無效快取並全面恢復清晰單張實景城市攝影展示',
-      '精簡「百寶箱」為「旅行清單、工具、文件」三大資料夾：移除翻譯功能，並將當地資訊、即時時間、插座／緊急聯絡與天氣小工具集中移至「工具」分頁',
-      '開支頁面將「總開支」與「預算追蹤」合併為同一張頂部財務總覽卡片，移除底部重複卡片，視覺焦點更集中俐落',
-      '升級「住宿酒店設定」彈窗：支援鍵盤頂起與輸入框自動對焦捲動，移除多餘地址欄位（改以酒店名稱自動定位），並改為滑動／點選式日曆區間選擇入住與退房日期',
-    ],
-  },
-  {
-    version: 'v5.6.0',
-    date: '2026-11-19',
-    items: [
-      '全面適配 iPhone 動態島／瀏海與平板、桌機等各螢幕比例：統一根層全滿版漸層畫布與 Safe Area 間距，消除頂部橫向色塊斷層（不加入任何模糊遮罩）',
-      '升級目的地相片精準配對引擎 v3：過濾拼貼組合圖（如東京四格圖）並加強高畫質單張實景篩選，同時加入圖片載入記憶機制，徹底消除旅程卡片切頁閃爍',
-      '精簡首頁旅程卡片視覺：移除旅程名稱與獨立「開啟」按鈕，只顯示日期、地點與即時天氣，並開放點擊整張卡片直接進入旅程',
-      '行前開支不再需要填寫日期，並為每筆開支新增「多人攤分」人數設定，自動換算每人平均金額',
-      '開支主頁「行前開支表」與「旅途消費表」精簡為最多顯示 4 筆項目與金額，點擊項目即可開啟完整明細視窗檢視詳情、編輯或刪除',
-      '重新設計現代化分組式設定頁面，保留完整雲端登入、跨裝置同步、外觀主題與備份管理功能並提升可讀性',
-    ],
-  },
-  {
-    version: 'v5.5.2',
-    date: '2026-11-19',
-    items: [
-      '首頁尚未點選城市或規劃旅程時預設不亮起任何城市標籤，並持續平滑輪播全球熱門城市攝影照片；點選或手動輸入目的地後即切換為該地實景',
-      '修正各功能頁面（行程、開支、百寶箱、設定）頂部頁面標題定位邏輯，確保於所有螢幕比例下皆與左右按鈕等高且嚴格水平置中',
-    ],
-  },
-  {
-    version: 'v5.5.1',
-    date: '2026-11-19',
-    items: [
-      '鎖定所有外層框架與分頁容器並加入焦點偏移自動復位機制，修正填寫行程後頂部功能鍵與整個頁面向上跑掉的問題',
-      '修正全球城市相片與機場精準配對（例如「杭州」等中國及全球二線城市皆獨立抓取當地實景照片與機場代碼，不再誤配鄰近城市）',
-      '首頁最底部倒數區塊改為顯示所有已建立旅程的獨立倒數進度卡片，第 2 趟及後續新增旅程皆可同步檢視倒數天數與當地時間',
-    ],
-  },
-  {
-    version: 'v5.5.0',
-    date: '2026-11-19',
-    items: [
-      '建置支援 Google 與 Apple 登入的私人雲端帳號同步框架，登入後跨裝置即時同步且完全隔離個人資料',
-      '還原純淨高畫質排版，移除主畫面與所有頁面全螢幕模糊背景照片，保留清晰封面卡片',
-      '首頁移除多餘行程預覽卡片，改為底部正中「新旅程」按鈕與最底部倒數日數卡片',
-      '全面統一頂部導航列（返回／頁面標題／連線裝置數量），小標題高度與左右按鈕完全對齊，並防止內容被底部 Dock 列遮擋',
-      '「清單百寶箱」正式更名為「百寶箱」，移除預設行李項目與範本提示，讓用戶自由新增',
-      '開支頁移除分帳人數設定，並於總花費下方無省略並排顯示「行前開支」與「旅途消費」',
-      '新增住宿酒店管理，路線圖預設大眾運輸（鐵路優先）並把駕車移至最後，支援由酒店、所在城市機場（含多機場選擇）或上一站出發',
-      '行程時間軸實時計算兩站間進度漸層連線，拖曳排序或套用路線後自動順延更新所有時間',
-    ],
-  },
-  {
-    version: 'v5.4.0',
-    date: '2026-11-19',
-    items: [
-      '路線導航全面升級為內嵌互動式 Google 地圖，支援標記編號、路線繪製與即時拖曳改序',
-      '行程主頁日期膠囊置中並移除小圓點，工具列簡化為「路線」與「解鎖拖拽」自由拖曳排序',
-      '修復並全尺寸還原所有分頁頂部導航列（返回 / 行程名稱 / 即時連線裝置數量），並優化多裝置連線偵測',
-      '移除頁面頂部多餘虛化遮罩，並於行程工作區保留柔和目的地攝影背景與加快相片快取載入',
-      '首頁加入圓環狀行程倒數進度條，設定頁面全面重構為雙欄 / 四欄 Widget 小工具介面',
-      '底部導航列改為貼合 iPhone 螢幕弧度的同心圓角比例，開支頁將行前與旅途明細表置於總額下方並於記一筆內自由切換類型',
-    ],
-  },
-  {
-    version: 'v5.3.0',
-    date: '2026-11-19',
-    items: [
-      '新增內建雙向互動日曆，支援點選與按住拖曳出發至回程日期',
-      '修復新增旅程天數快捷按鈕與日期計算時區偏移問題',
-      '全新重構行程時間軸（連接節點視覺），並修復「+」按鈕切換跳動',
-      '首頁支援多旅程卡片輪播與下方「Plan」行程預覽（進行中 / 即將出發 / 已結束）',
-      '合併「旅行清單」與「百寶箱」為單一功能區，並重製 Waynote 品牌圖示',
-      '開支頁面明確拆分為「行前開支表」與「旅途消費表」，底部新增統一總花費彙總',
-      '升級柔粉多色系日光質感與深色主題邏輯（跟隨系統 / 日光 / 夜間）',
-    ],
-  },
-  {
-    version: 'v5.2.0',
-    date: '2026-11-18',
-    items: [
-      '全域目的地自動配對真實城市攝影封面背景',
-      '開支總覽整合每日花費直方圖與人均分攤計算',
-      '百寶箱新增目的地常用短語一鍵複製與行程文件安全預覽',
-    ],
-  },
-  {
-    version: 'v5.1.0',
-    date: '2026-11-17',
-    items: [
-      '自動識別目的地幣別、免稅門檻、時區與插座規格',
-      '整合即時氣象與 7 日預報、跨裝置 WebSocket 即時雙向同步',
-    ],
-  },
-];
 
 const QUICK_CITIES = ['東京', '大阪', '首爾', '曼谷', '台北', '香港', '巴黎', '倫敦'];
 const SHOWCASE_CITIES = [
@@ -303,15 +178,17 @@ function sortTripsByNearest(list: Trip[], today: string): Trip[] {
   });
 }
 
-function computeTripCountdown(trip: Trip, todayIso: string) {
-  const intel = detectDestinationIntel(trip.destination);
+function computeTripCountdown(trip: Trip, todayIso: string, lang: AppLanguage) {
+  const intel = detectDestinationIntel(trip.destination, lang);
   const span = getDaySpanUtc(trip.startDate, trip.endDate);
   const status = getTripStatus(trip, todayIso);
-  let statusText = '已規劃';
-  let dayBadge = span ? `${span.days} 天旅程` : '行程';
+  let statusText = tr(lang, '已規劃', '已规划', 'Planned');
+  let dayBadge = span
+    ? tr(lang, `${span.days} 天旅程`, `${span.days} 天旅程`, `${span.days}-day trip`)
+    : tr(lang, '行程', '行程', 'Trip');
   let countdownValue = '0';
-  let countdownUnit = '天';
-  let countdownLabel = '已結束';
+  let countdownUnit = tr(lang, '天', '天', 'days');
+  let countdownLabel = tr(lang, '已結束', '已结束', 'Completed');
   let countdownProgress = 1;
 
   if (status === 'UPCOMING') {
@@ -319,29 +196,35 @@ function computeTripCountdown(trip: Trip, todayIso: string) {
       1,
       Math.round((Date.parse(`${trip.startDate}T00:00:00Z`) - Date.parse(`${todayIso}T00:00:00Z`)) / 86400000)
     );
-    statusText = `${diff} 天後出發`;
+    statusText = tr(
+      lang,
+      `${diff} 天後出發`,
+      `${diff} 天后出发`,
+      diff === 1 ? 'Departs in 1 day' : `Departs in ${diff} days`
+    );
     countdownValue = `${diff}`;
-    countdownUnit = '天';
-    countdownLabel = '距離出發';
+    countdownUnit = tr(lang, '天', '天', diff === 1 ? 'day' : 'days');
+    countdownLabel = tr(lang, '距離出發', '距离出发', 'Countdown');
     countdownProgress = Math.max(0.1, Math.min(1, 1 - diff / Math.max(60, diff)));
   } else if (status === 'ACTIVE') {
-    statusText = '進行中';
+    statusText = tr(lang, '進行中', '进行中', 'In Progress');
     const elapsed = Math.max(
       0,
       Math.round((Date.parse(`${todayIso}T00:00:00Z`) - Date.parse(`${trip.startDate}T00:00:00Z`)) / 86400000)
     );
     const totalD = span?.days || 1;
     const currentD = Math.min(elapsed + 1, totalD);
-    dayBadge = `Day ${currentD} of ${totalD}`;
+    dayBadge = formatDayProgress(currentD, totalD, lang);
     countdownValue = `D${currentD}`;
     countdownUnit = `/${totalD}`;
-    countdownLabel = '旅程進行中';
+    countdownLabel = tr(lang, '旅程進行中', '旅程进行中', 'Active Trip');
     countdownProgress = Math.max(0.12, Math.min(1, currentD / totalD));
   } else {
-    statusText = '已結束';
-    countdownValue = `${span?.days || 1}`;
-    countdownUnit = '天';
-    countdownLabel = '旅程完成';
+    statusText = tr(lang, '已結束', '已结束', 'Completed');
+    const totalD = span?.days || 1;
+    countdownValue = `${totalD}`;
+    countdownUnit = tr(lang, '天', '天', totalD === 1 ? 'day' : 'days');
+    countdownLabel = tr(lang, '旅程完成', '旅程完成', 'Trip Completed');
     countdownProgress = 1;
   }
 
@@ -371,6 +254,7 @@ const HomeTripWeatherPill: React.FC<{
   tripId: string;
   onOpenWeather: (tripId: string) => void;
 }> = React.memo(({ city, tripId, onOpenWeather }) => {
+  const { t } = useI18n();
   const weather = useLiveWeather(city || null);
   return (
     <button
@@ -393,7 +277,7 @@ const HomeTripWeatherPill: React.FC<{
       ) : (
         <>
           <CloudIcon className="w-3.5 h-3.5" />
-          <span>天氣</span>
+          <span>{t('天氣', '天气', 'Weather')}</span>
         </>
       )}
     </button>
@@ -401,31 +285,6 @@ const HomeTripWeatherPill: React.FC<{
 });
 
 HomeTripWeatherPill.displayName = 'HomeTripWeatherPill';
-
-const MONTH_NAMES_EN = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-];
-
-function formatHomeCardDateParts(isoDate: string): { day: string; month: string } {
-  const parts = (isoDate || '').split('-');
-  const monthIdx = Math.max(0, Math.min(11, parseInt(parts[1] || '1', 10) - 1));
-  const dayNum = parseInt(parts[2] || '1', 10) || 1;
-  return {
-    day: String(dayNum),
-    month: MONTH_NAMES_EN[monthIdx] || 'January',
-  };
-}
 
 interface WorkspaceNavItem {
   id: Tab;
@@ -475,6 +334,7 @@ const WorkspaceSidebar: React.FC<
   onOpenSyncHub,
   isHidden,
 }) => {
+  const { lang, t } = useI18n();
   const navRef = useRef<HTMLElement | null>(null);
   const btnRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [thumb, setThumb] = useState<{ top: number; height: number } | null>(null);
@@ -534,7 +394,7 @@ const WorkspaceSidebar: React.FC<
 
           <div className="px-1 space-y-0.5">
             <div className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate">
-              {tripData.destination}
+              {localizeDestinationLabel(tripData.destination, lang)}
             </div>
             <div className="text-[11px] font-num text-zinc-500 dark:text-zinc-400">
               {tripData.startDate} ~ {tripData.endDate}
@@ -615,7 +475,7 @@ const WorkspaceSidebar: React.FC<
           </div>
           <div className="flex items-center justify-between text-[11px] font-num text-zinc-500 dark:text-zinc-400">
             <span>{tripData.syncId}</span>
-            <span>同步設定 →</span>
+            <span>{t('同步設定 →', '同步设置 →', 'Sync settings →')}</span>
           </div>
         </button>
       </div>
@@ -653,6 +513,7 @@ const WorkspaceDock: React.FC<
   isHidden,
   isDark,
 }) => {
+  const { t } = useI18n();
   const navRef = useRef<HTMLElement | null>(null);
   const btnRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [thumb, setThumb] = useState<{ left: number; width: number; top: number; height: number } | null>(null);
@@ -797,7 +658,7 @@ const WorkspaceDock: React.FC<
     >
       <nav
         ref={navRef}
-        aria-label="主導航列"
+        aria-label={t('主導航列', '主导航栏', 'Main navigation')}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={(e) => finishPointerDrag(e, true)}
@@ -890,6 +751,7 @@ const WorkspaceDock: React.FC<
 };
 
 function App() {
+  const { lang, setLanguage, t } = useI18n();
   const isAnyModalOpen = useAnyModalOpen();
   const [view, setView] = useState<'HOME' | 'CREATE' | 'TRIP'>('HOME');
   const [activeTab, setActiveTab] = useState<Tab>(Tab.ITINERARY);
@@ -1017,11 +879,25 @@ function App() {
     return 'ITINERARY';
   }, [activeTab]);
 
-  // Unified static Safe-Area top tint per appearance mode (Sky-Blue #CFE4FC for Light / Cosmos #080D1B for Dark)
-  const currentTopTint = isDarkResolved ? '#080D1B' : '#CFE4FC';
+  const isStandalone = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    const nav = window.navigator as Navigator & { standalone?: boolean };
+    return (
+      nav.standalone === true ||
+      window.matchMedia?.('(display-mode: standalone)').matches === true
+    );
+  }, []);
+
+  // Unified Safe-Area top tint per appearance mode & launch surface
+  const currentTopTint = isDarkResolved ? '#080D1B' : isStandalone ? '#2E7CF6' : '#CFE4FC';
 
   useLayoutEffect(() => {
     const root = window.document.documentElement;
+    if (isStandalone) {
+      root.classList.add('is-standalone');
+    } else {
+      root.classList.remove('is-standalone');
+    }
     if (isDarkResolved) {
       root.classList.add('dark');
       root.style.colorScheme = 'dark';
@@ -1031,6 +907,7 @@ function App() {
     }
     root.removeAttribute('data-tab-theme');
 
+    root.style.setProperty('--safe-top-tint', currentTopTint);
     root.style.backgroundColor = currentTopTint;
     if (document.body) {
       document.body.style.backgroundColor = currentTopTint;
@@ -1043,24 +920,25 @@ function App() {
       schemeMeta.setAttribute('content', isDarkResolved ? 'dark' : 'light');
     }
 
-    const appleBarMeta =
-      document.getElementById('waynote-apple-bar') ||
-      document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
-    if (appleBarMeta) {
-      appleBarMeta.setAttribute('content', isDarkResolved ? 'black-translucent' : 'default');
+    // Remove only duplicate theme-color tags while updating #waynote-theme-color in-place
+    // so iOS Safari / WebKit reliably repaints the status-bar / Dynamic Island area live.
+    document.querySelectorAll('meta[name="theme-color"]:not(#waynote-theme-color)').forEach((el) => el.remove());
+    let themeMeta = document.getElementById('waynote-theme-color') as HTMLMetaElement | null;
+    if (!themeMeta) {
+      themeMeta = document.createElement('meta');
+      themeMeta.id = 'waynote-theme-color';
+      themeMeta.name = 'theme-color';
+      document.head.appendChild(themeMeta);
     }
+    themeMeta.setAttribute('content', currentTopTint);
 
-    // Remove all existing theme-color tags (including any media-scoped tags) and append a fresh one
-    // so iOS Safari reliably repaints the Dynamic Island / status-bar area when toggling dark mode.
-    document.querySelectorAll('meta[name="theme-color"]').forEach((el) => el.remove());
-    const freshThemeMeta = document.createElement('meta');
-    freshThemeMeta.id = 'waynote-theme-color';
-    freshThemeMeta.name = 'theme-color';
-    freshThemeMeta.content = currentTopTint;
-    document.head.appendChild(freshThemeMeta);
+    const rafId = window.requestAnimationFrame(() => {
+      themeMeta?.setAttribute('content', currentTopTint);
+    });
 
     localStorage.setItem(STORAGE_THEME_MODE_KEY, themeMode);
-  }, [isDarkResolved, themeMode, currentTopTint]);
+    return () => window.cancelAnimationFrame(rafId);
+  }, [isDarkResolved, themeMode, currentTopTint, isStandalone]);
 
   const resetScrollDrift = useCallback(() => {
     if (typeof window === 'undefined') return;
@@ -1115,7 +993,14 @@ function App() {
     const order: ThemeMode[] = ['light', 'dark', 'system'];
     const next = order[(order.indexOf(themeMode) + 1) % order.length];
     setThemeMode(next);
-    showToast(next === 'light' ? '已切換：日光淺色' : next === 'dark' ? '已切換：夜幕深色' : '已切換：跟隨系統', 'info');
+    showToast(
+      next === 'light'
+        ? t('已切換：日光淺色', '已切换：日光浅色', 'Theme: Light')
+        : next === 'dark'
+          ? t('已切換：夜幕深色', '已切换：夜幕深色', 'Theme: Dark')
+          : t('已切換：跟隨系統', '已切换：跟随系统', 'Theme: System'),
+      'info'
+    );
   };
 
   // Creation Form State
@@ -1191,7 +1076,7 @@ function App() {
         const diff = detectEditedSection(prev, found);
         if (diff && (found.updatedAt || 0) > (prev.updatedAt || 0)) {
           showSyncBubble({
-            deviceName: latestRemoteCloudDeviceRef.current || '另一台裝置',
+            deviceName: latestRemoteCloudDeviceRef.current || t('另一台裝置', '另一台设备', 'Another device'),
             sectionLabel: diff.sectionLabel,
             targetTab: diff.targetTab,
           });
@@ -1200,7 +1085,7 @@ function App() {
         return found;
       });
     },
-    [showSyncBubble]
+    [showSyncBubble, t]
   );
 
   const cloudAuth = useCloudAccountSync({
@@ -1315,16 +1200,22 @@ function App() {
           localStorage.setItem(STORAGE_ACTIVE_KEY, JSON.stringify(next));
           setView('TRIP');
           setActiveTab(Tab.ITINERARY);
-          showToast(`已連線同步：${normalizedCode}`, 'success');
+          showToast(
+            t(`已連線同步：${normalizedCode}`, `已连接同步：${normalizedCode}`, `Synced: ${normalizedCode}`),
+            'success'
+          );
           const cleanUrl = `${window.location.pathname}${window.location.hash}`;
           window.history.replaceState({}, document.title, cleanUrl);
         })
         .catch((err) => {
-          const message = err instanceof Error ? err.message : '無法加入同步旅程';
+          const message =
+            err instanceof Error
+              ? err.message
+              : t('無法加入同步旅程', '无法加入同步旅程', 'Unable to join synced trip');
           showToast(message, 'error');
         });
     }
-  }, [joinSyncTripByCode, showToast]);
+  }, [joinSyncTripByCode, showToast, t]);
 
   const [exploreCity, setExploreCity] = useState<string | null>(null);
   const [rotatingCityIdx, setRotatingCityIdx] = useState<number>(0);
@@ -1387,7 +1278,7 @@ function App() {
         ? target.stops.map((s) => s.destination).filter(Boolean)
         : [target.destination];
 
-    const countdown = computeTripCountdown(target, todayIso);
+    const countdown = computeTripCountdown(target, todayIso, lang);
     const totalRaw = (target.expenses || []).reduce((sum, e) => sum + e.amount, 0);
     const mainCurr = target.budget?.currency || countdown.intel.currency;
 
@@ -1402,15 +1293,15 @@ function App() {
       ...countdown,
       cities,
     };
-  }, [selectedHomeTrip, todayIso]);
+  }, [selectedHomeTrip, todayIso, lang]);
 
   const homeCountdownList = useMemo(() => {
     const source = filteredHomeTrips.length > 0 ? filteredHomeTrips : sortedTripsList;
-    return source.map((t) => ({
-      trip: t,
-      ...computeTripCountdown(t, todayIso),
+    return source.map((tripItem) => ({
+      trip: tripItem,
+      ...computeTripCountdown(tripItem, todayIso, lang),
     }));
-  }, [filteredHomeTrips, sortedTripsList, todayIso]);
+  }, [filteredHomeTrips, sortedTripsList, todayIso, lang]);
 
   const createPreviewCity = useMemo(() => {
     if (tripType === 'Single') return singleDestination.trim();
@@ -1435,8 +1326,8 @@ function App() {
 
   const createPreviewIntel = useMemo(() => {
     if (!createPreviewCity) return null;
-    return detectDestinationIntel(createPreviewCity);
-  }, [createPreviewCity]);
+    return detectDestinationIntel(createPreviewCity, lang);
+  }, [createPreviewCity, lang]);
 
   const singleSpan = useMemo(() => getDaySpanUtc(singleStartDate, singleEndDate), [singleStartDate, singleEndDate]);
   const activeStop = useMemo(() => stops.find((s) => s.id === activeStopId) || stops[0], [stops, activeStopId]);
@@ -1464,9 +1355,9 @@ function App() {
       persistTrips(nextList, merged);
       setView('TRIP');
       setActiveTab(Tab.ITINERARY);
-      showToast(`已同步：${merged.name}`, 'success');
+      showToast(t(`已同步：${merged.name}`, `已同步：${merged.name}`, `Synced: ${merged.name}`), 'success');
     },
-    [joinSyncTripByCode, tripData, tripsList, persistTrips, showToast]
+    [joinSyncTripByCode, tripData, tripsList, persistTrips, showToast, t]
   );
 
   const handleHomeJoinSubmit = async (e: React.FormEvent) => {
@@ -1477,7 +1368,8 @@ function App() {
       await handleJoinByCode(homeSyncCode);
       setHomeSyncCode('');
     } catch (err) {
-      const message = err instanceof Error ? err.message : '加入同步失敗';
+      const message =
+        err instanceof Error ? err.message : t('加入同步失敗', '加入同步失败', 'Failed to join sync');
       showToast(message, 'error');
     } finally {
       setIsHomeJoining(false);
@@ -1494,7 +1386,10 @@ function App() {
       updatedAt: Date.now(),
     };
     handleLocalUpdateTrip(updated);
-    showToast(`已更新同步碼：${newCode}`, 'success');
+    showToast(
+      t(`已更新同步碼：${newCode}`, `已更新同步码：${newCode}`, `Sync code updated: ${newCode}`),
+      'success'
+    );
   };
 
   // --- Share & Export ---
@@ -1508,8 +1403,12 @@ function App() {
         await navigator.share({
           title: tripData ? `${tripData.name} · Waynote` : 'Waynote',
           text: tripData?.syncId
-            ? `加入我的旅程「${tripData.name}」（同步碼：${tripData.syncId}）`
-            : 'Waynote 旅程規劃',
+            ? t(
+                `加入我的旅程「${tripData.name}」（同步碼：${tripData.syncId}）`,
+                `加入我的旅程「${tripData.name}」（同步码：${tripData.syncId}）`,
+                `Join my trip "${tripData.name}" (Sync Code: ${tripData.syncId})`
+              )
+            : t('Waynote 旅程規劃', 'Waynote 旅程规划', 'Waynote Travel Planner'),
           url: shareUrl,
         });
         return;
@@ -1520,32 +1419,33 @@ function App() {
 
     try {
       await navigator.clipboard.writeText(shareUrl);
-      showToast('已複製同步連結', 'success');
+      showToast(t('已複製同步連結', '已复制同步链接', 'Sync link copied'), 'success');
     } catch {
-      showToast('請至同步中心複製代碼', 'info');
+      showToast(t('請至同步中心複製代碼', '请至同步中心复制代码', 'Copy the code in Sync Hub'), 'info');
     }
   };
 
   const exportContent = useMemo(() => {
     if (!tripData) return '';
 
+    const toSymbol = lang === 'en' ? 'to' : '至';
     let content = `${tripData.name}\n`;
-    content += `目的地: ${tripData.destination}\n`;
-    content += `日期: ${tripData.startDate} 至 ${tripData.endDate}\n`;
+    content += `${t('目的地', '目的地', 'Destination')}: ${localizeDestinationLabel(tripData.destination, lang)}\n`;
+    content += `${t('日期', '日期', 'Dates')}: ${tripData.startDate} ${toSymbol} ${tripData.endDate}\n`;
     if (tripData.syncId) {
-      content += `同步碼: ${tripData.syncId}\n`;
+      content += `${t('同步碼', '同步码', 'Sync Code')}: ${tripData.syncId}\n`;
     }
     content += `\n`;
 
     if (tripData.type === 'Multi' && tripData.stops) {
-      content += `路線站點:\n`;
+      content += `${t('路線站點', '路线站点', 'Route Stops')}:\n`;
       tripData.stops.forEach((stop, idx) => {
-        content += `${idx + 1}. ${stop.destination} (${stop.startDate} - ${stop.endDate})\n`;
+        content += `${idx + 1}. ${localizeDestinationLabel(stop.destination, lang)} (${stop.startDate} - ${stop.endDate})\n`;
       });
       content += `\n`;
     }
 
-    content += `行程安排:\n`;
+    content += `${t('行程安排', '行程安排', 'Itinerary')}:\n`;
     const dates = Object.keys(tripData.activities || {}).sort();
     dates.forEach((date) => {
       const dayActivities = tripData.activities[date];
@@ -1559,41 +1459,45 @@ function App() {
       }
     });
 
-    content += `\n\n消費紀錄:\n`;
+    content += `\n\n${t('消費紀錄', '消费记录', 'Expenses')}:\n`;
     (tripData.expenses || []).forEach((exp) => {
       const datePrefix = exp.date ? `${exp.date} | ` : '';
-      const splitNote = exp.splitCount && exp.splitCount > 1 ? ` / ${exp.splitCount}人攤分` : '';
-      content += `${datePrefix}[${exp.isPreTrip ? '行前' : '旅途'}] ${exp.title}: ${exp.currency} ${exp.amount}${splitNote} (${exp.category})\n`;
+      const splitNote =
+        exp.splitCount && exp.splitCount > 1
+          ? t(` / ${exp.splitCount}人攤分`, ` / ${exp.splitCount}人平摊`, ` / split ${exp.splitCount} ways`)
+          : '';
+      const phaseLabel = exp.isPreTrip ? t('行前', '行前', 'Pre-trip') : t('旅途', '旅途', 'On-trip');
+      content += `${datePrefix}[${phaseLabel}] ${exp.title}: ${exp.currency} ${exp.amount}${splitNote} (${exp.category})\n`;
     });
 
-    content += `\n\n清單:\n`;
+    content += `\n\n${t('清單', '清单', 'Packing List')}:\n`;
     const unchecked = (tripData.packingList || []).filter((i) => !i.checked);
     const checked = (tripData.packingList || []).filter((i) => i.checked);
 
     if (unchecked.length > 0) {
-      content += `\n[待準備]\n`;
+      content += `\n[${t('待準備', '待准备', 'To Pack')}]\n`;
       unchecked.forEach((item) => {
         content += `☐ ${item.name}\n`;
       });
     }
     if (checked.length > 0) {
-      content += `\n[已完成]\n`;
+      content += `\n[${t('已完成', '已完成', 'Packed')}]\n`;
       checked.forEach((item) => {
         content += `☑ ${item.name}\n`;
       });
     }
 
     return content;
-  }, [tripData]);
+  }, [tripData, lang, t]);
 
   const handleCopyToClipboard = async () => {
     try {
       await navigator.clipboard.writeText(exportContent);
       setCopySuccess(true);
-      showToast('已複製文字', 'success');
+      showToast(t('已複製文字', '已复制文字', 'Copied text'), 'success');
       setTimeout(() => setCopySuccess(false), 2000);
     } catch {
-      showToast('複製失敗，請手動選取', 'error');
+      showToast(t('複製失敗，請手動選取', '复制失败，请手动选取', 'Copy failed, please select manually'), 'error');
     }
   };
 
@@ -1608,7 +1512,7 @@ function App() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    showToast('已下載文字檔', 'success');
+    showToast(t('已下載文字檔', '已下载文本文件', 'Downloaded TXT file'), 'success');
   };
 
   const handleDownloadJsonBackup = () => {
@@ -1622,7 +1526,7 @@ function App() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    showToast('已下載備份檔', 'success');
+    showToast(t('已下載備份檔', '已下载备份文件', 'Downloaded JSON backup'), 'success');
   };
 
   const handleImportJsonBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1633,7 +1537,7 @@ function App() {
       try {
         const parsed = JSON.parse(String(reader.result)) as Trip;
         if (!parsed || !parsed.name || !parsed.startDate || !parsed.endDate) {
-          showToast('無效的備份檔案', 'error');
+          showToast(t('無效的備份檔案', '无效的备份文件', 'Invalid backup file'), 'error');
           return;
         }
         const restored = ensureSyncFields({
@@ -1644,9 +1548,9 @@ function App() {
         setView('TRIP');
         setActiveTab(Tab.ITINERARY);
         setShowHomeSettings(false);
-        showToast(`已匯入：${restored.name}`, 'success');
+        showToast(t(`已匯入：${restored.name}`, `已导入：${restored.name}`, `Imported: ${restored.name}`), 'success');
       } catch {
-        showToast('讀取檔案失敗', 'error');
+        showToast(t('讀取檔案失敗', '读取文件失败', 'Failed to read file'), 'error');
       } finally {
         if (importInputRef.current) importInputRef.current.value = '';
       }
@@ -1718,7 +1622,7 @@ function App() {
     if (tripData.type === 'Multi' && editStops.length > 0) {
       const validStops = editStops.filter((s) => s.destination.trim());
       if (validStops.length === 0 || !validStops[0].startDate || !validStops[validStops.length - 1].endDate) {
-        showToast('請完整填寫站點與日期', 'error');
+        showToast(t('請完整填寫站點與日期', '请完整填写站点与日期', 'Please complete all stops and dates'), 'error');
         return;
       }
       updatedTrip = {
@@ -1730,7 +1634,7 @@ function App() {
       };
     } else {
       if (!editTripData.destination.trim() || !editTripData.startDate || !editTripData.endDate) {
-        showToast('請完整填寫目的地與日期', 'error');
+        showToast(t('請完整填寫目的地與日期', '请完整填写目的地与日期', 'Please complete destination and dates'), 'error');
         return;
       }
       updatedTrip = {
@@ -1743,7 +1647,7 @@ function App() {
 
     handleLocalUpdateTrip(updatedTrip);
     setIsEditTripOpen(false);
-    showToast('已儲存旅程變更', 'success');
+    showToast(t('已儲存旅程變更', '已保存旅程变更', 'Trip changes saved'), 'success');
   };
 
   // --- Delete / Archive / Restore ---
@@ -1761,7 +1665,12 @@ function App() {
     }
     setIsDeleteConfirmOpen(false);
     setView('HOME');
-    showToast(cloudAuth.user ? '已從本機與雲端移除旅程' : '已從本機移除旅程', 'info');
+    showToast(
+      cloudAuth.user
+        ? t('已從本機與雲端移除旅程', '已从本地与云端移除旅程', 'Removed trip from device & cloud')
+        : t('已從本機移除旅程', '已从本地移除旅程', 'Removed trip from device'),
+      'info'
+    );
   };
 
   const handleArchiveTrip = () => {
@@ -1782,7 +1691,7 @@ function App() {
     }
     setIsArchiveConfirmOpen(false);
     setView('HOME');
-    showToast('已封存旅程', 'success');
+    showToast(t('已封存旅程', '已归档旅程', 'Trip archived'), 'success');
   };
 
   const handleRestoreTrip = (trip: Trip) => {
@@ -1806,7 +1715,7 @@ function App() {
     setShowHomeSettings(false);
     setView('TRIP');
     setActiveTab(Tab.ITINERARY);
-    showToast(`已載入：${normalized.name}`, 'success');
+    showToast(t(`已載入：${normalized.name}`, `已载入：${normalized.name}`, `Loaded: ${normalized.name}`), 'success');
   };
 
   // --- Create Trip Logic (Fixed UTC Dates + Works for Single & Multi-City Active Stop) ---
@@ -1915,11 +1824,11 @@ function App() {
 
     if (tripType === 'Single') {
       if (!singleDestination.trim() || !singleStartDate || !singleEndDate) {
-        showToast('請填寫目的地與日期', 'error');
+        showToast(t('請填寫目的地與日期', '请填写目的地与日期', 'Please fill in destination and dates'), 'error');
         return;
       }
       if (singleEndDate < singleStartDate) {
-        showToast('結束日期不可早於出發日期', 'error');
+        showToast(t('結束日期不可早於出發日期', '结束日期不可早于出发日期', 'End date cannot be earlier than start date'), 'error');
         return;
       }
       finalDestination = singleDestination.trim();
@@ -1928,7 +1837,7 @@ function App() {
     } else {
       const validStops = stops.filter((s) => s.destination.trim());
       if (validStops.length === 0 || !validStops[0].startDate || !validStops[validStops.length - 1].endDate) {
-        showToast('請完整填寫各站城市與日期', 'error');
+        showToast(t('請完整填寫各站城市與日期', '请完整填写各站城市与日期', 'Please fill in all stop cities and dates'), 'error');
         return;
       }
       finalDestination = validStops.map((s) => s.destination.trim()).join(' - ');
@@ -1938,8 +1847,9 @@ function App() {
 
     const now = Date.now();
     const firstCity = finalDestination.split(' - ')[0];
-    const intel = detectDestinationIntel(firstCity);
+    const intel = detectDestinationIntel(firstCity, lang);
 
+    const localizedCity = localizeDestinationLabel(firstCity, lang);
     const newTrip: Trip = {
       id: now.toString(),
       syncId: generateSyncCode(),
@@ -1947,7 +1857,7 @@ function App() {
       updatedAt: now,
       metaUpdatedAt: now,
       budgetUpdatedAt: now,
-      name: tripName.trim() || `${firstCity} 旅程`,
+      name: tripName.trim() || t(`${localizedCity} 旅程`, `${localizedCity} 旅程`, `${localizedCity} Trip`),
       destination: finalDestination,
       startDate: finalStart,
       endDate: finalEnd,
@@ -1979,7 +1889,14 @@ function App() {
     }
     setView('TRIP');
     setActiveTab(Tab.ITINERARY);
-    showToast(`已建立旅程（${intel.currency}）`, 'success');
+    showToast(
+      t(
+        `已建立旅程（${intel.currency}）`,
+        `已创建旅程（${intel.currency}）`,
+        `Trip created (${intel.currency})`
+      ),
+      'success'
+    );
   };
 
   const handleOpenTrip = (trip: Trip) => {
@@ -1995,34 +1912,78 @@ function App() {
     if (syncStatus === 'connected') {
       return {
         dotClass: 'bg-emerald-500',
-        text: effectiveDeviceCount > 1 ? `${effectiveDeviceCount} 裝置同步中` : '即時同步',
+        text:
+          effectiveDeviceCount > 1
+            ? t(
+                `${effectiveDeviceCount} 裝置同步中`,
+                `${effectiveDeviceCount} 台设备同步中`,
+                `${effectiveDeviceCount} devices synced`
+              )
+            : t('即時同步', '实时同步', 'Live Sync'),
       };
     }
     if (cloudAuth.user && cloudAuth.cloudStatus === 'synced') {
       return {
         dotClass: 'bg-emerald-500',
-        text: effectiveDeviceCount > 1 ? `${effectiveDeviceCount} 裝置雲端同步中` : '雲端即時同步',
+        text:
+          effectiveDeviceCount > 1
+            ? t(
+                `${effectiveDeviceCount} 裝置雲端同步中`,
+                `${effectiveDeviceCount} 台设备云端同步中`,
+                `${effectiveDeviceCount} devices on Cloud`
+              )
+            : t('雲端即時同步', '云端实时同步', 'Cloud Synced'),
       };
     }
     if (syncStatus === 'offline') {
-      return { dotClass: 'bg-amber-500', text: '離線模式' };
+      return { dotClass: 'bg-amber-500', text: t('離線模式', '离线模式', 'Offline') };
     }
     if (syncStatus === 'connecting' || syncStatus === 'reconnecting' || cloudAuth.cloudStatus === 'connecting') {
-      return { dotClass: 'bg-blue-500', text: '連線中' };
+      return { dotClass: 'bg-blue-500', text: t('連線中', '连接中', 'Connecting') };
     }
-    return { dotClass: 'bg-zinc-400', text: '同步待命' };
-  }, [syncStatus, effectiveDeviceCount, cloudAuth.user, cloudAuth.cloudStatus]);
+    return { dotClass: 'bg-zinc-400', text: t('同步待命', '同步待命', 'Standby') };
+  }, [syncStatus, effectiveDeviceCount, cloudAuth.user, cloudAuth.cloudStatus, t]);
 
   // Unified 5-Tab Navigation
   const navItems: WorkspaceNavItem[] = useMemo(
     () => [
-      { id: Tab.ITINERARY, themeKey: 'ITINERARY', label: '行程規劃', shortLabel: '行程', icon: GridIcon },
-      { id: Tab.EXPLORE, themeKey: 'EXPLORE', label: '探索口袋名單', shortLabel: '探索', icon: CompassIcon },
-      { id: Tab.EXPENSES, themeKey: 'EXPENSES', label: '開支預算', shortLabel: '開支', icon: WalletIcon },
-      { id: Tab.TOOLBOX, themeKey: 'TOOLBOX', label: '百寶箱', shortLabel: '百寶箱', icon: SuitcaseIcon },
-      { id: Tab.SETTINGS, themeKey: 'SETTINGS', label: '設定', shortLabel: '設定', icon: CogIcon },
+      {
+        id: Tab.ITINERARY,
+        themeKey: 'ITINERARY',
+        label: t('行程規劃', '行程规划', 'Itinerary'),
+        shortLabel: t('行程', '行程', 'Plan'),
+        icon: GridIcon,
+      },
+      {
+        id: Tab.EXPLORE,
+        themeKey: 'EXPLORE',
+        label: t('探索口袋名單', '探索口袋名单', 'Explore Spots'),
+        shortLabel: t('探索', '探索', 'Explore'),
+        icon: CompassIcon,
+      },
+      {
+        id: Tab.EXPENSES,
+        themeKey: 'EXPENSES',
+        label: t('開支預算', '开支预算', 'Expenses'),
+        shortLabel: t('開支', '开支', 'Spend'),
+        icon: WalletIcon,
+      },
+      {
+        id: Tab.TOOLBOX,
+        themeKey: 'TOOLBOX',
+        label: t('百寶箱', '百宝箱', 'Toolbox'),
+        shortLabel: t('百寶箱', '百宝箱', 'Tools'),
+        icon: SuitcaseIcon,
+      },
+      {
+        id: Tab.SETTINGS,
+        themeKey: 'SETTINGS',
+        label: t('設定', '设置', 'Settings'),
+        shortLabel: t('設定', '设置', 'Settings'),
+        icon: CogIcon,
+      },
     ],
-    []
+    [t]
   );
 
   const activeNavIndex = useMemo(() => {
@@ -2086,18 +2047,18 @@ function App() {
   const activePageTitle = useMemo(() => {
     switch (activeTab) {
       case Tab.EXPLORE:
-        return '探索';
+        return t('探索', '探索', 'Explore');
       case Tab.EXPENSES:
-        return '開支';
+        return t('開支', '开支', 'Expenses');
       case Tab.TOOLBOX:
       case Tab.PACKING:
-        return '百寶箱';
+        return t('百寶箱', '百宝箱', 'Toolbox');
       case Tab.SETTINGS:
-        return '設定';
+        return t('設定', '设置', 'Settings');
       default:
-        return '行程';
+        return t('行程', '行程', 'Itinerary');
     }
-  }, [activeTab]);
+  }, [activeTab, t]);
 
   const renderThemeIcon = () => {
     if (themeMode === 'system') return <ComputerDesktopIcon className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />;
@@ -2163,23 +2124,31 @@ function App() {
         {gmpQuotaExceeded && (
           <div className="sticky top-0 z-50 bg-amber-50/95 border-b border-amber-200 px-4 py-2 text-xs text-amber-900 flex items-center justify-between gap-3">
             <p className="min-w-0 leading-snug">
-              Google 地圖服務額度已達上限。請參考{' '}
+              {t(
+                'Google 地圖服務額度已達上限。請參考 ',
+                'Google 地图服务额度已达上限。请参考 ',
+                'Google Maps quota reached. See '
+              )}
               <a
                 href="https://developers.google.com/maps/ai/ai-studio?utm_campaign=gmp_mcp_codeassist_v1_aistudio#quota_exceeded_errors"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline font-semibold"
               >
-                配額設定說明
+                {t('配額設定說明', '配额设置说明', 'quota settings')}
               </a>
-              ，路線列表與外部 Google Maps 跳轉仍可正常使用。
+              {t(
+                '，路線列表與外部 Google Maps 跳轉仍可正常使用。',
+                '，路线列表与外部 Google 地图跳转仍可正常使用。',
+                ' — route lists and external Google Maps links still work normally.'
+              )}
             </p>
             <button
               type="button"
               onClick={() => setGmpQuotaExceeded(false)}
               className="px-2.5 py-1 rounded-full bg-amber-200/70 hover:bg-amber-200 text-amber-950 font-semibold shrink-0 cursor-pointer"
             >
-              關閉
+              {t('關閉', '关闭', 'Close')}
             </button>
           </div>
         )}
@@ -2216,7 +2185,7 @@ function App() {
                       <button
                         type="button"
                         onClick={() => setIsAuthModalOpen(true)}
-                        aria-label="帳號登入與雲端同步"
+                        aria-label={t('帳號登入與雲端同步', '账号登录与云端同步', 'Account sign-in & cloud sync')}
                         className="surface-elevated h-10 px-3 rounded-full text-zinc-800 dark:text-zinc-100 flex items-center gap-2 hover:bg-white dark:hover:bg-zinc-800 transition-colors cursor-pointer"
                       >
                         {cloudAuth.user ? (
@@ -2241,13 +2210,13 @@ function App() {
                               <UserCircleIcon className="w-4 h-4 shrink-0" />
                             )}
                             <span className="text-xs font-semibold max-w-[84px] truncate hidden sm:inline">
-                              {cloudAuth.user.displayName || '已登入'}
+                              {cloudAuth.user.displayName || t('已登入', '已登录', 'Signed in')}
                             </span>
                           </>
                         ) : (
                           <>
                             <UserCircleIcon className="w-4 h-4 text-[#2563EB] dark:text-sky-400 shrink-0" />
-                            <span className="text-xs font-semibold">登入</span>
+                            <span className="text-xs font-semibold">{t('登入', '登录', 'Sign in')}</span>
                           </>
                         )}
                       </button>
@@ -2255,8 +2224,14 @@ function App() {
                       <button
                         type="button"
                         onClick={cycleThemeMode}
-                        aria-label="切換外觀主題"
-                        title={themeMode === 'system' ? '跟隨系統' : themeMode === 'dark' ? '夜間模式' : '日光模式'}
+                        aria-label={t('切換外觀主題', '切换外观主题', 'Switch theme')}
+                        title={
+                          themeMode === 'system'
+                            ? t('跟隨系統', '跟随系统', 'System')
+                            : themeMode === 'dark'
+                              ? t('夜間模式', '夜间模式', 'Dark mode')
+                              : t('日光模式', '日光模式', 'Light mode')
+                        }
                         className="surface-elevated w-10 h-10 rounded-full text-zinc-700 dark:text-zinc-200 flex items-center justify-center hover:bg-white dark:hover:bg-zinc-800 transition-colors cursor-pointer"
                       >
                         {renderThemeIcon()}
@@ -2269,7 +2244,7 @@ function App() {
                             setShowHomeSettings(!showHomeSettings);
                             setShowArchivedList(false);
                           }}
-                          aria-label="更多選項"
+                          aria-label={t('更多選項', '更多选项', 'More options')}
                           className="surface-elevated w-10 h-10 rounded-full text-zinc-700 dark:text-zinc-200 flex items-center justify-center hover:bg-white dark:hover:bg-zinc-800 transition-colors cursor-pointer"
                         >
                           <CogIcon className="w-4 h-4" />
@@ -2284,6 +2259,42 @@ function App() {
                               transition={{ type: 'spring', stiffness: 420, damping: 32 }}
                               className="absolute right-0 mt-2.5 surface-elevated rounded-2xl w-64 z-50 overflow-hidden p-1.5"
                             >
+                              <div className="px-2.5 pt-2 pb-2.5 border-b border-zinc-200/70 dark:border-white/[0.08] space-y-1.5">
+                                <div className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 px-0.5">
+                                  {t('語言', '语言', 'Language')}
+                                </div>
+                                <div className="grid grid-cols-3 gap-1">
+                                  {LANGUAGE_OPTIONS.map((opt) => {
+                                    const active = lang === opt.id;
+                                    return (
+                                      <button
+                                        key={opt.id}
+                                        type="button"
+                                        onClick={() => {
+                                          setLanguage(opt.id);
+                                          showToast(
+                                            tr(
+                                              opt.id,
+                                              '已切換語言：繁體中文',
+                                              '已切换语言：简体中文',
+                                              'Language: English'
+                                            ),
+                                            'info'
+                                          );
+                                        }}
+                                        className={`h-7 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                                          active
+                                            ? 'bg-gradient-to-r from-[#2563EB] to-[#0EA5E9] text-white shadow-sm'
+                                            : 'bg-zinc-100 dark:bg-white/[0.06] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200/70 dark:hover:bg-white/10'
+                                        }`}
+                                      >
+                                        {opt.shortLabel}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
                               <button
                                 type="button"
                                 onClick={() => importInputRef.current?.click()}
@@ -2291,7 +2302,7 @@ function App() {
                               >
                                 <ArrowUpTrayIcon className="w-4 h-4 text-zinc-600 dark:text-zinc-300" />
                                 <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                                  匯入 JSON 備份
+                                  {t('匯入 JSON 備份', '导入 JSON 备份', 'Import JSON Backup')}
                                 </span>
                               </button>
 
@@ -2303,7 +2314,11 @@ function App() {
                                 <div className="flex items-center gap-3">
                                   <ArchiveIcon className="w-4 h-4 text-zinc-600 dark:text-zinc-300" />
                                   <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                                    已封存旅程 ({archivedTrips.length})
+                                    {t(
+                                      `已封存旅程 (${archivedTrips.length})`,
+                                      `已归档旅程 (${archivedTrips.length})`,
+                                      `Archived Trips (${archivedTrips.length})`
+                                    )}
                                   </span>
                                 </div>
                                 <ChevronRightIcon
@@ -2316,7 +2331,9 @@ function App() {
                               {showArchivedList && (
                                 <div className="mt-1 pl-2 pr-1 pb-1 space-y-1 max-h-44 overflow-y-auto no-scrollbar border-t border-zinc-200/70 dark:border-white/10 pt-2">
                                   {archivedTrips.length === 0 ? (
-                                    <p className="text-xs text-zinc-400 text-center py-2">暫無封存紀錄</p>
+                                    <p className="text-xs text-zinc-400 text-center py-2">
+                                      {t('暫無封存紀錄', '暂无归档记录', 'No archived trips')}
+                                    </p>
                                   ) : (
                                     archivedTrips.map((arch) => (
                                       <button
@@ -2330,7 +2347,7 @@ function App() {
                                             {arch.name}
                                           </p>
                                           <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate font-num">
-                                            {arch.destination} · {arch.startDate}
+                                            {localizeDestinationLabel(arch.destination, lang)} · {arch.startDate}
                                           </p>
                                         </div>
                                         <RefreshIcon className="w-4 h-4 text-zinc-400 group-hover:text-[#2563EB] dark:group-hover:text-sky-400 shrink-0" />
@@ -2353,16 +2370,15 @@ function App() {
                         {/* Planned Journeys Header & Filter Tabs */}
                         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
                           <div className="flex items-baseline justify-between gap-3">
-                            <div className="flex items-baseline gap-2.5">
-                              <h1 className="text-2xl sm:text-3xl font-display font-bold text-zinc-900 dark:text-white tracking-tight">
-                                我的旅程
-                              </h1>
-                              <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 tracking-wide">
-                                Planned Journeys
-                              </span>
-                            </div>
+                            <h1 className="text-2xl sm:text-3xl font-display font-bold text-zinc-900 dark:text-white tracking-tight">
+                              {t('我的旅程', '我的旅程', 'Planned Journeys')}
+                            </h1>
                             <span className="text-xs font-num font-semibold text-zinc-500 dark:text-zinc-400">
-                              共 {tripsList.length} 趟
+                              {t(
+                                `共 ${tripsList.length} 趟`,
+                                `共 ${tripsList.length} 趟`,
+                                tripsList.length === 1 ? '1 trip' : `${tripsList.length} trips`
+                              )}
                             </span>
                           </div>
 
@@ -2372,24 +2388,26 @@ function App() {
                             value={homeFilter}
                             onChange={setHomeFilter}
                             options={[
-                              { id: 'ALL', label: '全部', accentFrom: '#2563EB', accentTo: '#0EA5E9' },
-                              { id: 'ACTIVE', label: '進行中', accentFrom: '#059669', accentTo: '#10B981' },
-                              { id: 'UPCOMING', label: '即將出發', accentFrom: '#0D9488', accentTo: '#06B6D4' },
-                              { id: 'PAST', label: '已結束', accentFrom: '#4F46E5', accentTo: '#818CF8' },
+                              { id: 'ALL', label: t('全部', '全部', 'All'), accentFrom: '#2563EB', accentTo: '#0EA5E9' },
+                              { id: 'ACTIVE', label: t('進行中', '进行中', 'Active'), accentFrom: '#059669', accentTo: '#10B981' },
+                              { id: 'UPCOMING', label: t('即將出發', '即将出发', 'Upcoming'), accentFrom: '#0D9488', accentTo: '#06B6D4' },
+                              { id: 'PAST', label: t('已結束', '已结束', 'Past'), accentFrom: '#4F46E5', accentTo: '#818CF8' },
                             ]}
                           />
                         </div>
 
-                        {/* Scenic Top-Typography Home Cards (IMG_7270 Reference: No trip name, no avatars, no dock) */}
+                        {/* Scenic Top-Typography Home Cards */}
                         {filteredHomeTrips.length === 0 ? (
                           <div className="surface-elevated rounded-3xl p-8 text-center space-y-3">
-                            <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">此分類尚無旅程</p>
+                            <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                              {t('此分類尚無旅程', '此分类暂无旅程', 'No trips in this category')}
+                            </p>
                             <button
                               type="button"
                               onClick={() => setHomeFilter('ALL')}
                               className="text-xs font-semibold text-[#2563EB] dark:text-sky-400 cursor-pointer"
                             >
-                              顯示全部旅程
+                              {t('顯示全部旅程', '显示全部旅程', 'Show all trips')}
                             </button>
                           </div>
                         ) : (
@@ -2402,7 +2420,7 @@ function App() {
                           >
                             {filteredHomeTrips.map((item) => {
                               const span = getDaySpanUtc(item.startDate, item.endDate);
-                              const dateParts = formatHomeCardDateParts(item.startDate);
+                              const dateParts = formatHomeCardDateParts(item.startDate, lang);
                               const cardWidthClass =
                                 filteredHomeTrips.length > 1
                                   ? 'w-[86%] sm:w-[340px] lg:w-full shrink-0'
@@ -2431,7 +2449,7 @@ function App() {
                                     <div className="h-full p-5 sm:p-6 flex items-start justify-between gap-3 text-white">
                                       <div className="min-w-0 space-y-2.5">
                                         <h2 className="text-[22px] sm:text-[25px] font-display font-bold text-white leading-tight truncate tracking-tight drop-shadow-sm">
-                                          {item.destination}
+                                          {localizeDestinationLabel(item.destination, lang)}
                                         </h2>
                                         <div className="inline-flex">
                                           <HomeTripWeatherPill
@@ -2447,11 +2465,11 @@ function App() {
                                           {dateParts.day}
                                         </span>
                                         <span className="text-xs sm:text-[13px] font-display font-medium text-white/95 mt-0.5 drop-shadow-sm">
-                                          {dateParts.month}
+                                          {dateParts.monthLabel}
                                         </span>
                                         <span className="text-[11px] font-num font-medium text-white/80 mt-1.5 drop-shadow-sm">
                                           {item.startDate.slice(5)} ~ {item.endDate.slice(5)}
-                                          {span ? ` · ${span.days}天` : ''}
+                                          {span ? ` · ${span.days}${t('天', '天', 'd')}` : ''}
                                         </span>
                                       </div>
                                     </div>
@@ -2465,7 +2483,7 @@ function App() {
                               <div className="hidden lg:flex lg:col-span-5 surface-elevated rounded-[28px] p-5 flex-col justify-between gap-4">
                                 <div className="space-y-2">
                                   <div className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-                                    快速加入協作或建立新旅程
+                                    {t('快速加入協作或建立新旅程', '快速加入协作或创建新旅程', 'Join a synced trip or start a new one')}
                                   </div>
                                   <form onSubmit={handleHomeJoinSubmit} className="flex items-center gap-2">
                                     <input
@@ -2480,7 +2498,7 @@ function App() {
                                       disabled={!homeSyncCode.trim() || isHomeJoining}
                                       className="h-10 px-4 rounded-xl bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-semibold text-xs disabled:opacity-35 cursor-pointer whitespace-nowrap shrink-0"
                                     >
-                                      {isHomeJoining ? '連線中' : '加入'}
+                                      {isHomeJoining ? t('連線中', '连接中', 'Joining') : t('加入', '加入', 'Join')}
                                     </button>
                                   </form>
                                 </div>
@@ -2491,7 +2509,7 @@ function App() {
                                   className="w-full min-h-[48px] px-6 rounded-full bg-gradient-to-r from-[#2563EB] to-[#0EA5E9] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 active:scale-[0.985] transition-all cursor-pointer shadow-[0_10px_24px_-8px_rgba(37,99,235,0.52)]"
                                 >
                                   <PlusIcon className="w-4 h-4" />
-                                  <span>新旅程</span>
+                                  <span>{t('新旅程', '新旅程', 'New Trip')}</span>
                                 </button>
                               </div>
                             )}
@@ -2515,7 +2533,11 @@ function App() {
                               type="text"
                               value={homeSyncCode}
                               onChange={(e) => setHomeSyncCode(e.target.value.toUpperCase())}
-                              placeholder="輸入同步碼加入行程 (SKY-XXXX-XXXX)"
+                              placeholder={t(
+                                '輸入同步碼加入行程 (SKY-XXXX-XXXX)',
+                                '输入同步码加入行程 (SKY-XXXX-XXXX)',
+                                'Enter sync code to join trip (SKY-XXXX-XXXX)'
+                              )}
                               className="flex-1 min-w-0 h-10 bg-transparent font-num text-xs sm:text-sm font-medium text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none"
                             />
                             <button
@@ -2523,7 +2545,7 @@ function App() {
                               disabled={!homeSyncCode.trim() || isHomeJoining}
                               className="h-10 px-4 rounded-xl bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-semibold text-xs disabled:opacity-35 cursor-pointer whitespace-nowrap shrink-0"
                             >
-                              {isHomeJoining ? '連線中' : '加入'}
+                              {isHomeJoining ? t('連線中', '连接中', 'Joining') : t('加入', '加入', 'Join')}
                             </button>
                           </form>
 
@@ -2534,7 +2556,7 @@ function App() {
                               className="min-h-[48px] lg:w-full px-7 rounded-full bg-gradient-to-r from-[#2563EB] to-[#0EA5E9] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer shadow-[0_10px_24px_-8px_rgba(37,99,235,0.54)]"
                             >
                               <PlusIcon className="w-4 h-4" />
-                              <span>新旅程</span>
+                              <span>{t('新旅程', '新旅程', 'New Trip')}</span>
                             </button>
                           </div>
                         </div>
@@ -2543,10 +2565,14 @@ function App() {
                         <div className="space-y-2.5 pt-1">
                           <div className="flex items-center justify-between px-1">
                             <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-                              行程倒數
+                              {t('行程倒數', '行程倒数', 'Trip Countdown')}
                             </span>
                             <span className="text-[11px] font-num font-semibold text-zinc-400 dark:text-zinc-500">
-                              共 {homeCountdownList.length} 趟旅程
+                              {t(
+                                `共 ${homeCountdownList.length} 趟旅程`,
+                                `共 ${homeCountdownList.length} 趟旅程`,
+                                homeCountdownList.length === 1 ? '1 trip' : `${homeCountdownList.length} trips`
+                              )}
                             </span>
                           </div>
 
@@ -2627,8 +2653,8 @@ function App() {
                                       </div>
                                       <div className="text-[11px] font-num text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
                                         {entry.statusText} · {entry.trip.startDate.slice(5)} ~{' '}
-                                        {entry.trip.endDate.slice(5)} · 當地{' '}
-                                        {getDestinationLocalTime(entry.intel.utcOffsetHours).timeStr}
+                                        {entry.trip.endDate.slice(5)} · {t('當地', '当地', 'Local')}{' '}
+                                        {getDestinationLocalTime(entry.intel.utcOffsetHours, lang).timeStr}
                                       </div>
                                     </div>
                                   </div>
@@ -2654,10 +2680,18 @@ function App() {
                               {!exploreCity && (
                                 <span className="w-1.5 h-1.5 rounded-full bg-white/80 animate-pulse shrink-0" />
                               )}
-                              <span>{exploreCity || `探索靈感 · ${rotatingShowcaseCity}`}</span>
+                              <span>
+                                {exploreCity
+                                  ? localizeDestinationLabel(exploreCity, lang)
+                                  : t(
+                                      `探索靈感 · ${localizeDestinationLabel(rotatingShowcaseCity, lang)}`,
+                                      `探索灵感 · ${localizeDestinationLabel(rotatingShowcaseCity, lang)}`,
+                                      `Inspiration · ${localizeDestinationLabel(rotatingShowcaseCity, lang)}`
+                                    )}
+                              </span>
                             </span>
                             <h1 className="text-2xl sm:text-3xl font-display font-bold tracking-tight text-white mt-0.5">
-                              開始下一趟旅程
+                              {t('開始下一趟旅程', '开启下一趟旅程', 'Plan Your Next Journey')}
                             </h1>
                           </div>
                         </DestinationCover>
@@ -2666,10 +2700,14 @@ function App() {
                           <div className="space-y-4">
                             <div className="hidden lg:block space-y-1">
                               <div className="text-xs font-semibold text-[#2563EB] dark:text-sky-400">
-                                探索全球 40 座精選城市
+                                {t('探索全球 40 座精選城市', '探索全球 40 座精选城市', 'Explore 40 Featured Cities')}
                               </div>
                               <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                                點選城市搶先預覽實景與旋轉地球儀定位，或直接建立行程並啟用 AI 智慧路線規劃。
+                                {t(
+                                  '點選城市搶先預覽實景與地圖定位，或直接建立行程並啟用 AI 智慧路線規劃。',
+                                  '点选城市抢先预览实景与地图定位，或直接创建行程并启用 AI 智能路线规划。',
+                                  'Tap a city to preview scenery & map focus, or create a trip with AI itinerary planning.'
+                                )}
                               </p>
                             </div>
 
@@ -2687,7 +2725,7 @@ function App() {
                                         : 'bg-zinc-100 dark:bg-white/[0.06] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200/70 dark:hover:bg-white/10'
                                     }`}
                                   >
-                                    {city}
+                                    {localizeDestinationLabel(city, lang)}
                                   </button>
                                 );
                               })}
@@ -2697,16 +2735,26 @@ function App() {
                           <div className="space-y-4">
                             <button
                               type="button"
-                              onClick={() => openCreateFlow(exploreCity || undefined)}
+                              onClick={() => openCreateFlow(exploreCity ? localizeDestinationLabel(exploreCity, lang) : undefined)}
                               className="w-full min-h-[50px] rounded-full bg-gradient-to-r from-[#2563EB] to-[#0EA5E9] text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.985] transition-all cursor-pointer shadow-[0_10px_24px_-8px_rgba(37,99,235,0.52)]"
                             >
                               <PlusIcon className="w-4 h-4" />
-                              <span>{exploreCity ? `規劃「${exploreCity}」旅程` : '開始規劃旅程'}</span>
+                              <span>
+                                {exploreCity
+                                  ? t(
+                                      `規劃「${localizeDestinationLabel(exploreCity, lang)}」旅程`,
+                                      `规划「${localizeDestinationLabel(exploreCity, lang)}」旅程`,
+                                      `Plan ${localizeDestinationLabel(exploreCity, lang)} Trip`
+                                    )
+                                  : t('開始規劃旅程', '开始规划旅程', 'Start Planning')}
+                              </span>
                             </button>
 
                             {archivedTrips.length > 0 && (
                               <div className="pt-4 border-t border-zinc-200/70 dark:border-white/[0.08] space-y-2">
-                                <div className="text-xs font-medium text-zinc-500 dark:text-zinc-400">最近封存</div>
+                                <div className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                                  {t('最近封存', '最近归档', 'Recently Archived')}
+                                </div>
                                 {archivedTrips.slice(0, 2).map((arch) => (
                                   <button
                                     key={arch.id}
@@ -2726,7 +2774,7 @@ function App() {
                                           {arch.name}
                                         </div>
                                         <div className="text-xs font-num text-zinc-500 dark:text-zinc-400 truncate">
-                                          {arch.destination} · {arch.startDate}
+                                          {localizeDestinationLabel(arch.destination, lang)} · {arch.startDate}
                                         </div>
                                       </div>
                                     </div>
@@ -2752,7 +2800,11 @@ function App() {
                           type="text"
                           value={homeSyncCode}
                           onChange={(e) => setHomeSyncCode(e.target.value.toUpperCase())}
-                          placeholder="輸入同步碼加入行程 (SKY-XXXX-XXXX)"
+                          placeholder={t(
+                            '輸入同步碼加入行程 (SKY-XXXX-XXXX)',
+                            '输入同步码加入行程 (SKY-XXXX-XXXX)',
+                            'Enter sync code to join trip (SKY-XXXX-XXXX)'
+                          )}
                           className="flex-1 min-w-0 h-10 bg-transparent font-num text-xs sm:text-sm font-medium text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none"
                         />
                         <button
@@ -2760,7 +2812,7 @@ function App() {
                           disabled={!homeSyncCode.trim() || isHomeJoining}
                           className="h-10 px-4 rounded-xl bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-semibold text-xs disabled:opacity-35 cursor-pointer whitespace-nowrap shrink-0"
                         >
-                          {isHomeJoining ? '連線中' : '加入'}
+                          {isHomeJoining ? t('連線中', '连接中', 'Joining') : t('加入', '加入', 'Join')}
                         </button>
                       </form>
                     )}
@@ -2798,21 +2850,29 @@ function App() {
                     <button
                       type="button"
                       onClick={() => setView('HOME')}
-                      aria-label="返回首頁"
+                      aria-label={t('返回首頁', '返回首页', 'Back to home')}
                       className="surface-elevated w-10 h-10 rounded-full flex items-center justify-center text-zinc-800 dark:text-zinc-200 hover:bg-white dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
                     >
                       <ChevronLeftIcon className="w-5 h-5" />
                     </button>
                     <h2 className="text-2xl font-display font-bold text-zinc-900 dark:text-white">
-                      建立新旅程
+                      {t('建立新旅程', '创建新旅程', 'Create New Trip')}
                     </h2>
                   </div>
 
                   {((tripType === 'Single' && singleSpan) || (tripType === 'Multi' && activeStopSpan)) && (
                     <span className="text-xs font-num font-bold text-[#2563EB] dark:text-sky-400">
                       {tripType === 'Single'
-                        ? `共 ${singleSpan!.days} 天 ${singleSpan!.nights} 夜`
-                        : `第 ${activeStop?.id || 1} 站 · ${activeStopSpan!.days} 天 ${activeStopSpan!.nights} 夜`}
+                        ? t(
+                            `共 ${singleSpan!.days} 天 ${singleSpan!.nights} 夜`,
+                            `共 ${singleSpan!.days} 天 ${singleSpan!.nights} 晚`,
+                            `${singleSpan!.days}D / ${singleSpan!.nights}N`
+                          )
+                        : t(
+                            `第 ${activeStop?.id || 1} 站 · ${activeStopSpan!.days} 天 ${activeStopSpan!.nights} 夜`,
+                            `第 ${activeStop?.id || 1} 站 · ${activeStopSpan!.days} 天 ${activeStopSpan!.nights} 晚`,
+                            `Stop ${activeStop?.id || 1} · ${activeStopSpan!.days}D / ${activeStopSpan!.nights}N`
+                          )}
                     </span>
                   )}
                 </div>
@@ -2839,11 +2899,17 @@ function App() {
                             <span>
                               {createPreviewIntel
                                 ? `${createPreviewIntel.countryLabel} · ${createPreviewIntel.currency} · ${createPreviewIntel.timezoneLabel}`
-                                : `精選靈感 · ${rotatingShowcaseCity}（輸入全球城市自動配對背景）`}
+                                : t(
+                                    `精選靈感 · ${localizeDestinationLabel(rotatingShowcaseCity, lang)}（輸入全球城市自動配對背景）`,
+                                    `精选灵感 · ${localizeDestinationLabel(rotatingShowcaseCity, lang)}（输入全球城市自动匹配背景）`,
+                                    `Featured · ${localizeDestinationLabel(rotatingShowcaseCity, lang)} (Enter any city to match)`
+                                  )}
                             </span>
                           </div>
                           <div className="text-xl sm:text-2xl font-display font-bold truncate mt-0.5">
-                            {createPreviewCity || '下一站目的地'}
+                            {createPreviewCity
+                              ? localizeDestinationLabel(createPreviewCity, lang)
+                              : t('下一站目的地', '下一站目的地', 'Next Destination')}
                           </div>
                         </div>
                       </DestinationCover>
@@ -2857,14 +2923,14 @@ function App() {
                         options={[
                           {
                             id: 'Single',
-                            label: '單一城市',
+                            label: t('單一城市', '单一城市', 'Single City'),
                             icon: <MapIcon className="w-4 h-4" />,
                             accentFrom: '#2563EB',
                             accentTo: '#0EA5E9',
                           },
                           {
                             id: 'Multi',
-                            label: '多城市行程',
+                            label: t('多城市行程', '多城市行程', 'Multi-City'),
                             icon: <GlobeIcon className="w-4 h-4" />,
                             accentFrom: '#4F46E5',
                             accentTo: '#6366F1',
@@ -2874,25 +2940,29 @@ function App() {
 
                       {/* Quick City Suggestions */}
                       <div className="space-y-2">
-                        <div className="text-xs font-medium text-zinc-500 dark:text-zinc-400 px-1">快速選擇城市</div>
+                        <div className="text-xs font-medium text-zinc-500 dark:text-zinc-400 px-1">
+                          {t('快速選擇城市', '快速选择城市', 'Popular Cities')}
+                        </div>
                         <div className="flex lg:flex-wrap gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
                           {QUICK_CITIES.map((city) => {
-                            const isPicked =
+                            const localized = localizeDestinationLabel(city, lang);
+                            const currentVal =
                               tripType === 'Single'
-                                ? singleDestination === city
-                                : stops.find((s) => s.id === activeStopId)?.destination === city;
+                                ? singleDestination
+                                : stops.find((s) => s.id === activeStopId)?.destination || '';
+                            const isPicked = currentVal === city || currentVal === localized;
                             return (
                               <button
                                 key={city}
                                 type="button"
-                                onClick={() => handleQuickCitySelect(city)}
+                                onClick={() => handleQuickCitySelect(lang === 'en' ? localized : city)}
                                 className={`h-8 px-3.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                                   isPicked
                                     ? 'bg-gradient-to-r from-[#2563EB] to-[#0EA5E9] text-white shadow-sm'
                                     : 'surface-elevated text-zinc-700 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-800'
                                 }`}
                               >
-                                {city}
+                                {localized}
                               </button>
                             );
                           })}
@@ -2902,14 +2972,14 @@ function App() {
                       {tripType === 'Single' ? (
                         <div>
                           <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 ml-1 mb-1.5 block">
-                            目的地
+                            {t('目的地', '目的地', 'Destination')}
                           </label>
                           <div className="surface-elevated px-4 h-12 rounded-2xl flex items-center gap-3">
                             <MapIcon className="w-4 h-4 text-[#2563EB] dark:text-sky-400 shrink-0" />
                             <input
                               required
                               type="text"
-                              placeholder="東京、首爾、巴黎..."
+                              placeholder={t('東京、首爾、巴黎...', '东京、首尔、巴黎...', 'Tokyo, Seoul, Paris...')}
                               value={singleDestination}
                               onChange={(e) => setSingleDestination(e.target.value)}
                               className="bg-transparent w-full font-semibold text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none"
@@ -2945,7 +3015,11 @@ function App() {
                                   <input
                                     required
                                     type="text"
-                                    placeholder={`第 ${index + 1} 站城市`}
+                                    placeholder={t(
+                                      `第 ${index + 1} 站城市`,
+                                      `第 ${index + 1} 站城市`,
+                                      `Stop ${index + 1} city`
+                                    )}
                                     value={stop.destination}
                                     onFocus={() => setActiveStopId(stop.id)}
                                     onChange={(e) => handleStopChange(stop.id, 'destination', e.target.value)}
@@ -2953,7 +3027,11 @@ function App() {
                                   />
                                   {span && (
                                     <span className="text-xs font-num font-semibold text-[#4F5DF5] dark:text-indigo-400 shrink-0">
-                                      {span.days}天 / {span.nights}晚
+                                      {t(
+                                        `${span.days}天 / ${span.nights}晚`,
+                                        `${span.days}天 / ${span.nights}晚`,
+                                        `${span.days}D / ${span.nights}N`
+                                      )}
                                     </span>
                                   )}
                                   {stops.length > 1 && (
@@ -2963,7 +3041,7 @@ function App() {
                                         e.stopPropagation();
                                         handleRemoveStop(stop.id);
                                       }}
-                                      aria-label="移除站點"
+                                      aria-label={t('移除站點', '移除站点', 'Remove stop')}
                                       className="w-8 h-8 flex items-center justify-center rounded-full text-zinc-400 hover:text-red-500 transition-colors cursor-pointer"
                                     >
                                       <TrashIcon className="w-4 h-4" />
@@ -2973,15 +3051,19 @@ function App() {
 
                                 <div className="grid grid-cols-2 gap-2 text-xs font-num">
                                   <div className="bg-zinc-100/80 dark:bg-white/[0.04] px-3 py-2 rounded-xl">
-                                    <span className="text-[10px] text-zinc-400 block">抵達</span>
+                                    <span className="text-[10px] text-zinc-400 block">
+                                      {t('抵達', '抵达', 'Arrive')}
+                                    </span>
                                     <span className="font-semibold text-zinc-900 dark:text-white">
-                                      {stop.startDate || '選擇日期'}
+                                      {stop.startDate || t('選擇日期', '选择日期', 'Select date')}
                                     </span>
                                   </div>
                                   <div className="bg-zinc-100/80 dark:bg-white/[0.04] px-3 py-2 rounded-xl">
-                                    <span className="text-[10px] text-zinc-400 block">離開</span>
+                                    <span className="text-[10px] text-zinc-400 block">
+                                      {t('離開', '离开', 'Depart')}
+                                    </span>
                                     <span className="font-semibold text-zinc-900 dark:text-white">
-                                      {stop.endDate || '選擇日期'}
+                                      {stop.endDate || t('選擇日期', '选择日期', 'Select date')}
                                     </span>
                                   </div>
                                 </div>
@@ -2996,7 +3078,7 @@ function App() {
                               className="w-full min-h-[44px] border border-dashed border-zinc-300 dark:border-white/15 rounded-full text-zinc-600 dark:text-zinc-300 font-semibold text-xs hover:border-[#4F5DF5] transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                             >
                               <PlusIcon className="w-4 h-4" />
-                              <span>新增下一站</span>
+                              <span>{t('新增下一站', '添加下一站', 'Add Next Stop')}</span>
                             </button>
                           )}
                         </div>
@@ -3005,14 +3087,20 @@ function App() {
                       {/* Optional Trip Name */}
                       <div>
                         <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 ml-1 mb-1.5 block">
-                          旅程名稱（選填）
+                          {t('旅程名稱（選填）', '旅程名称（选填）', 'Trip Name (Optional)')}
                         </label>
                         <div className="surface-elevated px-4 h-12 rounded-2xl flex items-center gap-3">
                           <TagIcon className="w-4 h-4 text-zinc-400 shrink-0" />
                           <input
                             type="text"
                             placeholder={
-                              singleDestination.trim() ? `預設：${singleDestination.trim()} 旅程` : '自訂名稱...'
+                              singleDestination.trim()
+                                ? t(
+                                    `預設：${localizeDestinationLabel(singleDestination.trim(), lang)} 旅程`,
+                                    `默认：${localizeDestinationLabel(singleDestination.trim(), lang)} 旅程`,
+                                    `Default: ${localizeDestinationLabel(singleDestination.trim(), lang)} Trip`
+                                  )
+                                : t('自訂名稱...', '自定义名称...', 'Custom trip name...')
                             }
                             value={tripName}
                             onChange={(e) => setTripName(e.target.value)}
@@ -3050,22 +3138,28 @@ function App() {
                           {/* Selected Dates Display Summary Pills */}
                           <div className="grid grid-cols-2 gap-3">
                             <div className="surface-pastel-sky px-4 py-2.5 rounded-2xl">
-                              <div className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">出發日期</div>
+                              <div className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+                                {t('出發日期', '出发日期', 'Departure')}
+                              </div>
                               <div className="font-num font-bold text-sm text-zinc-900 dark:text-white mt-0.5">
-                                {singleStartDate || '未選擇'}
+                                {singleStartDate || t('未選擇', '未选择', 'Not selected')}
                               </div>
                             </div>
                             <div className="surface-pastel-sky px-4 py-2.5 rounded-2xl">
-                              <div className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">回程日期</div>
+                              <div className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+                                {t('回程日期', '返程日期', 'Return')}
+                              </div>
                               <div className="font-num font-bold text-sm text-zinc-900 dark:text-white mt-0.5">
-                                {singleEndDate || '未選擇'}
+                                {singleEndDate || t('未選擇', '未选择', 'Not selected')}
                               </div>
                             </div>
                           </div>
 
                           {/* Quick Day-Count Selector */}
                           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-                            <span className="text-xs text-zinc-500 dark:text-zinc-400 shrink-0">天數：</span>
+                            <span className="text-xs text-zinc-500 dark:text-zinc-400 shrink-0">
+                              {t('天數：', '天数：', 'Days:')}
+                            </span>
                             {QUICK_DURATIONS.map((d) => {
                               const active = activeDurationDays === d;
                               return (
@@ -3079,7 +3173,7 @@ function App() {
                                       : 'surface-elevated text-zinc-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-800'
                                   }`}
                                 >
-                                  {d}天
+                                  {t(`${d}天`, `${d}天`, `${d}D`)}
                                 </button>
                               );
                             })}
@@ -3099,7 +3193,11 @@ function App() {
                           {/* Quick Day-Count Selector for Active Stop */}
                           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
                             <span className="text-xs text-zinc-500 dark:text-zinc-400 shrink-0">
-                              第 {activeStop?.id || 1} 站天數：
+                              {t(
+                                `第 ${activeStop?.id || 1} 站天數：`,
+                                `第 ${activeStop?.id || 1} 站天数：`,
+                                `Stop ${activeStop?.id || 1} days:`
+                              )}
                             </span>
                             {QUICK_DURATIONS.map((d) => {
                               const active = activeDurationDays === d;
@@ -3114,7 +3212,7 @@ function App() {
                                       : 'surface-elevated text-zinc-600 dark:text-zinc-300'
                                   }`}
                                 >
-                                  {d}天
+                                  {t(`${d}天`, `${d}天`, `${d}D`)}
                                 </button>
                               );
                             })}
@@ -3135,7 +3233,7 @@ function App() {
                           type="submit"
                           className="w-full min-h-[50px] bg-gradient-to-r from-[#2563EB] to-[#0EA5E9] text-white rounded-full font-semibold text-sm active:scale-[0.985] transition-all flex items-center justify-center gap-2 cursor-pointer shadow-[0_10px_24px_-8px_rgba(37,99,235,0.54)]"
                         >
-                          <span>開始規劃</span>
+                          <span>{t('開始規劃', '开始规划', 'Start Planning')}</span>
                           <ChevronRightIcon className="w-4 h-4" />
                         </button>
                       </div>
@@ -3183,11 +3281,11 @@ function App() {
                       <button
                         type="button"
                         onClick={() => setView('HOME')}
-                        aria-label="返回首頁"
+                        aria-label={t('返回首頁', '返回首页', 'Back to home')}
                         className="relative z-10 surface-elevated h-10 px-3 sm:px-3.5 rounded-full flex items-center gap-1 text-zinc-800 dark:text-zinc-200 hover:bg-white dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
                       >
                         <ChevronLeftIcon className="w-4 h-4" />
-                        <span className="hidden sm:inline text-xs font-semibold">返回</span>
+                        <span className="hidden sm:inline text-xs font-semibold">{t('返回', '返回', 'Back')}</span>
                       </button>
 
                       <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-24 sm:px-32">
@@ -3199,14 +3297,16 @@ function App() {
                       <button
                         type="button"
                         onClick={() => setIsSyncHubOpen(true)}
-                        aria-label="跨裝置同步與線上裝置數量"
+                        aria-label={t('跨裝置同步與線上裝置數量', '跨设备同步与在线设备数量', 'Cross-device sync & online devices')}
                         title={syncBadge.text}
                         className="relative z-10 surface-elevated h-10 px-3 sm:px-3.5 rounded-full flex items-center gap-1.5 text-xs font-semibold text-zinc-800 dark:text-zinc-100 hover:bg-white dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
                       >
                         <span className={`w-2 h-2 rounded-full ${syncBadge.dotClass}`} />
                         <DevicePhoneMobileIcon className="w-4 h-4" />
                         <span className="font-num font-bold">{effectiveDeviceCount}</span>
-                        <span className="hidden sm:inline text-[11px] text-zinc-500 dark:text-zinc-400">裝置</span>
+                        <span className="hidden sm:inline text-[11px] text-zinc-500 dark:text-zinc-400">
+                          {t('裝置', '设备', effectiveDeviceCount === 1 ? 'device' : 'devices')}
+                        </span>
                       </button>
                     </div>
                   </header>
@@ -3246,7 +3346,7 @@ function App() {
                     {activeTab === Tab.SETTINGS && (
                       <div className="h-full overflow-y-auto no-scrollbar px-4 sm:px-6 lg:px-8 pt-2 pb-8 lg:pb-12">
                         <div className="max-w-2xl lg:max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-start">
-                          {/* Left Column on Wide Screens: Cloud Account + Live Sync + Appearance */}
+                          {/* Left Column on Wide Screens: Cloud Account + Live Sync + Appearance & Language */}
                           <div className="lg:col-span-6 space-y-5">
                             {/* Top Hero Pair: Cloud Account & Live Collaboration Pass */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -3278,19 +3378,24 @@ function App() {
                                           : 'bg-zinc-400'
                                       }`}
                                     />
-                                    {cloudAuth.user ? '雲端私人同步' : '未登入'}
+                                    {cloudAuth.user
+                                      ? t('雲端私人同步', '云端私人同步', 'Cloud Sync Active')
+                                      : t('未登入', '未登录', 'Signed Out')}
                                   </span>
                                 </div>
 
                                 <div className="pt-4 flex items-end justify-between gap-2 w-full">
                                   <div className="min-w-0">
                                     <div className="font-display font-bold text-base text-zinc-900 dark:text-white truncate">
-                                      {cloudAuth.user ? cloudAuth.user.displayName || '雲端帳號' : '登入雲端帳號'}
+                                      {cloudAuth.user
+                                        ? cloudAuth.user.displayName || t('雲端帳號', '云端账号', 'Cloud Account')
+                                        : t('登入雲端帳號', '登录云端账号', 'Sign In to Cloud')}
                                     </div>
                                     <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
                                       {cloudAuth.user
-                                        ? cloudAuth.user.email || 'Google · Apple 個人空間'
-                                        : '支援 Apple 與 Google 登入'}
+                                        ? cloudAuth.user.email ||
+                                          t('Google · Apple 個人空間', 'Google · Apple 个人空间', 'Personal Google · Apple Space')
+                                        : t('支援 Apple 與 Google 登入', '支持 Apple 与 Google 登录', 'Supports Apple & Google Sign-In')}
                                     </div>
                                   </div>
                                   <ChevronRightIcon className="w-4 h-4 text-zinc-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
@@ -3308,13 +3413,19 @@ function App() {
                                   </div>
                                   <span className="inline-flex items-center gap-1.5 text-xs font-num font-semibold text-white/90">
                                     <span className={`w-2 h-2 rounded-full ${syncBadge.dotClass}`} />
-                                    {effectiveDeviceCount} 台裝置在線
+                                    {t(
+                                      `${effectiveDeviceCount} 台裝置在線`,
+                                      `${effectiveDeviceCount} 台设备在线`,
+                                      `${effectiveDeviceCount} ${effectiveDeviceCount === 1 ? 'device' : 'devices'} online`
+                                    )}
                                   </span>
                                 </div>
 
                                 <div className="pt-4 flex items-end justify-between gap-2 w-full">
                                   <div className="min-w-0">
-                                    <div className="font-display font-bold text-base text-white">跨裝置即時同步</div>
+                                    <div className="font-display font-bold text-base text-white">
+                                      {t('跨裝置即時同步', '跨设备实时同步', 'Real-Time Device Sync')}
+                                    </div>
                                     <div className="text-xs font-num text-violet-300 font-semibold tracking-wide mt-0.5">
                                       {tripData.syncId}
                                     </div>
@@ -3327,54 +3438,102 @@ function App() {
                             {/* Section 1: 外觀與顯示 */}
                             <section className="space-y-2">
                               <h2 className="px-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-                                外觀與顯示
+                                {t('外觀與顯示', '外观与显示', 'Appearance & Language')}
                               </h2>
-                              <div className="surface-elevated rounded-[24px] p-4 sm:p-5 space-y-3.5">
-                                <div className="flex items-center justify-between gap-3">
-                                  <div className="flex items-center gap-3 min-w-0">
-                                    <div className="w-9 h-9 rounded-xl bg-[var(--tab-accent-soft)] flex items-center justify-center shrink-0">
-                                      {renderThemeIcon()}
-                                    </div>
-                                    <div className="min-w-0">
-                                      <div className="font-display font-bold text-sm text-zinc-900 dark:text-white">
-                                        外觀主題
+                              <div className="surface-elevated rounded-[24px] p-4 sm:p-5 space-y-4">
+                                <div className="space-y-3.5">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-3 min-w-0">
+                                      <div className="w-9 h-9 rounded-xl bg-[var(--tab-accent-soft)] flex items-center justify-center shrink-0">
+                                        {renderThemeIcon()}
                                       </div>
-                                      <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
-                                        切換柔和日光或靜謐夜間模式
+                                      <div className="min-w-0">
+                                        <div className="font-display font-bold text-sm text-zinc-900 dark:text-white">
+                                          {t('外觀主題', '外观主题', 'Appearance Theme')}
+                                        </div>
+                                        <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                                          {t('切換柔和日光或靜謐夜間模式', '切换柔和日光或静谧夜间模式', 'Switch between Light, Dark, or System appearance')}
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
+
+                                  <SlidingSegmentedControl
+                                    variant="rounded"
+                                    fullWidth
+                                    value={themeMode}
+                                    onChange={setThemeMode}
+                                    options={[
+                                      {
+                                        id: 'system',
+                                        label: t('跟隨系統', '跟随系统', 'System'),
+                                        icon: <ComputerDesktopIcon className="w-3.5 h-3.5" />,
+                                        accentFrom: '#4F46E5',
+                                        accentTo: '#6366F1',
+                                      },
+                                      {
+                                        id: 'light',
+                                        label: t('日光模式', '日光模式', 'Light'),
+                                        icon: <SunIcon className="w-3.5 h-3.5" />,
+                                        accentFrom: '#2563EB',
+                                        accentTo: '#0EA5E9',
+                                      },
+                                      {
+                                        id: 'dark',
+                                        label: t('夜間模式', '夜间模式', 'Dark'),
+                                        icon: <MoonIcon className="w-3.5 h-3.5" />,
+                                        accentFrom: '#7C3AED',
+                                        accentTo: '#8B5CF6',
+                                      },
+                                    ]}
+                                  />
                                 </div>
 
-                                <SlidingSegmentedControl
-                                  variant="rounded"
-                                  fullWidth
-                                  value={themeMode}
-                                  onChange={setThemeMode}
-                                  options={[
-                                    {
-                                      id: 'system',
-                                      label: '跟隨系統',
-                                      icon: <ComputerDesktopIcon className="w-3.5 h-3.5" />,
-                                      accentFrom: '#4F46E5',
-                                      accentTo: '#6366F1',
-                                    },
-                                    {
-                                      id: 'light',
-                                      label: '日光模式',
-                                      icon: <SunIcon className="w-3.5 h-3.5" />,
-                                      accentFrom: '#2563EB',
-                                      accentTo: '#0EA5E9',
-                                    },
-                                    {
-                                      id: 'dark',
-                                      label: '夜間模式',
-                                      icon: <MoonIcon className="w-3.5 h-3.5" />,
+                                <div className="pt-4 border-t border-zinc-200/70 dark:border-white/[0.08] space-y-3.5">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-3 min-w-0">
+                                      <div className="w-9 h-9 rounded-xl bg-[var(--tab-accent-soft)] text-[var(--tab-accent)] flex items-center justify-center shrink-0">
+                                        <GlobeIcon className="w-4 h-4" />
+                                      </div>
+                                      <div className="min-w-0">
+                                        <div className="font-display font-bold text-sm text-zinc-900 dark:text-white">
+                                          {t('介面語言', '界面语言', 'App Language')}
+                                        </div>
+                                        <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                                          {t(
+                                            '選擇繁體中文、簡體中文或英文顯示',
+                                            '选择繁体中文、简体中文或英文显示',
+                                            'Choose Traditional Chinese, Simplified Chinese, or English'
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <SlidingSegmentedControl
+                                    variant="rounded"
+                                    fullWidth
+                                    value={lang}
+                                    onChange={(nextLang: AppLanguage) => {
+                                      setLanguage(nextLang);
+                                      showToast(
+                                        tr(
+                                          nextLang,
+                                          '已切換語言：繁體中文',
+                                          '已切换语言：简体中文',
+                                          'Language switched to English'
+                                        ),
+                                        'info'
+                                      );
+                                    }}
+                                    options={LANGUAGE_OPTIONS.map((opt) => ({
+                                      id: opt.id,
+                                      label: opt.label,
                                       accentFrom: '#7C3AED',
                                       accentTo: '#8B5CF6',
-                                    },
-                                  ]}
-                                />
+                                    }))}
+                                  />
+                                </div>
                               </div>
                             </section>
                           </div>
@@ -3384,7 +3543,7 @@ function App() {
                             {/* Section 2: 旅程與資料管理 (Clean Grouped Hairline List) */}
                             <section className="space-y-2">
                               <h2 className="px-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-                                旅程與資料管理
+                                {t('旅程與資料管理', '旅程与数据管理', 'Trip & Data Management')}
                               </h2>
                               <div className="surface-elevated rounded-[24px] overflow-hidden divide-y divide-zinc-200/70 dark:divide-white/[0.07]">
                                 <button
@@ -3398,10 +3557,10 @@ function App() {
                                     </div>
                                     <div className="min-w-0">
                                       <div className="font-semibold text-sm text-zinc-900 dark:text-white">
-                                        修改旅程資訊
+                                        {t('修改旅程資訊', '修改旅程信息', 'Edit Trip Details')}
                                       </div>
                                       <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
-                                        編輯名稱、目的地與起迄日期
+                                        {t('編輯名稱、目的地與起迄日期', '编辑名称、目的地与起止日期', 'Update trip name, destination, and travel dates')}
                                       </div>
                                     </div>
                                   </div>
@@ -3419,10 +3578,10 @@ function App() {
                                     </div>
                                     <div className="min-w-0">
                                       <div className="font-semibold text-sm text-zinc-900 dark:text-white">
-                                        分享旅程與協作
+                                        {t('分享旅程與協作', '分享旅程与协作', 'Share & Collaborate')}
                                       </div>
                                       <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
-                                        複製同步連結邀請旅伴即時編輯
+                                        {t('複製同步連結邀請旅伴即時編輯', '复制同步链接邀请旅伴实时编辑', 'Copy sync link to invite companions to edit live')}
                                       </div>
                                     </div>
                                   </div>
@@ -3443,10 +3602,10 @@ function App() {
                                     </div>
                                     <div className="min-w-0">
                                       <div className="font-semibold text-sm text-zinc-900 dark:text-white">
-                                        匯出與備份
+                                        {t('匯出與備份', '导出与备份', 'Export & Backup')}
                                       </div>
                                       <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
-                                        下載 .TXT 行程文字檔或 .JSON 完整備份
+                                        {t('下載 .TXT 行程文字檔或 .JSON 完整備份', '下载 .TXT 行程文本或 .JSON 完整备份', 'Download .TXT itinerary summary or full .JSON backup')}
                                       </div>
                                     </div>
                                   </div>
@@ -3464,10 +3623,10 @@ function App() {
                                     </div>
                                     <div className="min-w-0">
                                       <div className="font-semibold text-sm text-zinc-900 dark:text-white">
-                                        版本紀錄
+                                        {t('版本紀錄', '版本记录', 'Release Notes')}
                                       </div>
                                       <div className="text-xs font-num text-[var(--tab-accent)] font-semibold truncate">
-                                        目前版本 {APP_VERSION}
+                                        {t(`目前版本 ${APP_VERSION}`, `当前版本 ${APP_VERSION}`, `Version ${APP_VERSION}`)}
                                       </div>
                                     </div>
                                   </div>
@@ -3479,7 +3638,7 @@ function App() {
                             {/* Section 3: 封存與移除 */}
                             <section className="space-y-2">
                               <h2 className="px-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-                                進階操作
+                                {t('進階操作', '高级操作', 'Advanced Actions')}
                               </h2>
                               <div className="surface-elevated rounded-[24px] overflow-hidden divide-y divide-zinc-200/70 dark:divide-white/[0.07]">
                                 <button
@@ -3493,10 +3652,10 @@ function App() {
                                     </div>
                                     <div className="min-w-0">
                                       <div className="font-semibold text-sm text-zinc-900 dark:text-white">
-                                        封存旅程
+                                        {t('封存旅程', '归档旅程', 'Archive Trip')}
                                       </div>
                                       <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
-                                        移至首頁歷史封存清單，可隨時還原
+                                        {t('移至首頁歷史封存清單，可隨時還原', '移至首页历史归档列表，可随时恢复', 'Move to archived list on home; restore anytime')}
                                       </div>
                                     </div>
                                   </div>
@@ -3514,10 +3673,10 @@ function App() {
                                     </div>
                                     <div className="min-w-0">
                                       <div className="font-semibold text-sm text-red-600 dark:text-red-400">
-                                        移除本機旅程
+                                        {t('移除本機旅程', '移除本地旅程', 'Remove Local Trip')}
                                       </div>
                                       <div className="text-xs text-red-500/75 truncate">
-                                        離開工作區並清除本機列表紀錄
+                                        {t('離開工作區並清除本機列表紀錄', '离开工作区并清除本地列表记录', 'Exit workspace and clear this local trip entry')}
                                       </div>
                                     </div>
                                   </div>
@@ -3593,13 +3752,26 @@ function App() {
           open={isDeleteConfirmOpen}
           onClose={() => setIsDeleteConfirmOpen(false)}
           onConfirm={handleDeleteTrip}
-          title={cloudAuth.user ? '移除此旅程？' : '移除此本機旅程？'}
+          title={
+            cloudAuth.user
+              ? t('移除此旅程？', '移除此旅程？', 'Remove This Trip?')
+              : t('移除此本機旅程？', '移除此本地旅程？', 'Remove Local Trip?')
+          }
           description={
             cloudAuth.user
-              ? '這趟旅程將會從您的本機與私人雲端帳號中移除（若先前分享過同步代碼，房間紀錄仍會保留）。'
-              : '本機列表將移除這趟旅程（若其他裝置保有同步代碼，雲端房間仍會保留）。'
+              ? t(
+                  '這趟旅程將會從您的本機與私人雲端帳號中移除（若先前分享過同步代碼，房間紀錄仍會保留）。',
+                  '这趟旅程将会从您的本地与私人云端账号中移除（若先前分享过同步代码，房间记录仍会保留）。',
+                  'This trip will be removed from this device and your cloud account (shared sync rooms remain available).'
+                )
+              : t(
+                  '本機列表將移除這趟旅程（若其他裝置保有同步代碼，雲端房間仍會保留）。',
+                  '本地列表将移除这趟旅程（若其他设备保有同步代码，云端房间仍会保留）。',
+                  'This trip will be removed from this device (shared sync rooms remain intact).'
+                )
           }
-          confirmLabel="確認移除"
+          confirmLabel={t('確認移除', '确认移除', 'Remove')}
+          cancelLabel={t('取消', '取消', 'Cancel')}
           tone="danger"
           icon={<TrashIcon className="w-6 h-6" />}
         />
@@ -3608,9 +3780,14 @@ function App() {
           open={isArchiveConfirmOpen}
           onClose={() => setIsArchiveConfirmOpen(false)}
           onConfirm={handleArchiveTrip}
-          title="封存目前旅程？"
-          description="旅程將會移至首頁的封存清單，可隨時還原。"
-          confirmLabel="確認封存"
+          title={t('封存目前旅程？', '归档当前旅程？', 'Archive This Trip?')}
+          description={t(
+            '旅程將會移至首頁的封存清單，可隨時還原。',
+            '旅程将会移至首页的归档列表，可随时恢复。',
+            'The trip will be moved to your archived list on home and can be restored anytime.'
+          )}
+          confirmLabel={t('確認封存', '确认归档', 'Archive')}
+          cancelLabel={t('取消', '取消', 'Cancel')}
           tone="primary"
           icon={<ArchiveBoxArrowDownIcon className="w-6 h-6" />}
         />
@@ -3619,13 +3796,13 @@ function App() {
         <LiquidModal
           open={isEditTripOpen}
           onClose={() => setIsEditTripOpen(false)}
-          title="修改旅程"
+          title={t('修改旅程', '修改旅程', 'Edit Trip')}
           maxWidthClass="max-w-md"
         >
           <div className="overflow-y-auto no-scrollbar space-y-4 pr-0.5 max-h-[70vh]">
             <div>
               <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1.5 block">
-                旅程名稱
+                {t('旅程名稱', '旅程名称', 'Trip Name')}
               </label>
               <input
                 type="text"
@@ -3639,7 +3816,7 @@ function App() {
               <>
                 <div>
                   <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1.5 block">
-                    目的地
+                    {t('目的地', '目的地', 'Destination')}
                   </label>
                   <input
                     type="text"
@@ -3650,11 +3827,15 @@ function App() {
                 </div>
                 <div className="grid grid-cols-2 gap-3 text-xs font-num">
                   <div className="bg-zinc-100 dark:bg-white/[0.05] px-3.5 py-2.5 rounded-2xl">
-                    <span className="text-[10px] text-zinc-500 block">出發日期</span>
+                    <span className="text-[10px] text-zinc-500 block">
+                      {t('出發日期', '出发日期', 'Start Date')}
+                    </span>
                     <span className="font-bold text-zinc-900 dark:text-white">{editTripData.startDate}</span>
                   </div>
                   <div className="bg-zinc-100 dark:bg-white/[0.05] px-3.5 py-2.5 rounded-2xl">
-                    <span className="text-[10px] text-zinc-500 block">結束日期</span>
+                    <span className="text-[10px] text-zinc-500 block">
+                      {t('結束日期', '结束日期', 'End Date')}
+                    </span>
                     <span className="font-bold text-zinc-900 dark:text-white">{editTripData.endDate}</span>
                   </div>
                 </div>
@@ -3673,7 +3854,7 @@ function App() {
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] font-semibold text-[#2563EB] dark:text-sky-400 font-num">
-                        第 {idx + 1} 站
+                        {t(`第 ${idx + 1} 站`, `第 ${idx + 1} 站`, `Stop ${idx + 1}`)}
                       </span>
                       {editStops.length > 1 && (
                         <button
@@ -3681,7 +3862,7 @@ function App() {
                           onClick={() => handleRemoveEditStop(stop.id)}
                           className="text-xs text-zinc-400 hover:text-red-500 cursor-pointer"
                         >
-                          移除
+                          {t('移除', '移除', 'Remove')}
                         </button>
                       )}
                     </div>
@@ -3689,7 +3870,7 @@ function App() {
                       type="text"
                       value={stop.destination}
                       onChange={(e) => handleEditStopChange(stop.id, 'destination', e.target.value)}
-                      placeholder="城市名稱"
+                      placeholder={t('城市名稱', '城市名称', 'City name')}
                       className="w-full min-h-[40px] px-3 rounded-xl bg-white dark:bg-zinc-900/70 font-semibold text-sm text-zinc-900 dark:text-white focus:outline-none"
                     />
                     <div className="grid grid-cols-2 gap-2">
@@ -3714,7 +3895,7 @@ function App() {
                     onClick={handleAddEditStop}
                     className="w-full min-h-[42px] border border-dashed border-zinc-300 dark:border-white/15 rounded-full text-zinc-500 dark:text-zinc-400 font-semibold text-xs hover:border-[#2563EB] transition-colors cursor-pointer"
                   >
-                    + 增加站點
+                    {t('+ 增加站點', '+ 添加站点', '+ Add Stop')}
                   </button>
                 )}
               </div>
@@ -3725,7 +3906,7 @@ function App() {
               onClick={handleConfirmEdit}
               className="w-full min-h-[46px] bg-[var(--tab-accent)] hover:bg-[var(--tab-accent-hover)] text-white rounded-full font-semibold text-sm cursor-pointer mt-2 transition-colors"
             >
-              儲存變更
+              {t('儲存變更', '保存变更', 'Save Changes')}
             </button>
           </div>
         </LiquidModal>
@@ -3734,11 +3915,11 @@ function App() {
         <LiquidModal
           open={isChangelogOpen}
           onClose={() => setIsChangelogOpen(false)}
-          title="版本紀錄"
+          title={t('版本紀錄', '版本记录', 'Release Notes')}
           maxWidthClass="max-w-md"
         >
           <div className="overflow-y-auto no-scrollbar space-y-5 pr-1 max-h-[68vh]">
-            {CHANGELOG_DATA.map((log, i) => (
+            {getChangelogItems(lang).map((log, i) => (
               <div key={log.version} className="relative pl-4 border-l-2 border-zinc-200 dark:border-white/10">
                 <div
                   className={`absolute -left-[5px] top-1 w-2.5 h-2.5 rounded-full ${
@@ -3750,7 +3931,7 @@ function App() {
                   <span className="text-zinc-400 text-xs font-num font-normal">{log.date}</span>
                 </h4>
                 <ul className="space-y-1 mt-1.5">
-                  {log.items.map((item, j) => (
+                  {log.notes.map((item, j) => (
                     <li key={j} className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
                       • {item}
                     </li>
@@ -3765,7 +3946,7 @@ function App() {
         <LiquidModal
           open={isExportModalOpen}
           onClose={() => setIsExportModalOpen(false)}
-          title="匯出與備份"
+          title={t('匯出與備份', '导出与备份', 'Export & Backup')}
           maxWidthClass="max-w-lg"
         >
           <div className="flex flex-col gap-4 overflow-hidden">
@@ -3784,21 +3965,21 @@ function App() {
                     : 'bg-zinc-100 dark:bg-white/10 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200/80'
                 }`}
               >
-                {copySuccess ? '已複製' : '複製文字'}
+                {copySuccess ? t('已複製', '已复制', 'Copied') : t('複製文字', '复制文本', 'Copy Text')}
               </button>
               <button
                 type="button"
                 onClick={handleDownloadTxt}
                 className="min-h-[44px] px-3 rounded-full font-semibold text-xs bg-zinc-100 dark:bg-white/15 text-zinc-900 dark:text-white cursor-pointer"
               >
-                下載 .TXT
+                {t('下載 .TXT', '下载 .TXT', 'Download .TXT')}
               </button>
               <button
                 type="button"
                 onClick={handleDownloadJsonBackup}
                 className="min-h-[44px] px-3 rounded-full font-semibold text-xs bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 cursor-pointer"
               >
-                備份 .JSON
+                {t('備份 .JSON', '备份 .JSON', 'Backup .JSON')}
               </button>
             </div>
           </div>

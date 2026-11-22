@@ -6,6 +6,7 @@ import { detectDestinationIntel, getDestinationLocalTime } from '../shared/desti
 import { WeatherModal, WeatherGlyph, useLiveWeather } from './WeatherModal';
 import { LiquidModal, ConfirmSheet, SlidingSegmentedControl } from './LiquidPrimitives';
 import { uploadCloudFile, downloadCloudFileUrl, deleteCloudFile } from '../services/firebaseClient';
+import { useI18n } from '../hooks/useI18n';
 import {
   PlusIcon,
   TrashIcon,
@@ -37,32 +38,27 @@ interface Props {
 
 const MAX_DOC_BYTES = 20 * 1024 * 1024;
 
-const DOC_CATEGORY_META: Record<
+const DOC_CATEGORY_STYLES: Record<
   DocumentCategory,
-  { label: string; badgeClass: string; icon: React.ComponentType<{ className?: string }> }
+  { badgeClass: string; icon: React.ComponentType<{ className?: string }> }
 > = {
   flight: {
-    label: '航班資訊',
     badgeClass: 'bg-sky-500/12 text-sky-700 dark:text-sky-300',
     icon: PlaneIcon,
   },
   hotel: {
-    label: '酒店住宿',
     badgeClass: 'bg-indigo-500/12 text-indigo-700 dark:text-indigo-300',
     icon: HomeIcon,
   },
   ticket: {
-    label: '訂購門票',
     badgeClass: 'bg-amber-500/14 text-amber-700 dark:text-amber-300',
     icon: TicketIcon,
   },
   insurance: {
-    label: '保險簽證',
     badgeClass: 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-300',
     icon: ShieldCheckIcon,
   },
   other: {
-    label: '其他文件',
     badgeClass: 'bg-zinc-500/12 text-zinc-700 dark:text-zinc-300',
     icon: DocumentTextIcon,
   },
@@ -90,6 +86,7 @@ interface PackingRowProps {
 }
 
 const PackingRow: React.FC<PackingRowProps> = ({ item, onToggle, onCommitName, onDelete }) => {
+  const { t } = useI18n();
   const [draft, setDraft] = useState(item.name);
 
   useEffect(() => {
@@ -121,7 +118,11 @@ const PackingRow: React.FC<PackingRowProps> = ({ item, onToggle, onCommitName, o
       <button
         type="button"
         onClick={() => onToggle(item.id)}
-        aria-label={item.checked ? '標記為未完成' : '標記為已完成'}
+        aria-label={
+          item.checked
+            ? t('標記為未完成', '标记为未完成', 'Mark as incomplete')
+            : t('標記為已完成', '标记为已完成', 'Mark as complete')
+        }
         className={`w-6 h-6 rounded-full border-[1.75px] flex items-center justify-center shrink-0 transition-all cursor-pointer ${
           item.checked
             ? 'bg-[var(--tab-accent)] border-[var(--tab-accent)] text-white'
@@ -149,7 +150,7 @@ const PackingRow: React.FC<PackingRowProps> = ({ item, onToggle, onCommitName, o
       <button
         type="button"
         onClick={() => onDelete(item.id)}
-        aria-label="刪除項目"
+        aria-label={t('刪除項目', '删除项目', 'Delete item')}
         className="min-w-[34px] min-h-[34px] rounded-xl flex items-center justify-center text-zinc-400 hover:text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer shrink-0"
       >
         <TrashIcon className="w-4 h-4" />
@@ -159,10 +160,27 @@ const PackingRow: React.FC<PackingRowProps> = ({ item, onToggle, onCommitName, o
 };
 
 const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onShowToast }) => {
+  const { lang, localeTag, t } = useI18n();
   const [section, setSection] = useState<'LISTS' | 'TOOLS' | 'DOCS'>('LISTS');
   const [listMode, setListMode] = useState<'PACKING' | 'SHOPPING'>('PACKING');
   const [newItemText, setNewItemText] = useState('');
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+
+  const docCategoryMeta = useMemo<
+    Record<
+      DocumentCategory,
+      { label: string; badgeClass: string; icon: React.ComponentType<{ className?: string }> }
+    >
+  >(
+    () => ({
+      flight: { ...DOC_CATEGORY_STYLES.flight, label: t('航班資訊', '航班信息', 'Flight') },
+      hotel: { ...DOC_CATEGORY_STYLES.hotel, label: t('酒店住宿', '酒店住宿', 'Hotel') },
+      ticket: { ...DOC_CATEGORY_STYLES.ticket, label: t('訂購門票', '预订门票', 'Tickets') },
+      insurance: { ...DOC_CATEGORY_STYLES.insurance, label: t('保險簽證', '保险签证', 'Visa / Ins.') },
+      other: { ...DOC_CATEGORY_STYLES.other, label: t('其他文件', '其他文件', 'Other') },
+    }),
+    [t]
+  );
 
   // Toolbox & Document Metadata states
   const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
@@ -221,7 +239,9 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
           if (previewDoc.content.startsWith('cloud://')) {
             if (!cancelled) {
               setPreviewLoading(false);
-              setPreviewError(err instanceof Error ? err.message : '無法讀取雲端檔案');
+              setPreviewError(
+                err instanceof Error ? err.message : t('無法讀取雲端檔案', '无法读取云端文件', 'Unable to load cloud file')
+              );
             }
             return;
           }
@@ -232,7 +252,13 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
         if (!cancelled) {
           setResolvedPreviewUrl(null);
           setPreviewLoading(false);
-          setPreviewError('請先登入與原裝置相同的雲端帳號以檢視此檔案');
+          setPreviewError(
+            t(
+              '請先登入與原裝置相同的雲端帳號以檢視此檔案',
+              '请先登录与原设备相同的云端账号以查看此文件',
+              'Please sign in with the same cloud account to view this file'
+            )
+          );
         }
         return;
       }
@@ -279,9 +305,12 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
     return [trip.destination];
   }, [trip.type, trip.stops, trip.destination]);
 
-  const intel = useMemo(() => detectDestinationIntel(primaryCity), [primaryCity]);
+  const intel = useMemo(() => detectDestinationIntel(primaryCity, lang), [primaryCity, lang]);
   const liveWeather = useLiveWeather(primaryCity);
-  const localClock = getDestinationLocalTime(liveWeather.data?.utcOffsetHours ?? intel.utcOffsetHours);
+  const localClock = getDestinationLocalTime(
+    liveWeather.data?.utcOffsetHours ?? intel.utcOffsetHours,
+    lang
+  );
 
   const searchCity = encodeURIComponent(primaryCity);
   const encodedDest = encodeURIComponent(trip.destination);
@@ -363,7 +392,13 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
     });
     if (removedIds.length === 0) return;
     commitList(remaining, removedIds);
-    onShowToast(`已清除 ${removedIds.length} 個已完成項目`);
+    onShowToast(
+      t(
+        `已清除 ${removedIds.length} 個已完成項目`,
+        `已清除 ${removedIds.length} 个已完成项目`,
+        `Cleared ${removedIds.length} completed item(s)`
+      )
+    );
   };
 
   const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -371,7 +406,10 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
     if (!file) return;
 
     if (file.size > MAX_DOC_BYTES) {
-      onShowToast('單一檔案上限為 20MB', 'error');
+      onShowToast(
+        t('單一檔案上限為 20MB', '单个文件上限为 20MB', 'Max file size is 20MB'),
+        'error'
+      );
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
@@ -420,6 +458,7 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
           headers: {
             'Content-Type': pendingFile.type || 'application/octet-stream',
             'X-File-Name': encodeURIComponent(pendingFile.name),
+            'X-App-Lang': lang,
           },
           body: pendingFile,
         });
@@ -438,11 +477,17 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
           serverUrl = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => resolve(String(reader.result || ''));
-            reader.onerror = () => reject(new Error('讀取檔案失敗'));
+            reader.onerror = () => reject(new Error(t('讀取檔案失敗', '读取文件失败', 'Failed to read file')));
             reader.readAsDataURL(pendingFile);
           });
         } else {
-          throw new Error('請先登入雲端帳號，即可跨裝置同步 20MB 大型文件');
+          throw new Error(
+            t(
+              '請先登入雲端帳號，即可跨裝置同步 20MB 大型文件',
+              '请先登录云端账号，即可跨设备同步 20MB 大型文件',
+              'Sign in to sync large files up to 20MB across devices'
+            )
+          );
         }
       }
 
@@ -458,7 +503,7 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
         mimeType: pendingFile.type || serverMime,
         content: serverUrl || `cloud://file/${cloudFileId}`,
         cloudFileId,
-        createdAt: new Date().toLocaleDateString('zh-TW'),
+        createdAt: new Date().toLocaleDateString(localeTag),
         updatedAt: now,
       };
 
@@ -471,9 +516,17 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
       setPendingFile(null);
       setDocTitleDraft('');
       setDocNoteDraft('');
-      onShowToast(cloudFileId ? '已儲存並同步文件至所有裝置' : '已儲存文件', 'success');
+      onShowToast(
+        cloudFileId
+          ? t('已儲存並同步文件至所有裝置', '已保存并同步文件至所有设备', 'File saved & synced across devices')
+          : t('已儲存文件', '已保存文件', 'File saved'),
+        'success'
+      );
     } catch (err) {
-      onShowToast(err instanceof Error ? err.message : '檔案上傳失敗', 'error');
+      onShowToast(
+        err instanceof Error ? err.message : t('檔案上傳失敗', '文件上传失败', 'File upload failed'),
+        'error'
+      );
     } finally {
       setIsUploadingDoc(false);
     }
@@ -496,7 +549,7 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
       updatedAt: now,
     });
     setPreviewDoc(updatedDoc);
-    onShowToast('已更新文件資訊', 'success');
+    onShowToast(t('已更新文件資訊', '已更新文件信息', 'Document details updated'), 'success');
   };
 
   const handleConfirmDeleteDoc = () => {
@@ -521,7 +574,7 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
       void deleteCloudFile(cloudUserId, cloudId).catch(() => undefined);
     }
     if (previewDoc?.id === deleteDocTarget.id) setPreviewDoc(null);
-    onShowToast('已移除文件');
+    onShowToast(t('已移除文件', '已移除文件', 'Document removed'));
     setDeleteDocTarget(null);
   };
 
@@ -553,7 +606,7 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
           ) : (
             <>
               <SunIcon className="w-4 h-4 text-amber-300" />
-              <span>即時天氣</span>
+              <span>{t('即時天氣', '实时天气', 'Live Weather')}</span>
             </>
           )}
         </button>
@@ -563,19 +616,19 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
         <div>
           <div className="text-zinc-400 flex items-center gap-1 mb-0.5">
             <ClockIcon className="w-3.5 h-3.5" />
-            <span>當地時間</span>
+            <span>{t('當地時間', '当地时间', 'Local Time')}</span>
           </div>
           <div className="font-num font-semibold text-base text-white">{localClock.timeStr}</div>
         </div>
         <div>
           <div className="text-zinc-400 flex items-center gap-1 mb-0.5">
             <BoltIcon className="w-3.5 h-3.5 text-emerald-400" />
-            <span>插座電壓</span>
+            <span>{t('插座電壓', '插座电压', 'Power Plug')}</span>
           </div>
           <div className="font-semibold text-xs sm:text-sm text-white truncate">{intel.voltagePlug}</div>
         </div>
         <div>
-          <div className="text-zinc-400 mb-0.5">緊急聯絡</div>
+          <div className="text-zinc-400 mb-0.5">{t('緊急聯絡', '紧急联系', 'Emergency')}</div>
           <a
             href={`tel:${primaryPhone}`}
             className="font-num font-semibold text-xs sm:text-sm text-emerald-300 hover:underline block truncate"
@@ -602,9 +655,9 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
               value={section}
               onChange={(val) => setSection(val)}
               options={[
-                { id: 'LISTS', label: '旅行清單', badge: items.length, accentFrom: '#0E9F76', accentTo: '#14B8A6' },
-                { id: 'TOOLS', label: '工具', accentFrom: '#0284C7', accentTo: '#0E9F76' },
-                { id: 'DOCS', label: '文件', badge: documents.length, accentFrom: '#059669', accentTo: '#2DD4BF' },
+                { id: 'LISTS', label: t('旅行清單', '旅行清单', 'Checklists'), badge: items.length, accentFrom: '#0E9F76', accentTo: '#14B8A6' },
+                { id: 'TOOLS', label: t('工具', '工具', 'Tools'), accentFrom: '#0284C7', accentTo: '#0E9F76' },
+                { id: 'DOCS', label: t('文件', '文件', 'Docs'), badge: documents.length, accentFrom: '#059669', accentTo: '#2DD4BF' },
               ]}
             />
           </div>
@@ -622,7 +675,7 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
                     options={[
                       {
                         id: 'PACKING',
-                        label: '行李',
+                        label: t('行李', '行李', 'Packing'),
                         icon: <SuitcaseIcon className="w-3.5 h-3.5" />,
                         badge: packingTabCount,
                         accentFrom: '#0E9F76',
@@ -630,7 +683,7 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
                       },
                       {
                         id: 'SHOPPING',
-                        label: '購物',
+                        label: t('購物', '购物', 'Shopping'),
                         icon: <ShoppingBagIcon className="w-3.5 h-3.5" />,
                         badge: shoppingTabCount,
                         accentFrom: '#0891B2',
@@ -645,7 +698,7 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
                       onClick={() => setConfirmClearOpen(true)}
                       className="min-h-[38px] px-3.5 rounded-full surface-elevated text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:text-red-500 transition-colors cursor-pointer"
                     >
-                      清除已完成 ({completedCount})
+                      {t('清除已完成', '清除已完成', 'Clear Done')} ({completedCount})
                     </button>
                   )}
                 </div>
@@ -669,17 +722,21 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
                     type="text"
                     value={newItemText}
                     onChange={(e) => setNewItemText(e.target.value)}
-                    placeholder={listMode === 'PACKING' ? '新增行李物品...' : '新增購物項目...'}
+                    placeholder={
+                      listMode === 'PACKING'
+                        ? t('新增行李物品...', '添加行李物品...', 'Add packing item...')
+                        : t('新增購物項目...', '添加购物项目...', 'Add shopping item...')
+                    }
                     className="flex-1 min-h-[46px] px-4 rounded-2xl surface-elevated text-sm font-medium text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[var(--tab-accent)]/30"
                   />
                   <button
                     type="submit"
                     disabled={!newItemText.trim()}
-                    aria-label="新增項目"
+                    aria-label={t('新增項目', '添加项目', 'Add item')}
                     className="min-w-[46px] min-h-[46px] px-4 rounded-2xl bg-[var(--tab-accent)] hover:bg-[var(--tab-accent-hover)] text-white font-semibold text-sm flex items-center justify-center gap-1.5 disabled:opacity-35 active:scale-95 transition-all cursor-pointer shrink-0 shadow-sm"
                   >
                     <PlusIcon className="w-4 h-4" />
-                    <span className="hidden sm:inline">新增</span>
+                    <span className="hidden sm:inline">{t('新增', '添加', 'Add')}</span>
                   </button>
                 </form>
 
@@ -693,10 +750,12 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
                       )}
                     </div>
                     <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-                      {listMode === 'PACKING' ? '尚未新增項目' : '尚未建立購物項目'}
+                      {listMode === 'PACKING'
+                        ? t('尚未新增項目', '尚未添加项目', 'No packing items yet')
+                        : t('尚未建立購物項目', '尚未创建购物项目', 'No shopping items yet')}
                     </p>
                     <p className="text-xs text-zinc-400 dark:text-zinc-500">
-                      請於上方輸入框自由新增清單項目
+                      {t('請於上方輸入框自由新增清單項目', '请在上方输入框自由添加清单项目', 'Use the field above to add items anytime')}
                     </p>
                   </div>
                 ) : (
@@ -722,7 +781,9 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
 
                 <div className="surface-elevated rounded-3xl p-5 space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">清單完成概覽</span>
+                    <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                      {t('清單完成概覽', '清单完成概览', 'Checklist Progress')}
+                    </span>
                     <span className="text-xs font-num font-bold text-[var(--tab-accent)]">
                       {progressPercent}%
                     </span>
@@ -737,7 +798,9 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
                           : 'bg-zinc-100/70 dark:bg-white/[0.04] border-transparent'
                       }`}
                     >
-                      <div className="text-zinc-500 dark:text-zinc-400">行李準備</div>
+                      <div className="text-zinc-500 dark:text-zinc-400">
+                        {t('行李準備', '行李准备', 'Packing')}
+                      </div>
                       <div className="font-num font-bold text-lg text-zinc-900 dark:text-white mt-0.5">
                         {items.filter((i) => (!i.category || i.category === 'packing') && i.checked).length} / {packingTabCount}
                       </div>
@@ -751,7 +814,9 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
                           : 'bg-zinc-100/70 dark:bg-white/[0.04] border-transparent'
                       }`}
                     >
-                      <div className="text-zinc-500 dark:text-zinc-400">購物願望</div>
+                      <div className="text-zinc-500 dark:text-zinc-400">
+                        {t('購物願望', '购物清单', 'Shopping')}
+                      </div>
                       <div className="font-num font-bold text-lg text-zinc-900 dark:text-white mt-0.5">
                         {items.filter((i) => i.category === 'shopping' && i.checked).length} / {shoppingTabCount}
                       </div>
@@ -783,14 +848,24 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
                     <ArrowUpRightIcon className="w-4 h-4 text-zinc-400 hidden sm:block" />
                   </div>
                   <div className="flex-1 sm:flex-none">
-                    <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100">Google 地圖</div>
-                    <div className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">探索 {intel.displayCity} 周邊</div>
+                    <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                      {t('Google 地圖', 'Google 地图', 'Google Maps')}
+                    </div>
+                    <div className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                      {t(`探索 ${intel.displayCity} 周邊`, `探索 ${intel.displayCity} 周边`, `Explore ${intel.displayCity}`)}
+                    </div>
                   </div>
                   <ArrowUpRightIcon className="w-4 h-4 text-zinc-400 sm:hidden shrink-0" />
                 </a>
 
                 <a
-                  href={`https://news.google.com/search?q=${searchCity}&hl=zh-TW&gl=TW&ceid=TW:zh-Hant`}
+                  href={`https://news.google.com/search?q=${searchCity}&${
+                    lang === 'en'
+                      ? 'hl=en-US&gl=US&ceid=US:en'
+                      : lang === 'zh-CN'
+                        ? 'hl=zh-CN&gl=CN&ceid=CN:zh-Hans'
+                        : 'hl=zh-TW&gl=TW&ceid=TW:zh-Hant'
+                  }`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="surface-pastel-rose rounded-3xl p-4 sm:p-5 flex sm:flex-col items-center sm:items-stretch justify-between gap-3 hover:brightness-[0.98] transition-all"
@@ -802,8 +877,12 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
                     <ArrowUpRightIcon className="w-4 h-4 text-zinc-400 hidden sm:block" />
                   </div>
                   <div className="flex-1 sm:flex-none">
-                    <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100">當地資訊</div>
-                    <div className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">即時新聞與交通動態</div>
+                    <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                      {t('當地資訊', '当地资讯', 'Local News')}
+                    </div>
+                    <div className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                      {t('即時新聞與交通動態', '实时新闻与交通动态', 'News & transit updates')}
+                    </div>
                   </div>
                   <ArrowUpRightIcon className="w-4 h-4 text-zinc-400 sm:hidden shrink-0" />
                 </a>
@@ -820,8 +899,12 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
                     <ArrowUpRightIcon className="w-4 h-4 text-zinc-400 hidden sm:block" />
                   </div>
                   <div className="flex-1 sm:flex-none">
-                    <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100">7 日天氣預報</div>
-                    <div className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">檢視逐日氣溫與降雨</div>
+                    <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                      {t('7 日天氣預報', '7 日天气预报', '7-Day Forecast')}
+                    </div>
+                    <div className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                      {t('檢視逐日氣溫與降雨', '查看逐日气温与降雨', 'Daily temps & rain')}
+                    </div>
                   </div>
                   <ArrowUpRightIcon className="w-4 h-4 text-zinc-400 sm:hidden shrink-0" />
                 </button>
@@ -837,7 +920,7 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
                   <div className="flex items-center gap-2">
                     <PaperClipIcon className="w-4 h-4 text-[var(--tab-accent)]" />
                     <h3 className="font-display font-bold text-base text-zinc-900 dark:text-zinc-100">
-                      行程文件 ({documents.length})
+                      {t('行程文件', '行程文件', 'Documents')} ({documents.length})
                     </h3>
                   </div>
                   <div>
@@ -854,7 +937,7 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
                       className="min-h-[38px] px-3.5 rounded-full bg-[var(--tab-accent)] hover:bg-[var(--tab-accent-hover)] text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                     >
                       <PlusIcon className="w-3.5 h-3.5" />
-                      <span>上傳</span>
+                      <span>{t('上傳', '上传', 'Upload')}</span>
                     </button>
                   </div>
                 </div>
@@ -867,7 +950,11 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
                   >
                     <DocumentTextIcon className="w-7 h-7 text-zinc-400" />
                     <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                      上傳航班、酒店、門票或保險文件（單檔上限 20MB）
+                      {t(
+                        '上傳航班、酒店、門票或保險文件（單檔上限 20MB）',
+                        '上传航班、酒店、门票或保险文件（单文件上限 20MB）',
+                        'Upload flight, hotel, ticket, or insurance files (max 20MB)'
+                      )}
                     </span>
                   </button>
                 ) : (
@@ -875,7 +962,7 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
                     <AnimatePresence initial={false}>
                       {documents.map((doc) => {
                         const isImg = isDocImage(doc);
-                        const cat = DOC_CATEGORY_META[doc.docCategory || 'other'];
+                        const cat = docCategoryMeta[doc.docCategory || 'other'];
                         const CatIcon = cat.icon;
                         const sizeLabel = formatFileSize(doc.fileSize);
                         return (
@@ -915,7 +1002,7 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
                                 e.stopPropagation();
                                 setDeleteDocTarget(doc);
                               }}
-                              aria-label="刪除文件"
+                              aria-label={t('刪除文件', '删除文件', 'Delete document')}
                               className="min-w-[36px] min-h-[36px] rounded-xl flex items-center justify-center text-zinc-400 hover:text-red-500 cursor-pointer shrink-0"
                             >
                               <TrashIcon className="w-4 h-4" />
@@ -942,7 +1029,7 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
         onClose={() => !isUploadingDoc && setPendingFile(null)}
         bottomSheetOnMobile
         maxWidthClass="max-w-md"
-        title="填寫文件資訊"
+        title={t('填寫文件資訊', '填写文件信息', 'Document Details')}
       >
         {pendingFile && (
           <form onSubmit={handleConfirmUploadDoc} className="space-y-4">
@@ -968,25 +1055,25 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
 
             <div>
               <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1.5 block">
-                文件名稱
+                {t('文件名稱', '文件名称', 'Document Name')}
               </label>
               <input
                 type="text"
                 required
                 value={docTitleDraft}
                 onChange={(e) => setDocTitleDraft(e.target.value)}
-                placeholder="例如：去程電子機票、環球影城門票"
+                placeholder={t('例如：去程電子機票、環球影城門票', '例如：去程电子机票、环球影城门票', 'e.g., E-ticket, Park Pass')}
                 className="w-full h-11 px-3.5 rounded-2xl bg-zinc-100 dark:bg-white/[0.05] border border-zinc-200/70 dark:border-white/10 text-sm font-semibold text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[var(--tab-accent)]/35"
               />
             </div>
 
             <div>
               <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1.5 block">
-                文件類型
+                {t('文件類型', '文件类型', 'Category')}
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {(Object.keys(DOC_CATEGORY_META) as DocumentCategory[]).map((catKey) => {
-                  const meta = DOC_CATEGORY_META[catKey];
+                {(Object.keys(docCategoryMeta) as DocumentCategory[]).map((catKey) => {
+                  const meta = docCategoryMeta[catKey];
                   const Icon = meta.icon;
                   const active = docCategoryDraft === catKey;
                   return (
@@ -1010,13 +1097,13 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
 
             <div>
               <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1.5 block">
-                備註資訊（選填）
+                {t('備註資訊（選填）', '备注信息（选填）', 'Notes (Optional)')}
               </label>
               <input
                 type="text"
                 value={docNoteDraft}
                 onChange={(e) => setDocNoteDraft(e.target.value)}
-                placeholder="訂位代號、確認碼或備忘說明..."
+                placeholder={t('訂位代號、確認碼或備忘說明...', '预订编号、确认码或备忘说明...', 'Booking reference, confirmation code...')}
                 className="w-full h-11 px-3.5 rounded-2xl bg-zinc-100 dark:bg-white/[0.05] border border-zinc-200/70 dark:border-white/10 text-sm text-zinc-900 dark:text-white focus:outline-none"
               />
             </div>
@@ -1028,14 +1115,16 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
                 onClick={() => setPendingFile(null)}
                 className="h-11 px-4 rounded-full bg-zinc-100 dark:bg-zinc-800 text-xs font-semibold text-zinc-700 dark:text-zinc-200 cursor-pointer"
               >
-                取消
+                {t('取消', '取消', 'Cancel')}
               </button>
               <button
                 type="submit"
                 disabled={isUploadingDoc || !docTitleDraft.trim()}
                 className="flex-1 h-11 rounded-full bg-[var(--tab-accent)] hover:bg-[var(--tab-accent-hover)] text-white text-xs sm:text-sm font-semibold disabled:opacity-50 cursor-pointer"
               >
-                {isUploadingDoc ? '上傳保存中...' : '確認上傳並儲存'}
+                {isUploadingDoc
+                  ? t('上傳保存中...', '上传保存中...', 'Uploading...')
+                  : t('確認上傳並儲存', '确认上传并保存', 'Upload & Save')}
               </button>
             </div>
           </form>
@@ -1055,13 +1144,15 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
               {previewLoading ? (
                 <div className="py-12 px-6 text-center space-y-2">
                   <div className="w-6 h-6 border-2 border-[var(--tab-accent)] border-t-transparent rounded-full animate-spin mx-auto" />
-                  <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">正在從雲端載入文件...</p>
+                  <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                    {t('正在從雲端載入文件...', '正在从云端加载文件...', 'Loading document from cloud...')}
+                  </p>
                 </div>
               ) : previewError || !resolvedPreviewUrl ? (
                 <div className="py-10 px-6 text-center space-y-2">
                   <DocumentTextIcon className="w-10 h-10 text-zinc-400 mx-auto" />
                   <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                    {previewError || '無法載入預覽內容'}
+                    {previewError || t('無法載入預覽內容', '无法加载预览内容', 'Preview unavailable')}
                   </p>
                 </div>
               ) : isDocImage(previewDoc) ? (
@@ -1081,7 +1172,7 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
                   <DocumentTextIcon className="w-12 h-12 text-zinc-400 mx-auto" />
                   <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{previewDoc.title}</p>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                    文件已安全保存，可點擊下方下載檢視
+                    {t('文件已安全保存，可點擊下方下載檢視', '文件已安全保存，可点击下方下载查看', 'File saved securely. Download below to view.')}
                   </p>
                 </div>
               )}
@@ -1091,7 +1182,7 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div>
                   <label className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1 block">
-                    文件名稱
+                    {t('文件名稱', '文件名称', 'Document Name')}
                   </label>
                   <input
                     type="text"
@@ -1102,16 +1193,16 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
                 </div>
                 <div>
                   <label className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1 block">
-                    文件類型
+                    {t('文件類型', '文件类型', 'Category')}
                   </label>
                   <select
                     value={editCategoryDraft}
                     onChange={(e) => setEditCategoryDraft(e.target.value as DocumentCategory)}
                     className="w-full h-9 px-3 rounded-xl bg-white dark:bg-zinc-900/70 text-xs font-semibold text-zinc-900 dark:text-white focus:outline-none"
                   >
-                    {(Object.keys(DOC_CATEGORY_META) as DocumentCategory[]).map((catKey) => (
+                    {(Object.keys(docCategoryMeta) as DocumentCategory[]).map((catKey) => (
                       <option key={catKey} value={catKey}>
-                        {DOC_CATEGORY_META[catKey].label}
+                        {docCategoryMeta[catKey].label}
                       </option>
                     ))}
                   </select>
@@ -1119,13 +1210,13 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
               </div>
               <div>
                 <label className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1 block">
-                  備註資訊
+                  {t('備註資訊', '备注信息', 'Notes')}
                 </label>
                 <input
                   type="text"
                   value={editNoteDraft}
                   onChange={(e) => setEditNoteDraft(e.target.value)}
-                  placeholder="補充訂位代號或說明..."
+                  placeholder={t('補充訂位代號或說明...', '补充预订编号或说明...', 'Add reference or notes...')}
                   className="w-full h-9 px-3 rounded-xl bg-white dark:bg-zinc-900/70 text-xs text-zinc-900 dark:text-white focus:outline-none"
                 />
               </div>
@@ -1135,7 +1226,7 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
                   onClick={handleSaveDocMetadata}
                   className="h-8 px-4 rounded-full bg-[var(--tab-accent)] text-white text-xs font-semibold cursor-pointer"
                 >
-                  更新文件資訊
+                  {t('更新文件資訊', '更新文件信息', 'Save Details')}
                 </button>
               </div>
             </div>
@@ -1156,7 +1247,7 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
                 }`}
               >
                 <ArrowDownTrayIcon className="w-4 h-4" />
-                <span>下載檔案</span>
+                <span>{t('下載檔案', '下载文件', 'Download')}</span>
               </a>
             </div>
           </div>
@@ -1174,9 +1265,14 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
         open={confirmClearOpen}
         onClose={() => setConfirmClearOpen(false)}
         onConfirm={handleClearCompleted}
-        title="清除已完成項目？"
-        description={`將移除目前分頁中 ${completedCount} 個已勾選的項目。`}
-        confirmLabel="確認清除"
+        title={t('清除已完成項目？', '清除已完成项目？', 'Clear Completed Items?')}
+        description={t(
+          `將移除目前分頁中 ${completedCount} 個已勾選的項目。`,
+          `将移除当前分页中 ${completedCount} 个已勾选的项目。`,
+          `This will remove ${completedCount} checked item(s) from this tab.`
+        )}
+        confirmLabel={t('確認清除', '确认清除', 'Clear')}
+        cancelLabel={t('取消', '取消', 'Cancel')}
         icon={<TrashIcon className="w-6 h-6" />}
       />
 
@@ -1184,9 +1280,14 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
         open={!!deleteDocTarget}
         onClose={() => setDeleteDocTarget(null)}
         onConfirm={handleConfirmDeleteDoc}
-        title="刪除此文件？"
-        description={`「${deleteDocTarget?.title || ''}」將永久移除並同步至其他裝置。`}
-        confirmLabel="確認刪除"
+        title={t('刪除此文件？', '删除此文件？', 'Delete Document?')}
+        description={t(
+          `「${deleteDocTarget?.title || ''}」將永久移除並同步至其他裝置。`,
+          `「${deleteDocTarget?.title || ''}」将永久移除并同步至其他设备。`,
+          `"${deleteDocTarget?.title || ''}" will be permanently removed across all devices.`
+        )}
+        confirmLabel={t('確認刪除', '确认删除', 'Delete')}
+        cancelLabel={t('取消', '取消', 'Cancel')}
         icon={<TrashIcon className="w-6 h-6" />}
       />
     </div>

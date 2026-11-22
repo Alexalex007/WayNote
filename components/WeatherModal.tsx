@@ -3,6 +3,8 @@ import { motion } from 'motion/react';
 import { LiquidModal } from './LiquidPrimitives';
 import { SunIcon, MoonIcon, CloudIcon, RefreshIcon, SparklesIcon } from './Icons';
 import { getDestinationLocalTime } from '../shared/destinationIntel';
+import { localizeDestinationLabel } from '../shared/i18n';
+import { useI18n } from '../hooks/useI18n';
 
 export type WeatherKind = 'clear' | 'partly' | 'cloudy' | 'fog' | 'rain' | 'snow' | 'storm';
 
@@ -71,6 +73,7 @@ export const WeatherGlyph: React.FC<{ kind: WeatherKind; isDay?: boolean; classN
 const clientWeatherMemoryCache = new Map<string, { expiresAt: number; data: WeatherForecastData }>();
 
 export function useLiveWeather(city: string | null) {
+  const { lang, t } = useI18n();
   const [data, setData] = useState<WeatherForecastData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,7 +81,7 @@ export function useLiveWeather(city: string | null) {
 
   useEffect(() => {
     if (!city) return;
-    const key = city.trim().toLowerCase();
+    const key = `${city.trim().toLowerCase()}::${lang}`;
     const cached = clientWeatherMemoryCache.get(key);
     if (cached && cached.expiresAt > Date.now() && tick === 0) {
       setData(cached.data);
@@ -90,10 +93,14 @@ export function useLiveWeather(city: string | null) {
     setLoading(true);
     setError(null);
 
-    fetch(`/api/weather?city=${encodeURIComponent(city.trim())}`)
+    fetch(`/api/weather?city=${encodeURIComponent(city.trim())}&lang=${encodeURIComponent(lang)}`)
       .then(async (res) => {
         const json = await res.json();
-        if (!res.ok) throw new Error(json?.error || '無法取得即時天氣');
+        if (!res.ok) {
+          throw new Error(
+            json?.error || t('無法取得即時天氣', '无法获取实时天气', 'Unable to fetch live weather')
+          );
+        }
         return json as WeatherForecastData;
       })
       .then((payload) => {
@@ -107,16 +114,20 @@ export function useLiveWeather(city: string | null) {
       })
       .catch((err) => {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : '天氣載入失敗');
+        setError(
+          err instanceof Error
+            ? err.message
+            : t('天氣載入失敗', '天气加载失败', 'Failed to load weather')
+        );
         setLoading(false);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [city, tick]);
+  }, [city, lang, tick, t]);
 
-  const refresh = () => setTick((t) => t + 1);
+  const refresh = () => setTick((n) => n + 1);
   return { data, loading, error, refresh };
 }
 
@@ -128,16 +139,17 @@ interface WeatherModalProps {
 }
 
 export const WeatherModal: React.FC<WeatherModalProps> = ({ open, onClose, cities, initialCity }) => {
+  const { lang, t } = useI18n();
   const uniqueCities = useMemo(() => {
     const cleaned = cities.map((c) => c.trim()).filter(Boolean);
     return Array.from(new Set(cleaned));
   }, [cities]);
 
-  const [selectedCity, setSelectedCity] = useState<string>(initialCity || uniqueCities[0] || '東京');
+  const [selectedCity, setSelectedCity] = useState<string>(initialCity || uniqueCities[0] || 'Tokyo');
 
   useEffect(() => {
     if (open) {
-      setSelectedCity(initialCity || uniqueCities[0] || '東京');
+      setSelectedCity(initialCity || uniqueCities[0] || 'Tokyo');
     }
   }, [open, initialCity, uniqueCities]);
 
@@ -152,22 +164,44 @@ export const WeatherModal: React.FC<WeatherModalProps> = ({ open, onClose, citie
 
   const outfitAdvice = useMemo(() => {
     if (!data) return '';
-    const t = data.current.temp;
+    const temp = data.current.temp;
     const rain = data.daily[0]?.precipProb ?? 0;
     const parts: string[] = [];
-    if (t <= 8) parts.push('氣溫偏低，建議備好保暖外套');
-    else if (t <= 16) parts.push('早晚微涼，適合薄外套疊穿');
-    else if (t <= 24) parts.push('體感舒適，長袖或薄針織即可');
-    else parts.push('天氣溫暖，建議透氣衣物並多補水');
+    if (temp <= 8) {
+      parts.push(
+        t('氣溫偏低，建議備好保暖外套', '气温偏低，建议备好保暖外套', 'Chilly weather; pack a warm coat')
+      );
+    } else if (temp <= 16) {
+      parts.push(
+        t('早晚微涼，適合薄外套疊穿', '早晚微凉，适合薄外套叠穿', 'Cool mornings & evenings; wear light layers')
+      );
+    } else if (temp <= 24) {
+      parts.push(
+        t('體感舒適，長袖或薄針織即可', '体感舒适，长袖或薄针织即可', 'Mild & comfortable; long sleeves or light knitwear')
+      );
+    } else {
+      parts.push(
+        t('天氣溫暖，建議透氣衣物並多補水', '天气温暖，建议透气衣物并多补水', 'Warm weather; wear breathable fabrics and stay hydrated')
+      );
+    }
 
-    if (rain >= 45) parts.push('降雨機率較高，建議隨身帶傘');
-    return parts.join('；');
-  }, [data]);
+    if (rain >= 45) {
+      parts.push(
+        t('降雨機率較高，建議隨身帶傘', '降雨概率较高，建议随身带伞', 'High chance of rain; carry an umbrella')
+      );
+    }
+    return parts.join(lang === 'en' ? ' · ' : '；');
+  }, [data, lang, t]);
 
   const formatWeekday = (dateStr: string, idx: number) => {
-    if (idx === 0) return '今天';
+    if (idx === 0) return t('今天', '今天', 'Today');
     const d = new Date(dateStr + 'T00:00:00');
-    const days = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
+    const days =
+      lang === 'en'
+        ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+        : lang === 'zh-CN'
+          ? ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+          : ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
     return days[d.getDay()] || dateStr.slice(5);
   };
 
@@ -182,7 +216,7 @@ export const WeatherModal: React.FC<WeatherModalProps> = ({ open, onClose, citie
           <div className="w-8 h-8 rounded-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 flex items-center justify-center">
             <CloudIcon className="w-4 h-4" />
           </div>
-          <span>即時天氣</span>
+          <span>{t('即時天氣', '实时天气', 'Live Weather')}</span>
         </div>
       }
     >
@@ -202,7 +236,7 @@ export const WeatherModal: React.FC<WeatherModalProps> = ({ open, onClose, citie
                       : 'surface-card text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white'
                   }`}
                 >
-                  {c}
+                  {localizeDestinationLabel(c, lang)}
                 </button>
               );
             })}
@@ -212,7 +246,13 @@ export const WeatherModal: React.FC<WeatherModalProps> = ({ open, onClose, citie
         {loading && !data ? (
           <div className="ink-card rounded-3xl p-8 flex flex-col items-center justify-center gap-3 text-center">
             <div className="w-7 h-7 rounded-full border-2 border-blue-400 border-t-transparent animate-spin" />
-            <p className="text-xs font-medium text-zinc-300">正在取得「{selectedCity}」氣象</p>
+            <p className="text-xs font-medium text-zinc-300">
+              {t(
+                `正在取得「${localizeDestinationLabel(selectedCity, lang)}」氣象`,
+                `正在获取“${localizeDestinationLabel(selectedCity, lang)}”天气`,
+                `Loading forecast for ${localizeDestinationLabel(selectedCity, lang)}...`
+              )}
+            </p>
           </div>
         ) : error ? (
           <div className="surface-card rounded-3xl p-6 text-center space-y-3">
@@ -222,7 +262,7 @@ export const WeatherModal: React.FC<WeatherModalProps> = ({ open, onClose, citie
               onClick={refresh}
               className="min-h-[40px] px-5 rounded-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-xs font-semibold cursor-pointer"
             >
-              重新載入
+              {t('重新載入', '重新加载', 'Retry')}
             </button>
           </div>
         ) : data ? (
@@ -235,7 +275,8 @@ export const WeatherModal: React.FC<WeatherModalProps> = ({ open, onClose, citie
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="text-xs font-medium text-zinc-400 font-num">
-                    {data.resolvedName} · {data.country} · {getDestinationLocalTime(data.utcOffsetHours).timeStr}
+                    {localizeDestinationLabel(data.resolvedName, lang)} · {localizeDestinationLabel(data.country, lang)} ·{' '}
+                    {getDestinationLocalTime(data.utcOffsetHours, lang).timeStr}
                   </div>
                   <div className="mt-2 flex items-baseline gap-3">
                     <span className="text-5xl font-display font-bold tracking-tight font-num text-white">
@@ -252,7 +293,7 @@ export const WeatherModal: React.FC<WeatherModalProps> = ({ open, onClose, citie
                   <button
                     type="button"
                     onClick={refresh}
-                    aria-label="重新整理天氣"
+                    aria-label={t('重新整理天氣', '刷新天气', 'Refresh weather')}
                     className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/18 text-zinc-200 flex items-center justify-center cursor-pointer transition-colors"
                   >
                     <RefreshIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -262,15 +303,15 @@ export const WeatherModal: React.FC<WeatherModalProps> = ({ open, onClose, citie
 
               <div className="grid grid-cols-3 gap-3 mt-5 pt-4 border-t border-white/10 text-xs">
                 <div>
-                  <div className="text-zinc-400">體感</div>
+                  <div className="text-zinc-400">{t('體感', '体感', 'Feels Like')}</div>
                   <div className="font-num font-semibold text-sm text-white mt-0.5">{data.current.feelsLike}°C</div>
                 </div>
                 <div>
-                  <div className="text-zinc-400">濕度</div>
+                  <div className="text-zinc-400">{t('濕度', '湿度', 'Humidity')}</div>
                   <div className="font-num font-semibold text-sm text-white mt-0.5">{data.current.humidity}%</div>
                 </div>
                 <div>
-                  <div className="text-zinc-400">風速</div>
+                  <div className="text-zinc-400">{t('風速', '风速', 'Wind')}</div>
                   <div className="font-num font-semibold text-sm text-white mt-0.5">{data.current.windSpeed} km/h</div>
                 </div>
               </div>
@@ -284,7 +325,9 @@ export const WeatherModal: React.FC<WeatherModalProps> = ({ open, onClose, citie
 
             {/* Hourly Strip */}
             <div className="surface-card rounded-3xl p-4">
-              <div className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-3 px-1">未來 12 小時</div>
+              <div className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-3 px-1">
+                {t('未來 12 小時', '未来 12 小时', 'Next 12 Hours')}
+              </div>
               <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
                 {data.hourly.map((h, i) => (
                   <div
@@ -296,7 +339,7 @@ export const WeatherModal: React.FC<WeatherModalProps> = ({ open, onClose, citie
                     }`}
                   >
                     <span className="text-[11px] font-num font-medium opacity-75">
-                      {i === 0 ? '現在' : h.time.slice(11, 16)}
+                      {i === 0 ? t('現在', '现在', 'Now') : h.time.slice(11, 16)}
                     </span>
                     <WeatherGlyph kind={h.kind} isDay={h.isDay} className="w-5 h-5" />
                     <span className="text-xs font-num font-bold">{h.temp}°</span>
@@ -311,10 +354,16 @@ export const WeatherModal: React.FC<WeatherModalProps> = ({ open, onClose, citie
             {/* 7-Day Daily Forecast */}
             <div className="surface-card rounded-3xl p-4 space-y-2">
               <div className="flex items-center justify-between px-1 mb-1">
-                <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">未來 7 日</span>
+                <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                  {t('未來 7 日', '未来 7 日', '7-Day Forecast')}
+                </span>
                 {data.daily[0]?.sunrise && (
                   <span className="text-[11px] font-num text-zinc-500 dark:text-zinc-400">
-                    日出 {data.daily[0].sunrise} · 日落 {data.daily[0].sunset}
+                    {t(
+                      `日出 ${data.daily[0].sunrise} · 日落 ${data.daily[0].sunset}`,
+                      `日出 ${data.daily[0].sunrise} · 日落 ${data.daily[0].sunset}`,
+                      `Sunrise ${data.daily[0].sunrise} · Sunset ${data.daily[0].sunset}`
+                    )}
                   </span>
                 )}
               </div>
