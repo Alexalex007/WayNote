@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Trip, SavedPlace, SavedPlaceCategory, Activity } from '../types';
 import { generateUniqueId } from '../shared/syncMerge';
@@ -24,6 +24,7 @@ import {
   MagnifyingGlassIcon,
   ClockIcon,
   XMarkIcon,
+  RefreshIcon,
 } from './Icons';
 
 interface Props {
@@ -48,14 +49,16 @@ const CATEGORY_META: Record<
     icon: React.ComponentType<{ className?: string }>;
     tintBg: string;
     textClass: string;
+    accentBar: string;
     activityType: Activity['type'];
   }
 > = {
   sightseeing: {
     label: '景點',
     icon: CameraIcon,
-    tintBg: 'bg-sky-500/12 dark:bg-sky-400/16',
-    textClass: 'text-sky-600 dark:text-sky-300',
+    tintBg: 'bg-orange-500/12 dark:bg-orange-400/16',
+    textClass: 'text-orange-600 dark:text-orange-300',
+    accentBar: 'bg-orange-500',
     activityType: 'sightseeing',
   },
   food: {
@@ -63,33 +66,43 @@ const CATEGORY_META: Record<
     icon: DiningIcon,
     tintBg: 'bg-rose-500/12 dark:bg-rose-400/16',
     textClass: 'text-rose-600 dark:text-rose-300',
+    accentBar: 'bg-rose-500',
     activityType: 'food',
   },
   cafe: {
     label: '咖啡甜點',
     icon: CoffeeIcon,
-    tintBg: 'bg-amber-500/12 dark:bg-amber-400/16',
+    tintBg: 'bg-amber-500/14 dark:bg-amber-400/16',
     textClass: 'text-amber-600 dark:text-amber-300',
+    accentBar: 'bg-amber-500',
     activityType: 'food',
   },
   shopping: {
     label: '逛街伴手',
     icon: ShoppingBagIcon,
-    tintBg: 'bg-emerald-500/12 dark:bg-emerald-400/16',
-    textClass: 'text-emerald-600 dark:text-emerald-300',
+    tintBg: 'bg-fuchsia-500/12 dark:bg-fuchsia-400/16',
+    textClass: 'text-fuchsia-600 dark:text-fuchsia-300',
+    accentBar: 'bg-fuchsia-500',
     activityType: 'sightseeing',
   },
   other: {
     label: '其他',
     icon: TagIcon,
-    tintBg: 'bg-indigo-500/12 dark:bg-indigo-400/16',
-    textClass: 'text-indigo-600 dark:text-indigo-300',
+    tintBg: 'bg-zinc-500/12 dark:bg-zinc-400/16',
+    textClass: 'text-zinc-600 dark:text-zinc-300',
+    accentBar: 'bg-zinc-400',
     activityType: 'sightseeing',
   },
 };
 
 const QUICK_TIMES = ['09:30', '12:00', '14:30', '17:00', '19:30'];
 const QUICK_DURATIONS = ['1h', '1.5h', '2h', '3h'];
+
+const normalizeSpotKey = (name: string) =>
+  name
+    .toLowerCase()
+    .replace(/[\s・·\-—–_()（）[\]【】「」『』.,/]+/g, '')
+    .trim();
 
 const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenItineraryDate }) => {
   const intel = useMemo(() => detectDestinationIntel(trip.destination), [trip.destination]);
@@ -127,7 +140,6 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
           continue;
         }
       }
-      // Also match by exact title in case user added/edited directly on timeline
       const lowerName = place.name.trim().toLowerCase();
       for (const d of tripDays) {
         const list = trip.activities?.[d.iso] || [];
@@ -166,12 +178,24 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
   // Delete Confirm State
   const [deletingPlace, setDeletingPlace] = useState<SavedPlace | null>(null);
 
-  // AI Spot Discovery Modal State
+  // AI Spot Discovery Modal State + Anti-Duplicate Session History
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [aiFocusCategory, setAiFocusCategory] = useState<'all' | 'sightseeing' | 'food' | 'cafe' | 'shopping'>('all');
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiSuggestions, setAiSuggestions] = useState<AiExploreSuggestion[]>([]);
+  const [aiBatchNum, setAiBatchNum] = useState(0);
+  const seenAiNamesRef = useRef<Set<string>>(new Set());
+  const seenAiKeysRef = useRef<Set<string>>(new Set());
+  const aiBatchSeedRef = useRef<number>(0);
+
+  useEffect(() => {
+    seenAiNamesRef.current.clear();
+    seenAiKeysRef.current.clear();
+    aiBatchSeedRef.current = 0;
+    setAiBatchNum(0);
+    setAiSuggestions([]);
+  }, [trip.id, trip.destination]);
 
   const stats = useMemo(() => {
     let mustGo = 0;
@@ -380,9 +404,26 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
     onShowToast(`已排入 ${dayLabel} (${cleanTime}) 行程時間軸`, 'success');
   };
 
-  const handleFetchAiSpots = async (overrideCategory = aiFocusCategory) => {
+  const handleFetchAiSpots = async (overrideCategory = aiFocusCategory, resetHistory = false) => {
+    if (resetHistory) {
+      seenAiNamesRef.current.clear();
+      seenAiKeysRef.current.clear();
+      aiBatchSeedRef.current = 0;
+      setAiBatchNum(0);
+    }
+
     setAiLoading(true);
     setAiError(null);
+    const nextBatch = aiBatchSeedRef.current + 1;
+    aiBatchSeedRef.current = nextBatch;
+
+    // Combine saved places + all previously suggested spots in this session so "換一批" never repeats
+    const excludeSet = new Set<string>([
+      ...savedPlaces.map((p) => p.name.trim()),
+      ...Array.from(seenAiNamesRef.current),
+    ]);
+    const excludeNames = Array.from(excludeSet).filter(Boolean).slice(-120);
+
     try {
       const res = await fetch('/api/ai/explore-spots', {
         method: 'POST',
@@ -390,7 +431,8 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
         body: JSON.stringify({
           destination: trip.destination,
           focusCategory: overrideCategory,
-          excludeNames: savedPlaces.map((p) => p.name),
+          excludeNames,
+          batchSeed: nextBatch,
         }),
       });
       const contentType = res.headers.get('content-type') || '';
@@ -401,7 +443,25 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
       if (!res.ok) {
         throw new Error(data.error || '無法取得推薦地點');
       }
-      setAiSuggestions(Array.isArray(data.spots) ? data.spots : []);
+
+      const rawSpots: AiExploreSuggestion[] = Array.isArray(data.spots) ? data.spots : [];
+      const savedKeys = new Set(savedPlaces.map((p) => normalizeSpotKey(p.name)));
+      const freshSpots = rawSpots.filter((s) => {
+        const key = normalizeSpotKey(s.name);
+        if (!key) return false;
+        if (savedKeys.has(key) || seenAiKeysRef.current.has(key)) return false;
+        return true;
+      });
+
+      const finalSpots = freshSpots.length > 0 ? freshSpots : rawSpots;
+      finalSpots.forEach((s) => {
+        seenAiNamesRef.current.add(s.name.trim());
+        const key = normalizeSpotKey(s.name);
+        if (key) seenAiKeysRef.current.add(key);
+      });
+
+      setAiSuggestions(finalSpots);
+      setAiBatchNum(nextBatch);
     } catch (err) {
       setAiError(err instanceof Error ? err.message : '探索請求失敗，請稍後再試。');
     } finally {
@@ -454,24 +514,33 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
   return (
     <div className="h-full overflow-y-auto no-scrollbar px-4 sm:px-6 lg:px-8 pt-2 pb-10">
       <div className="max-w-2xl lg:max-w-5xl mx-auto space-y-4">
-        {/* Top Summary & Actions Card */}
-        <div className="surface-elevated rounded-3xl p-4 sm:p-5 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <CompassIcon className="w-4 h-4 text-[var(--tab-accent)] shrink-0" />
-                <span className="text-xs font-semibold text-[var(--tab-accent)]">
-                  {intel.displayCity} 口袋景點庫
-                </span>
+        {/* Redesigned Warm Sunset Coral-Amber Discovery Hero & Controls */}
+        <div className="surface-elevated rounded-3xl p-4 sm:p-5 space-y-4 relative overflow-hidden">
+          <div
+            aria-hidden="true"
+            className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#E11D48] via-[#F97316] to-[#F59E0B] opacity-85"
+          />
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 pt-0.5">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#E11D48] to-[#F97316] text-white flex items-center justify-center shrink-0 shadow-[0_8px_20px_-6px_rgba(225,29,72,0.45)]">
+                <CompassIcon className="w-5 h-5" />
               </div>
-              <div className="flex items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400 mt-1 font-num">
-                <span>共 {stats.total} 處</span>
-                <span aria-hidden="true">·</span>
-                <span>必去 {stats.mustGo}</span>
-                <span aria-hidden="true">·</span>
-                <span>已排入 {stats.scheduled}</span>
-                <span aria-hidden="true">·</span>
-                <span>已造訪 {stats.visited}</span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base sm:text-lg font-display font-bold text-zinc-900 dark:text-white truncate">
+                    {intel.displayCity} 探索靈感庫
+                  </h2>
+                </div>
+                <div className="flex items-center flex-wrap gap-x-2.5 gap-y-0.5 text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 font-num">
+                  <span>共 {stats.total} 處</span>
+                  <span aria-hidden="true">·</span>
+                  <span className="text-amber-600 dark:text-amber-400 font-semibold">必去 {stats.mustGo}</span>
+                  <span aria-hidden="true">·</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold">已排 {stats.scheduled}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>已訪 {stats.visited}</span>
+                </div>
               </div>
             </div>
 
@@ -479,15 +548,15 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
               <button
                 type="button"
                 onClick={handleOpenAiModal}
-                className="h-10 px-4 rounded-full bg-zinc-900 dark:bg-white/10 text-white text-xs font-semibold flex items-center gap-1.5 hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap shrink-0"
+                className="h-10 px-4 rounded-full bg-zinc-900 dark:bg-white/12 text-white text-xs font-semibold flex items-center gap-1.5 hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap shrink-0"
               >
-                <SparklesIcon className="w-3.5 h-3.5 text-sky-300" />
+                <SparklesIcon className="w-3.5 h-3.5 text-amber-300" />
                 <span>AI 探索推薦</span>
               </button>
               <button
                 type="button"
                 onClick={openAddModal}
-                className="h-10 px-4 rounded-full bg-gradient-to-r from-[#0EA5E9] to-[#2563EB] text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap shrink-0"
+                className="h-10 px-4 rounded-full bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white text-xs font-semibold flex items-center gap-1.5 shadow-[0_8px_18px_-6px_rgba(225,29,72,0.5)] active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap shrink-0"
               >
                 <PlusIcon className="w-4 h-4" />
                 <span>新增地點</span>
@@ -503,8 +572,8 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="搜尋收藏景點、餐廳或區域..."
-                className="w-full h-10 pl-9 pr-8 rounded-2xl bg-zinc-100/80 dark:bg-white/[0.06] text-xs sm:text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none"
+                placeholder="搜尋收藏景點、餐廳、街區或筆記..."
+                className="w-full h-10 pl-9 pr-8 rounded-2xl bg-zinc-100/80 dark:bg-white/[0.06] text-xs sm:text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-rose-500/25"
               />
               {searchQuery && (
                 <button
@@ -523,15 +592,15 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
               value={statusFilter}
               onChange={setStatusFilter}
               options={[
-                { id: 'ALL', label: '全部', accentFrom: '#0EA5E9', accentTo: '#2563EB' },
-                { id: 'UNSCHEDULED', label: '待排入', accentFrom: '#F59E0B', accentTo: '#F97316' },
+                { id: 'ALL', label: '全部', accentFrom: '#E11D48', accentTo: '#F97316' },
+                { id: 'UNSCHEDULED', label: '待排入', accentFrom: '#F59E0B', accentTo: '#FB923C' },
                 { id: 'SCHEDULED', label: '已排入', accentFrom: '#10B981', accentTo: '#059669' },
-                { id: 'VISITED', label: '已打卡', accentFrom: '#6366F1', accentTo: '#8B5CF6' },
+                { id: 'VISITED', label: '已打卡', accentFrom: '#7C3AED', accentTo: '#A855F7' },
               ]}
             />
           </div>
 
-          {/* Category Strip */}
+          {/* Category Filter Strip */}
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-0.5">
             {(['ALL', 'sightseeing', 'food', 'cafe', 'shopping', 'other'] as const).map((cat) => {
               const active = categoryFilter === cat;
@@ -541,9 +610,9 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                   key={cat}
                   type="button"
                   onClick={() => setCategoryFilter(cat)}
-                  className={`h-8 px-3.5 rounded-full text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  className={`h-8 px-3.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                     active
-                      ? 'bg-[var(--tab-accent)] text-white shadow-sm'
+                      ? 'bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white shadow-sm'
                       : 'bg-zinc-100/80 dark:bg-white/[0.06] text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200/70 dark:hover:bg-white/10'
                   }`}
                 >
@@ -556,8 +625,8 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
 
         {/* Saved Places Grid */}
         {filteredPlaces.length === 0 ? (
-          <div className="surface-elevated rounded-3xl p-8 sm:p-10 text-center space-y-3">
-            <div className="w-12 h-12 rounded-2xl bg-sky-500/12 text-sky-600 dark:text-sky-300 flex items-center justify-center mx-auto">
+          <div className="surface-elevated rounded-3xl p-8 sm:p-10 text-center space-y-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-rose-500/15 to-amber-500/15 text-rose-600 dark:text-rose-300 flex items-center justify-center mx-auto">
               <CompassIcon className="w-6 h-6" />
             </div>
             <div className="space-y-1">
@@ -572,15 +641,15 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
               <button
                 type="button"
                 onClick={handleOpenAiModal}
-                className="h-10 px-5 rounded-full bg-zinc-900 dark:bg-white/10 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                className="h-10 px-5 rounded-full bg-zinc-900 dark:bg-white/12 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
               >
-                <SparklesIcon className="w-3.5 h-3.5 text-sky-300" />
+                <SparklesIcon className="w-3.5 h-3.5 text-amber-300" />
                 <span>讓 AI 推薦 {intel.displayCity} 好去處</span>
               </button>
               <button
                 type="button"
                 onClick={openAddModal}
-                className="h-10 px-5 rounded-full bg-gradient-to-r from-[#0EA5E9] to-[#2563EB] text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                className="h-10 px-5 rounded-full bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
               >
                 <PlusIcon className="w-4 h-4" />
                 <span>手動新增地點</span>
@@ -602,11 +671,13 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.96 }}
-                    className={`surface-elevated rounded-3xl p-4 sm:p-5 flex flex-col justify-between gap-3.5 transition-opacity ${
+                    className={`surface-elevated rounded-3xl p-4 sm:p-5 flex flex-col justify-between gap-3.5 transition-opacity relative overflow-hidden ${
                       place.visited ? 'opacity-75' : ''
                     }`}
                   >
-                    <div className="space-y-2.5">
+                    <div className={`absolute left-0 top-5 bottom-5 w-1 rounded-r-full ${meta.accentBar} opacity-75`} />
+
+                    <div className="space-y-2.5 pl-1.5">
                       <div className="flex items-start justify-between gap-2.5">
                         <div className="flex items-start gap-3 min-w-0">
                           <div
@@ -679,7 +750,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                       )}
                     </div>
 
-                    <div className="pt-2.5 border-t border-zinc-200/70 dark:border-white/[0.08] flex items-center justify-between gap-2">
+                    <div className="pt-2.5 pl-1.5 border-t border-zinc-200/70 dark:border-white/[0.08] flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5">
                         <a
                           href={getGoogleMapsUrl(place)}
@@ -739,7 +810,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                         <button
                           type="button"
                           onClick={() => openScheduleModal(place)}
-                          className="h-8 px-3.5 rounded-full bg-gradient-to-r from-[#0EA5E9] to-[#2563EB] text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap"
+                          className="h-8 px-3.5 rounded-full bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap"
                         >
                           <CalendarIcon className="w-3.5 h-3.5" />
                           <span>排入行程</span>
@@ -791,7 +862,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                     onClick={() => setFormCategory(cat)}
                     className={`h-9 px-3.5 rounded-full text-xs font-semibold transition-colors cursor-pointer ${
                       active
-                        ? 'bg-[var(--tab-accent)] text-white'
+                        ? 'bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white'
                         : 'bg-zinc-100 dark:bg-white/[0.06] text-zinc-600 dark:text-zinc-300'
                     }`}
                   >
@@ -873,7 +944,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
 
           <button
             type="submit"
-            className="w-full min-h-[48px] rounded-full bg-gradient-to-r from-[#0EA5E9] to-[#2563EB] text-white font-semibold text-sm cursor-pointer active:scale-[0.985] transition-all"
+            className="w-full min-h-[48px] rounded-full bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white font-semibold text-sm cursor-pointer active:scale-[0.985] transition-all shadow-sm"
           >
             {editingPlace ? '儲存變更' : '收錄至口袋名單'}
           </button>
@@ -914,7 +985,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                       onClick={() => setScheduleDate(d.iso)}
                       className={`p-2.5 rounded-2xl text-left border transition-all cursor-pointer ${
                         active
-                          ? 'bg-[var(--tab-accent)] text-white border-transparent shadow-sm'
+                          ? 'bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white border-transparent shadow-sm'
                           : 'bg-zinc-100/80 dark:bg-white/[0.05] text-zinc-800 dark:text-zinc-200 border-transparent hover:border-zinc-300 dark:hover:border-white/15'
                       }`}
                     >
@@ -953,7 +1024,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                       onClick={() => setScheduleDuration(dur)}
                       className={`flex-1 h-10 rounded-xl text-xs font-num font-semibold cursor-pointer transition-colors ${
                         scheduleDuration === dur
-                          ? 'bg-[var(--tab-accent)] text-white'
+                          ? 'bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white'
                           : 'bg-zinc-100 dark:bg-white/[0.06] text-zinc-700 dark:text-zinc-300'
                       }`}
                     >
@@ -983,7 +1054,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
 
             <button
               type="submit"
-              className="w-full min-h-[48px] rounded-full bg-gradient-to-r from-[#0EA5E9] to-[#2563EB] text-white font-semibold text-sm cursor-pointer active:scale-[0.985] transition-all"
+              className="w-full min-h-[48px] rounded-full bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white font-semibold text-sm cursor-pointer active:scale-[0.985] transition-all"
             >
               確認加入行程時間軸
             </button>
@@ -991,7 +1062,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
         )}
       </LiquidModal>
 
-      {/* AI Spot Discovery Modal */}
+      {/* Redesigned AI Spot Discovery Modal (Sunset Coral-Amber Identity + Deduplicated Batches) */}
       <LiquidModal
         open={isAiModalOpen}
         onClose={() => setIsAiModalOpen(false)}
@@ -1018,9 +1089,9 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                     setAiFocusCategory(tab.id);
                     void handleFetchAiSpots(tab.id);
                   }}
-                  className={`h-8 px-3 rounded-full text-xs font-semibold shrink-0 cursor-pointer transition-colors ${
+                  className={`h-8 px-3 rounded-full text-xs font-semibold shrink-0 cursor-pointer transition-all ${
                     aiFocusCategory === tab.id
-                      ? 'bg-[var(--tab-accent)] text-white'
+                      ? 'bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white shadow-sm'
                       : 'bg-zinc-100 dark:bg-white/[0.06] text-zinc-600 dark:text-zinc-300'
                   }`}
                 >
@@ -1029,21 +1100,41 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
               ))}
             </div>
 
-            <button
-              type="button"
-              disabled={aiLoading}
-              onClick={() => void handleFetchAiSpots(aiFocusCategory)}
-              className="h-8 px-3 rounded-full bg-zinc-900 dark:bg-white/10 text-white text-xs font-semibold disabled:opacity-50 cursor-pointer shrink-0"
-            >
-              {aiLoading ? '搜尋中...' : '換一批'}
-            </button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {aiBatchNum > 1 && (
+                <button
+                  type="button"
+                  onClick={() => void handleFetchAiSpots(aiFocusCategory, true)}
+                  title="清除已探索紀錄並重新推薦"
+                  className="h-8 px-2.5 rounded-full bg-zinc-100 dark:bg-white/[0.08] text-zinc-600 dark:text-zinc-300 text-[11px] font-medium hover:text-zinc-900 dark:hover:text-white cursor-pointer whitespace-nowrap"
+                >
+                  重置紀錄
+                </button>
+              )}
+              <button
+                type="button"
+                disabled={aiLoading}
+                onClick={() => void handleFetchAiSpots(aiFocusCategory)}
+                className="h-8 px-3.5 rounded-full bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white text-xs font-semibold disabled:opacity-50 cursor-pointer shrink-0 flex items-center gap-1.5 shadow-sm whitespace-nowrap"
+              >
+                <RefreshIcon className={`w-3.5 h-3.5 ${aiLoading ? 'animate-spin' : ''}`} />
+                <span>{aiLoading ? '搜尋中...' : '換一批'}</span>
+              </button>
+            </div>
           </div>
 
+          {aiBatchNum > 0 && !aiLoading && (
+            <div className="flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400 px-0.5 font-num">
+              <span>第 {aiBatchNum} 批探索結果</span>
+              <span>已自動排除 {seenAiNamesRef.current.size} 個已看過／已收錄地點</span>
+            </div>
+          )}
+
           {aiLoading && (
-            <div className="py-10 text-center space-y-2">
-              <div className="w-8 h-8 rounded-full border-2 border-sky-500 border-t-transparent animate-spin mx-auto" />
+            <div className="py-10 text-center space-y-2.5">
+              <div className="w-8 h-8 rounded-full border-2 border-[#E11D48] border-t-transparent animate-spin mx-auto" />
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                正在精選 {intel.displayCity} 最值得收進口袋的好去處...
+                正在精選 {intel.displayCity} 全新不重複的好去處...
               </p>
             </div>
           )}
@@ -1071,7 +1162,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                 return (
                   <div
                     key={spot.name}
-                    className="p-3.5 rounded-2xl bg-zinc-100/80 dark:bg-white/[0.05] flex items-start justify-between gap-3"
+                    className="p-3.5 rounded-2xl bg-zinc-100/80 dark:bg-white/[0.05] border border-zinc-200/50 dark:border-white/[0.06] flex items-start justify-between gap-3"
                   >
                     <div className="min-w-0 space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -1094,10 +1185,10 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                       type="button"
                       disabled={alreadySaved}
                       onClick={() => handleCollectAiSpot(spot)}
-                      className={`h-8 px-3.5 rounded-full text-xs font-semibold shrink-0 transition-colors cursor-pointer whitespace-nowrap ${
+                      className={`h-8 px-3.5 rounded-full text-xs font-semibold shrink-0 transition-all cursor-pointer whitespace-nowrap ${
                         alreadySaved
                           ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 cursor-default'
-                          : 'bg-[var(--tab-accent)] text-white hover:bg-[var(--tab-accent-hover)]'
+                          : 'bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white hover:opacity-90 shadow-sm'
                       }`}
                     >
                       {alreadySaved ? '已收錄' : '+ 收錄'}

@@ -2,7 +2,11 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, Reorder } from 'motion/react';
 import { Trip, Activity, FlightInfo, HotelBooking } from '../types';
 import { generateUniqueId } from '../shared/syncMerge';
-import { detectDestinationIntel, getDestinationLocalTime } from '../shared/destinationIntel';
+import {
+  detectDestinationIntel,
+  getDestinationLocalTime,
+  resolveAirportByCode,
+} from '../shared/destinationIntel';
 import { WeatherModal, WeatherGlyph, useLiveWeather } from './WeatherModal';
 import { RouteMapModal, PreviousStopOption } from './RouteMapModal';
 import { AiPlannerModal, AiPlannedDay } from './AiPlannerModal';
@@ -22,6 +26,7 @@ import {
   LockClosedIcon,
   LockOpenIcon,
   TrashIcon,
+  EditIcon,
   NavigationArrowIcon,
   DocumentTextIcon,
   CalendarIcon,
@@ -31,6 +36,7 @@ import {
   BoltIcon,
   GripVerticalIcon,
   HomeIcon,
+  ArrowUpRightIcon,
 } from './Icons';
 
 interface Props {
@@ -369,10 +375,13 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
   const [modalMode, setModalMode] = useState<'PLAN' | 'FLIGHT' | 'THEME'>('PLAN');
   const [isLocked, setIsLocked] = useState(true);
   const [editingActivityId, setEditingActivityId] = useState<string | null>(null);
+  const [detailActivity, setDetailActivity] = useState<Activity | null>(null);
+  const [detailDeleteConfirmOpen, setDetailDeleteConfirmOpen] = useState(false);
   const [routeLocations, setRouteLocations] = useState<Activity[]>([]);
   const [routeIsPreview, setRouteIsPreview] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [editingHotelId, setEditingHotelId] = useState<string | null>(null);
+  const [showHotelAddForm, setShowHotelAddForm] = useState(false);
   const [hotelDraft, setHotelDraft] = useState<{
     name: string;
     checkIn: string;
@@ -598,6 +607,29 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
     }
     return list;
   }, [trip.activities, selectedDate]);
+
+  // Detect if there is a flight activity right before the new activity's scheduled time on this day
+  const precedingFlightAirport = useMemo(() => {
+    const dayActs = trip.activities[selectedDate] || [];
+    if (dayActs.length === 0) return null;
+    const targetTime = newActivity.time || '23:59';
+    let bestFlight: Activity | null = null;
+    for (const act of dayActs) {
+      if (act.type !== 'flight' || !act.flightInfo?.arrivalCode) continue;
+      const cmpTime = act.flightInfo.arrivalTime || act.flightInfo.departureTime || act.time;
+      if (!cmpTime || cmpTime <= targetTime || act.id === dayActs[dayActs.length - 1]?.id) {
+        bestFlight = act;
+      }
+    }
+    if (!bestFlight?.flightInfo?.arrivalCode) return null;
+    const resolved = resolveAirportByCode(bestFlight.flightInfo.arrivalCode);
+    if (!resolved) return null;
+    return {
+      ...resolved,
+      flightNumber: bestFlight.flightInfo.flightNumber,
+      arrivalTime: bestFlight.flightInfo.arrivalTime,
+    };
+  }, [trip.activities, selectedDate, newActivity.time]);
 
   const closeModal = () => {
     if (flightLookupAbortRef.current) {
@@ -876,6 +908,9 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
       activities: { ...trip.activities, [selectedDate]: updatedDay },
       updatedAt: now,
     });
+    if (detailActivity?.id === activityId) {
+      setDetailActivity((prev) => (prev ? { ...prev, completed: !prev.completed, updatedAt: now } : null));
+    }
   };
 
   const handleDeleteActivity = () => {
@@ -891,6 +926,23 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
     });
     onShowToast('已刪除行程項目');
     closeModal();
+  };
+
+  const handleDeleteDetailActivity = () => {
+    if (!detailActivity) return;
+    const targetId = detailActivity.id;
+    const now = Date.now();
+    const updatedDay = currentActivities.filter((a) => a.id !== targetId);
+    onUpdateTrip({
+      ...trip,
+      activities: { ...trip.activities, [selectedDate]: updatedDay },
+      activitiesOrderUpdatedAt: { ...trip.activitiesOrderUpdatedAt, [selectedDate]: now },
+      tombstones: { ...(trip.tombstones || {}), [targetId]: now },
+      updatedAt: now,
+    });
+    setDetailDeleteConfirmOpen(false);
+    setDetailActivity(null);
+    onShowToast('已刪除行程項目');
   };
 
   const handleReorderActivities = (reordered: Activity[]) => {
@@ -924,6 +976,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
 
   const openHotelManager = () => {
     setEditingHotelId(null);
+    setShowHotelAddForm(hotels.length === 0);
     setHotelDraft({
       name: '',
       checkIn: selectedDate || trip.startDate,
@@ -952,6 +1005,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
       updatedAt: now,
     });
     setEditingHotelId(null);
+    setShowHotelAddForm(false);
     setHotelDraft({
       name: '',
       checkIn: selectedDate || trip.startDate,
@@ -1431,7 +1485,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                           nextActivity={nextAct}
                           legProgress={legProgress}
                           isLast={idx === currentActivities.length - 1}
-                          onClick={() => openEditModal(activity)}
+                          onClick={() => setDetailActivity(activity)}
                           onToggleComplete={(e) => handleToggleActivityComplete(e, activity.id)}
                           isLocked={isLocked}
                         />
@@ -1598,13 +1652,164 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                 fullWidth
                 size="sm"
                 value={newActivity.type === 'flight' ? 'sightseeing' : newActivity.type}
-                onChange={(t) => setNewActivity({ ...newActivity, type: t })}
+                onChange={(t) => {
+                  setNewActivity((prev) => {
+                    // Auto-suggest airport origin when switching to transport right after a flight
+                    if (
+                      t === 'transport' &&
+                      !editingActivityId &&
+                      !prev.title.trim() &&
+                      !prev.location.trim() &&
+                      precedingFlightAirport
+                    ) {
+                      const hotelTarget = activeHotelForDay || hotels[0];
+                      return {
+                        ...prev,
+                        type: t,
+                        title: hotelTarget
+                          ? `${precedingFlightAirport.name} → ${hotelTarget.name}`
+                          : `從 ${precedingFlightAirport.name} 出發`,
+                        location: `${precedingFlightAirport.name} (${precedingFlightAirport.code})`,
+                      };
+                    }
+                    return { ...prev, type: t };
+                  });
+                }}
                 options={[
                   { id: 'sightseeing', label: '觀光', icon: <CameraIcon className="w-3.5 h-3.5" />, accentFrom: '#4F5DF5', accentTo: '#6366F1' },
                   { id: 'food', label: '美食', icon: <DiningIcon className="w-3.5 h-3.5" />, accentFrom: '#F43F5E', accentTo: '#FB7185' },
                   { id: 'transport', label: '交通', icon: <BusIcon className="w-3.5 h-3.5" />, accentFrom: '#0E9F76', accentTo: '#10B981' },
                 ]}
               />
+
+              {/* Smart Origin & Hotel Quick-Fill Chips (Preceding Flight Airport + Saved Hotels) */}
+              {!editingActivityId && (precedingFlightAirport || hotels.length > 0) && (
+                <div className="rounded-2xl bg-zinc-100/75 dark:bg-white/[0.04] border border-zinc-200/70 dark:border-white/10 p-3 space-y-2">
+                  {precedingFlightAirport && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-sky-600 dark:text-sky-300">
+                        <PlaneIcon className="w-3.5 h-3.5 -rotate-45 shrink-0" />
+                        <span>
+                          上筆航班抵達：{precedingFlightAirport.name} ({precedingFlightAirport.code})
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const airportText = `${precedingFlightAirport.name} (${precedingFlightAirport.code})`;
+                            if (newActivity.type === 'sightseeing') {
+                              setNewActivity((prev) => ({
+                                ...prev,
+                                type: 'transport',
+                                title: `從 ${precedingFlightAirport.name} 出發`,
+                                location: airportText,
+                              }));
+                            } else {
+                              setNewActivity((prev) => ({
+                                ...prev,
+                                title: prev.title.trim() || `從 ${precedingFlightAirport.name} 出發`,
+                                location: airportText,
+                              }));
+                            }
+                          }}
+                          className="h-7 px-3 rounded-full bg-sky-500/12 text-sky-700 dark:text-sky-300 text-[11px] font-semibold whitespace-nowrap shrink-0 cursor-pointer hover:bg-sky-500/20 transition-colors"
+                        >
+                          設為起點：{precedingFlightAirport.code} 機場
+                        </button>
+                        {(activeHotelForDay || hotels[0]) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const h = activeHotelForDay || hotels[0];
+                              setNewActivity((prev) => ({
+                                ...prev,
+                                type: 'transport',
+                                title: `${precedingFlightAirport.name} → ${h.name}`,
+                                location: h.name,
+                              }));
+                            }}
+                            className="h-7 px-3 rounded-full bg-indigo-500/12 text-indigo-700 dark:text-indigo-300 text-[11px] font-semibold whitespace-nowrap shrink-0 cursor-pointer hover:bg-indigo-500/20 transition-colors"
+                          >
+                            {precedingFlightAirport.code} 機場 → {(activeHotelForDay || hotels[0]).name}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {hotels.length > 0 && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">
+                        <HomeIcon className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                        <span>快速選擇已登記酒店</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+                        {hotels.map((h) => (
+                          <React.Fragment key={h.id}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (newActivity.type === 'sightseeing') {
+                                  const nextList = [...sightseeingList];
+                                  const emptyIdx = nextList.findIndex((row) => !row.title.trim());
+                                  if (emptyIdx !== -1) {
+                                    nextList[emptyIdx] = {
+                                      ...nextList[emptyIdx],
+                                      title: `從 ${h.name} 出發`,
+                                      location: h.name,
+                                    };
+                                  } else {
+                                    nextList.push({ title: `從 ${h.name} 出發`, location: h.name, duration: '0.5h' });
+                                  }
+                                  setSightseeingList(nextList);
+                                } else {
+                                  setNewActivity((prev) => ({
+                                    ...prev,
+                                    title: prev.title.trim() || `從 ${h.name} 出發`,
+                                    location: h.name,
+                                  }));
+                                }
+                              }}
+                              className="h-7 px-3 rounded-full bg-white dark:bg-zinc-900/70 border border-zinc-200/80 dark:border-white/10 text-zinc-800 dark:text-zinc-200 text-[11px] font-semibold whitespace-nowrap shrink-0 cursor-pointer hover:border-indigo-400 transition-colors"
+                            >
+                              從 {h.name} 出發
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (newActivity.type === 'sightseeing') {
+                                  const nextList = [...sightseeingList];
+                                  const emptyIdx = nextList.findIndex((row) => !row.title.trim());
+                                  if (emptyIdx !== -1) {
+                                    nextList[emptyIdx] = {
+                                      ...nextList[emptyIdx],
+                                      title: `返回酒店（${h.name}）`,
+                                      location: h.name,
+                                    };
+                                  } else {
+                                    nextList.push({ title: `返回酒店（${h.name}）`, location: h.name, duration: '0.5h' });
+                                  }
+                                  setSightseeingList(nextList);
+                                } else {
+                                  setNewActivity((prev) => ({
+                                    ...prev,
+                                    title: `返回酒店（${h.name}）`,
+                                    location: h.name,
+                                  }));
+                                }
+                              }}
+                              className="h-7 px-3 rounded-full bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 text-[11px] font-semibold whitespace-nowrap shrink-0 cursor-pointer hover:bg-indigo-500/20 transition-colors"
+                            >
+                              返回 {h.name}
+                            </button>
+                          </React.Fragment>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {newActivity.type === 'sightseeing' && !editingActivityId ? (
                 <div className="space-y-3">
@@ -1966,7 +2171,186 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
         onOpenRouteForStops={handleOpenAiRoutePreview}
       />
 
-      {/* Hotel Booking Manager Modal (Keyboard-aware + Auto-location + Swipe Calendar) */}
+      {/* Read-Only Activity Detail Modal (Opens First on Card Tap; Edit/Delete at Bottom) */}
+      <LiquidModal
+        open={Boolean(detailActivity)}
+        onClose={() => setDetailActivity(null)}
+        bottomSheetOnMobile
+        maxWidthClass="max-w-md"
+        title={
+          detailActivity ? (
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                  detailActivity.completed
+                    ? 'bg-emerald-500 text-white'
+                    : getTypeMeta(detailActivity.type).nodeBg
+                }`}
+              >
+                {(() => {
+                  const Icon = detailActivity.completed ? CheckIcon : getTypeMeta(detailActivity.type).icon;
+                  return <Icon className={`w-4 h-4 ${detailActivity.type === 'flight' ? '-rotate-45' : ''}`} />;
+                })()}
+              </div>
+              <span className="truncate text-base font-display font-bold">
+                {detailActivity.type === 'flight' && detailActivity.flightInfo
+                  ? `${detailActivity.flightInfo.flightNumber} 航班詳情`
+                  : getTypeMeta(detailActivity.type).label}
+              </span>
+            </div>
+          ) : null
+        }
+      >
+        {detailActivity && (
+          <div className="flex flex-col flex-1 min-h-0">
+            <div className="flex-1 overflow-y-auto no-scrollbar space-y-4 pb-4">
+              <div className="space-y-1.5">
+                <div className="flex items-start justify-between gap-3">
+                  <h3 className="text-xl font-display font-bold text-zinc-900 dark:text-white leading-snug">
+                    {detailActivity.type === 'flight' && detailActivity.flightInfo
+                      ? `${detailActivity.flightInfo.flightNumber} 航班`
+                      : detailActivity.title}
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={(e) => handleToggleActivityComplete(e, detailActivity.id)}
+                    className={`h-8 px-3 rounded-full text-xs font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer transition-colors whitespace-nowrap ${
+                      detailActivity.completed
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-zinc-100 dark:bg-white/[0.08] text-zinc-700 dark:text-zinc-200 hover:bg-emerald-500/15 hover:text-emerald-700 dark:hover:text-emerald-300'
+                    }`}
+                  >
+                    <CheckIcon className="w-3.5 h-3.5" />
+                    <span>{detailActivity.completed ? '已完成' : '標記完成'}</span>
+                  </button>
+                </div>
+
+                {detailActivity.type !== 'flight' && (
+                  <div className="flex items-center gap-2.5 text-xs font-num text-zinc-500 dark:text-zinc-400">
+                    <span>{formatTime12h(detailActivity.time)} ({detailActivity.time})</span>
+                    {detailActivity.duration && (
+                      <>
+                        <span aria-hidden="true">·</span>
+                        <span>停留約 {detailActivity.duration}</span>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {detailActivity.type === 'flight' && detailActivity.flightInfo ? (
+                <div className="ink-card rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <div className="text-2xl font-display font-bold font-num text-white">
+                        {detailActivity.flightInfo.departureCode}
+                      </div>
+                      <div className="text-[11px] text-zinc-400">
+                        {resolveAirportByCode(detailActivity.flightInfo.departureCode)?.name}
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-center px-2">
+                      <PlaneIcon className="w-4 h-4 text-sky-400" />
+                      {detailActivity.flightInfo.duration && (
+                        <span className="text-[11px] font-num text-zinc-400 mt-1">
+                          {detailActivity.flightInfo.duration}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <div className="text-2xl font-display font-bold font-num text-white">
+                        {detailActivity.flightInfo.arrivalCode}
+                      </div>
+                      <div className="text-[11px] text-zinc-400">
+                        {resolveAirportByCode(detailActivity.flightInfo.arrivalCode)?.name}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 pt-3 border-t border-white/10 text-xs font-num">
+                    <div>
+                      <div className="text-[10px] text-zinc-400">出發時間</div>
+                      <div className="font-bold text-white mt-0.5">
+                        {detailActivity.flightInfo.departureDate} {detailActivity.flightInfo.departureTime}
+                      </div>
+                      <div className="text-[10px] text-zinc-400">{detailActivity.flightInfo.departureTimezone}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] text-zinc-400">抵達時間</div>
+                      <div className="font-bold text-white mt-0.5">
+                        {detailActivity.flightInfo.arrivalDate} {detailActivity.flightInfo.arrivalTime}
+                      </div>
+                      <div className="text-[10px] text-zinc-400">{detailActivity.flightInfo.arrivalTimezone}</div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {(detailActivity.location || detailActivity.title) && (
+                    <div className="rounded-2xl bg-zinc-100/80 dark:bg-white/[0.05] border border-zinc-200/70 dark:border-white/10 p-3.5 flex items-center justify-between gap-3">
+                      <div className="flex items-start gap-2.5 min-w-0">
+                        <MapIcon className="w-4 h-4 text-[#F26B3A] shrink-0 mt-0.5" />
+                        <div className="min-w-0">
+                          <div className="text-[11px] text-zinc-400">地點資訊</div>
+                          <div className="text-sm font-medium text-zinc-900 dark:text-white break-words">
+                            {detailActivity.location || detailActivity.title}
+                          </div>
+                        </div>
+                      </div>
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                          detailActivity.location || detailActivity.title
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="h-8 px-3 rounded-full bg-white dark:bg-zinc-900/80 border border-zinc-200/80 dark:border-white/10 text-xs font-semibold text-zinc-800 dark:text-zinc-200 inline-flex items-center gap-1 shrink-0 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+                      >
+                        <span>地圖</span>
+                        <ArrowUpRightIcon className="w-3 h-3" />
+                      </a>
+                    </div>
+                  )}
+
+                  <div className="rounded-2xl bg-zinc-100/80 dark:bg-white/[0.05] border border-zinc-200/70 dark:border-white/10 p-3.5 space-y-1">
+                    <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
+                      <DocumentTextIcon className="w-3.5 h-3.5" />
+                      <span>備註與詳細說明</span>
+                    </div>
+                    <p className="text-sm text-zinc-700 dark:text-zinc-200 whitespace-pre-wrap leading-relaxed">
+                      {detailActivity.description?.trim() ? detailActivity.description : '尚未填寫備註'}
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Bottom Fixed Actions: 刪除 & 編輯 */}
+            <div className="pt-3 flex items-center gap-2.5 shrink-0 border-t border-zinc-200/60 dark:border-white/10">
+              <button
+                type="button"
+                onClick={() => setDetailDeleteConfirmOpen(true)}
+                className="h-11 px-4 rounded-full bg-red-500/12 hover:bg-red-500/20 text-red-600 dark:text-red-400 font-semibold text-xs flex items-center gap-1.5 cursor-pointer shrink-0 transition-colors whitespace-nowrap"
+              >
+                <TrashIcon className="w-4 h-4" />
+                <span>刪除</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const target = detailActivity;
+                  setDetailActivity(null);
+                  openEditModal(target);
+                }}
+                className="flex-1 min-h-[46px] rounded-full bg-[#F26B3A] hover:bg-[#E15A2A] text-white font-semibold text-sm flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+              >
+                <EditIcon className="w-4 h-4" />
+                <span>編輯行程</span>
+              </button>
+            </div>
+          </div>
+        )}
+      </LiquidModal>
+
+      {/* Hotel Booking Manager Modal (Saved Hotels on TOP + Add Other Hotel BELOW) */}
       <LiquidModal
         open={showHotelModal}
         onClose={() => setShowHotelModal(false)}
@@ -1980,101 +2364,39 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
         }
       >
         <div className="flex flex-col gap-4 flex-1 min-h-0 overflow-y-auto no-scrollbar pr-0.5 pb-2">
-          <form onSubmit={handleSaveHotel} className="space-y-3.5 bg-zinc-100/80 dark:bg-white/[0.04] border border-zinc-200/70 dark:border-white/10 rounded-2xl p-3.5">
-            <div>
-              <label className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 block mb-1">
-                酒店名稱（系統將自動配對地圖位置）
-              </label>
-              <input
-                required
-                type="text"
-                placeholder="例如：新宿格拉斯麗酒店"
-                value={hotelDraft.name}
-                onChange={(e) => setHotelDraft({ ...hotelDraft, name: e.target.value })}
-                className="w-full h-11 px-3.5 rounded-xl bg-white dark:bg-zinc-900/70 text-sm font-semibold text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/35"
-              />
-            </div>
-
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
-                  點選或滑動選擇入住與退房日期
-                </span>
-                {getDaySpanUtc(hotelDraft.checkIn, hotelDraft.checkOut) && (
-                  <span className="text-[11px] font-num font-bold text-indigo-600 dark:text-indigo-400">
-                    共 {getDaySpanUtc(hotelDraft.checkIn, hotelDraft.checkOut)!.nights} 晚
-                  </span>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-xs font-num">
-                <div className="bg-white dark:bg-zinc-900/70 px-3 py-2 rounded-xl border border-zinc-200/70 dark:border-white/10">
-                  <span className="text-[10px] text-zinc-400 block">入住日期</span>
-                  <span className="font-bold text-zinc-900 dark:text-white">{hotelDraft.checkIn}</span>
-                </div>
-                <div className="bg-white dark:bg-zinc-900/70 px-3 py-2 rounded-xl border border-zinc-200/70 dark:border-white/10">
-                  <span className="text-[10px] text-zinc-400 block">退房日期</span>
-                  <span className="font-bold text-zinc-900 dark:text-white">{hotelDraft.checkOut}</span>
-                </div>
-              </div>
-
-              <DateRangeCalendar
-                startDate={hotelDraft.checkIn}
-                endDate={hotelDraft.checkOut}
-                onChangeRange={(s, e) => setHotelDraft((prev) => ({ ...prev, checkIn: s, checkOut: e }))}
-              />
-            </div>
-
-            <div className="flex gap-2 pt-1">
-              {editingHotelId && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingHotelId(null);
-                    setHotelDraft({ name: '', checkIn: selectedDate || trip.startDate, checkOut: trip.endDate });
-                  }}
-                  className="h-10 px-4 rounded-full bg-zinc-200 dark:bg-zinc-800 text-xs font-semibold text-zinc-700 dark:text-zinc-200 cursor-pointer"
-                >
-                  取消編輯
-                </button>
-              )}
-              <button
-                type="submit"
-                disabled={!hotelDraft.name.trim()}
-                className="flex-1 h-10 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs disabled:opacity-40 cursor-pointer"
-              >
-                {editingHotelId ? '更新酒店資料' : '+ 新增住宿酒店'}
-              </button>
-            </div>
-          </form>
-
+          {/* 1. Saved Hotels Section AT THE TOP */}
           {hotels.length > 0 && (
             <div className="space-y-2">
               <div className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 px-1">
-                已設定住宿 ({hotels.length})
+                已登記酒店 ({hotels.length})
               </div>
               {hotels.map((h) => {
                 const isToday = selectedDate >= h.checkIn && selectedDate <= h.checkOut;
+                const isEditingThis = editingHotelId === h.id;
+                const span = getDaySpanUtc(h.checkIn, h.checkOut);
                 return (
                   <div
                     key={h.id}
                     onClick={() => {
                       setEditingHotelId(h.id);
+                      setShowHotelAddForm(true);
                       setHotelDraft({
                         name: h.name,
                         checkIn: h.checkIn,
                         checkOut: h.checkOut,
                       });
                     }}
-                    className={`p-3 rounded-2xl border flex items-center justify-between gap-3 cursor-pointer transition-colors ${
-                      isToday
-                        ? 'bg-indigo-600/10 border-indigo-500/40'
-                        : 'bg-zinc-100/70 dark:bg-white/[0.04] border-zinc-200/70 dark:border-white/10'
+                    className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 cursor-pointer transition-colors ${
+                      isEditingThis
+                        ? 'bg-indigo-600/14 border-indigo-500'
+                        : isToday
+                          ? 'bg-indigo-600/10 border-indigo-500/40'
+                          : 'bg-zinc-100/75 dark:bg-white/[0.04] border-zinc-200/70 dark:border-white/10'
                     }`}
                   >
-                    <div className="min-w-0">
+                    <div className="min-w-0 space-y-0.5">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-sm text-zinc-900 dark:text-white truncate">
+                        <span className="font-display font-bold text-sm text-zinc-900 dark:text-white truncate">
                           {h.name}
                         </span>
                         {isToday && (
@@ -2083,25 +2405,141 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                           </span>
                         )}
                       </div>
-                      <div className="text-[11px] font-num text-zinc-500 dark:text-zinc-400 mt-0.5 truncate">
+                      <div className="text-[11px] font-num text-zinc-500 dark:text-zinc-400 truncate">
                         {h.checkIn} ~ {h.checkOut}
+                        {span ? ` · 共 ${span.nights} 晚` : ''}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteHotel(h.id);
-                      }}
-                      aria-label="刪除酒店"
-                      className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-400 hover:text-red-500 hover:bg-red-500/10 shrink-0 cursor-pointer"
-                    >
-                      <TrashIcon className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-400">
+                        <EditIcon className="w-3.5 h-3.5" />
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteHotel(h.id);
+                        }}
+                        aria-label="刪除酒店"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-400 hover:text-red-500 hover:bg-red-500/10 cursor-pointer"
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 );
               })}
             </div>
+          )}
+
+          {/* 2. Add Other Hotel Trigger or Expanded Form BELOW */}
+          {hotels.length > 0 && !editingHotelId && !showHotelAddForm ? (
+            <button
+              type="button"
+              onClick={() => {
+                setEditingHotelId(null);
+                setHotelDraft({
+                  name: '',
+                  checkIn: selectedDate || trip.startDate,
+                  checkOut: trip.endDate,
+                });
+                setShowHotelAddForm(true);
+              }}
+              className="w-full min-h-[46px] rounded-2xl border border-dashed border-indigo-400/50 bg-indigo-500/8 hover:bg-indigo-500/14 text-indigo-600 dark:text-indigo-300 font-semibold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+            >
+              <PlusIcon className="w-4 h-4" />
+              <span>新增其他酒店</span>
+            </button>
+          ) : (
+            <form
+              onSubmit={handleSaveHotel}
+              className="space-y-3.5 bg-zinc-100/80 dark:bg-white/[0.04] border border-zinc-200/70 dark:border-white/10 rounded-2xl p-3.5"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                  {editingHotelId ? '編輯住宿酒店' : hotels.length > 0 ? '新增其他酒店' : '登記住宿酒店'}
+                </span>
+                {hotels.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingHotelId(null);
+                      setShowHotelAddForm(false);
+                    }}
+                    className="text-[11px] font-semibold text-zinc-500 hover:text-zinc-800 dark:hover:text-white cursor-pointer"
+                  >
+                    收合
+                  </button>
+                )}
+              </div>
+
+              <div>
+                <label className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 block mb-1">
+                  酒店名稱（系統將自動配對地圖位置）
+                </label>
+                <input
+                  required
+                  type="text"
+                  placeholder="例如：新宿格拉斯麗酒店"
+                  value={hotelDraft.name}
+                  onChange={(e) => setHotelDraft({ ...hotelDraft, name: e.target.value })}
+                  className="w-full h-11 px-3.5 rounded-xl bg-white dark:bg-zinc-900/70 text-sm font-semibold text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/35"
+                />
+              </div>
+
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+                    點選或滑動選擇入住與退房日期
+                  </span>
+                  {getDaySpanUtc(hotelDraft.checkIn, hotelDraft.checkOut) && (
+                    <span className="text-[11px] font-num font-bold text-indigo-600 dark:text-indigo-400">
+                      共 {getDaySpanUtc(hotelDraft.checkIn, hotelDraft.checkOut)!.nights} 晚
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs font-num">
+                  <div className="bg-white dark:bg-zinc-900/70 px-3 py-2 rounded-xl border border-zinc-200/70 dark:border-white/10">
+                    <span className="text-[10px] text-zinc-400 block">入住日期</span>
+                    <span className="font-bold text-zinc-900 dark:text-white">{hotelDraft.checkIn}</span>
+                  </div>
+                  <div className="bg-white dark:bg-zinc-900/70 px-3 py-2 rounded-xl border border-zinc-200/70 dark:border-white/10">
+                    <span className="text-[10px] text-zinc-400 block">退房日期</span>
+                    <span className="font-bold text-zinc-900 dark:text-white">{hotelDraft.checkOut}</span>
+                  </div>
+                </div>
+
+                <DateRangeCalendar
+                  startDate={hotelDraft.checkIn}
+                  endDate={hotelDraft.checkOut}
+                  onChangeRange={(s, e) => setHotelDraft((prev) => ({ ...prev, checkIn: s, checkOut: e }))}
+                />
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                {editingHotelId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingHotelId(null);
+                      setShowHotelAddForm(false);
+                      setHotelDraft({ name: '', checkIn: selectedDate || trip.startDate, checkOut: trip.endDate });
+                    }}
+                    className="h-10 px-4 rounded-full bg-zinc-200 dark:bg-zinc-800 text-xs font-semibold text-zinc-700 dark:text-zinc-200 cursor-pointer"
+                  >
+                    取消編輯
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  disabled={!hotelDraft.name.trim()}
+                  className="flex-1 h-10 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs disabled:opacity-40 cursor-pointer"
+                >
+                  {editingHotelId ? '更新酒店資料' : '+ 確認新增酒店'}
+                </button>
+              </div>
+            </form>
           )}
         </div>
       </LiquidModal>
@@ -2110,6 +2548,16 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
         open={confirmDeleteOpen}
         onClose={() => setConfirmDeleteOpen(false)}
         onConfirm={handleDeleteActivity}
+        title="刪除此行程？"
+        description="刪除後會同步從其他已連線裝置移除。"
+        confirmLabel="確認刪除"
+        icon={<TrashIcon className="w-6 h-6" />}
+      />
+
+      <ConfirmSheet
+        open={detailDeleteConfirmOpen}
+        onClose={() => setDetailDeleteConfirmOpen(false)}
+        onConfirm={handleDeleteDetailActivity}
         title="刪除此行程？"
         description="刪除後會同步從其他已連線裝置移除。"
         confirmLabel="確認刪除"

@@ -226,12 +226,12 @@ const TAB_THEME_PALETTES: Record<
     shadowDark: '0 8px 22px -6px rgba(56, 189, 248, 0.48)',
   },
   EXPLORE: {
-    fromLight: '#0D9488',
-    toLight: '#06B6D4',
-    fromDark: '#14B8A6',
-    toDark: '#22D3EE',
-    shadowLight: '0 8px 20px -6px rgba(13, 148, 136, 0.5)',
-    shadowDark: '0 8px 22px -6px rgba(34, 211, 238, 0.45)',
+    fromLight: '#E11D48',
+    toLight: '#F97316',
+    fromDark: '#FB7185',
+    toDark: '#F59E0B',
+    shadowLight: '0 8px 20px -6px rgba(225, 29, 72, 0.5)',
+    shadowDark: '0 8px 22px -6px rgba(251, 113, 133, 0.45)',
   },
   EXPENSES: {
     fromLight: '#4F46E5',
@@ -623,7 +623,25 @@ const WorkspaceSidebar: React.FC<
   );
 };
 
-const WorkspaceDock: React.FC<WorkspaceNavSharedProps> = ({
+function lerpHexColor(hexA: string, hexB: string, t: number): string {
+  const clamped = Math.max(0, Math.min(1, t));
+  const parse = (hex: string) => {
+    const clean = hex.replace('#', '');
+    const full = clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean;
+    const n = parseInt(full, 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  };
+  const [r1, g1, b1] = parse(hexA);
+  const [r2, g2, b2] = parse(hexB);
+  const r = Math.round(r1 + (r2 - r1) * clamped);
+  const g = Math.round(g1 + (g2 - g1) * clamped);
+  const b = Math.round(b1 + (b2 - b1) * clamped);
+  return `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
+const WorkspaceDock: React.FC<
+  WorkspaceNavSharedProps & { isDark: boolean }
+> = ({
   navItems,
   activeTab,
   activeNavIndex,
@@ -633,10 +651,18 @@ const WorkspaceDock: React.FC<WorkspaceNavSharedProps> = ({
   navGradCycle,
   onSelectTab,
   isHidden,
+  isDark,
 }) => {
   const navRef = useRef<HTMLElement | null>(null);
   const btnRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [thumb, setThumb] = useState<{ left: number; width: number; top: number; height: number } | null>(null);
+  const [dragFraction, setDragFraction] = useState<number | null>(null);
+  const dragMetaRef = useRef<{
+    pointerId: number;
+    startX: number;
+    isDragging: boolean;
+    suppressClickUntil: number;
+  } | null>(null);
 
   useLayoutEffect(() => {
     if (isHidden) return;
@@ -665,6 +691,103 @@ const WorkspaceDock: React.FC<WorkspaceNavSharedProps> = ({
     };
   }, [activeNavIndex, navItems.length, isHidden]);
 
+  const computeFractionFromClientX = (clientX: number): number | null => {
+    const firstBtn = btnRefs.current[0];
+    const lastBtn = btnRefs.current[navItems.length - 1];
+    if (!firstBtn || !lastBtn) return null;
+    const r0 = firstBtn.getBoundingClientRect();
+    const rLast = lastBtn.getBoundingClientRect();
+    const firstCenter = r0.left + r0.width / 2;
+    const lastCenter = rLast.left + rLast.width / 2;
+    if (lastCenter <= firstCenter) return null;
+    const raw = ((clientX - firstCenter) / (lastCenter - firstCenter)) * (navItems.length - 1);
+    return Math.max(0, Math.min(navItems.length - 1, raw));
+  };
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLElement>) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    dragMetaRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      isDragging: false,
+      suppressClickUntil: dragMetaRef.current?.suppressClickUntil || 0,
+    };
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLElement>) => {
+    const meta = dragMetaRef.current;
+    if (!meta || meta.pointerId !== e.pointerId) return;
+    if (!meta.isDragging) {
+      if (Math.abs(e.clientX - meta.startX) < 7) return;
+      meta.isDragging = true;
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        // ignore capture error
+      }
+    }
+    const frac = computeFractionFromClientX(e.clientX);
+    if (frac !== null) {
+      setDragFraction(frac);
+    }
+  };
+
+  const finishPointerDrag = (e: React.PointerEvent<HTMLElement>, commit: boolean) => {
+    const meta = dragMetaRef.current;
+    if (!meta || meta.pointerId !== e.pointerId) return;
+    const wasDragging = meta.isDragging;
+    dragMetaRef.current = {
+      pointerId: -1,
+      startX: 0,
+      isDragging: false,
+      suppressClickUntil: wasDragging ? Date.now() + 260 : 0,
+    };
+    try {
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      // ignore
+    }
+    if (wasDragging && commit) {
+      const frac = computeFractionFromClientX(e.clientX) ?? dragFraction;
+      if (frac !== null) {
+        const targetIdx = Math.max(0, Math.min(navItems.length - 1, Math.round(frac)));
+        const targetItem = navItems[targetIdx];
+        if (targetItem && targetItem.id !== activeTab) {
+          onSelectTab(targetItem.id);
+        }
+      }
+    }
+    setDragFraction(null);
+  };
+
+  // Compute live interpolated thumb position & color gradient while scrubbing
+  const scrubThumb = useMemo(() => {
+    if (dragFraction === null) return null;
+    const leftIdx = Math.floor(dragFraction);
+    const rightIdx = Math.min(navItems.length - 1, leftIdx + 1);
+    const localT = dragFraction - leftIdx;
+    const btnL = btnRefs.current[leftIdx];
+    const btnR = btnRefs.current[rightIdx];
+    if (!btnL || !btnR) return null;
+    const palL = TAB_THEME_PALETTES[navItems[leftIdx].themeKey];
+    const palR = TAB_THEME_PALETTES[navItems[rightIdx].themeKey];
+    const fromL = isDark ? palL.fromDark : palL.fromLight;
+    const toL = isDark ? palL.toDark : palL.toLight;
+    const fromR = isDark ? palR.fromDark : palR.fromLight;
+    const toR = isDark ? palR.toDark : palR.toLight;
+    return {
+      left: btnL.offsetLeft + (btnR.offsetLeft - btnL.offsetLeft) * localT,
+      width: btnL.offsetWidth + (btnR.offsetWidth - btnL.offsetWidth) * localT,
+      top: btnL.offsetTop,
+      height: btnL.offsetHeight,
+      gradFrom: lerpHexColor(fromL, fromR, localT),
+      gradTo: lerpHexColor(toL, toR, localT),
+      hoverIndex: Math.round(dragFraction),
+    };
+  }, [dragFraction, navItems, isDark]);
+
   return (
     <div
       aria-hidden={isHidden}
@@ -675,41 +798,59 @@ const WorkspaceDock: React.FC<WorkspaceNavSharedProps> = ({
       <nav
         ref={navRef}
         aria-label="主導航列"
-        className="pointer-events-auto surface-dock relative w-full max-w-md h-[62px] rounded-[30px] p-1.5 grid grid-cols-5 items-center gap-0.5"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={(e) => finishPointerDrag(e, true)}
+        onPointerCancel={(e) => finishPointerDrag(e, false)}
+        className="pointer-events-auto touch-none surface-dock relative w-full max-w-md h-[62px] rounded-[30px] p-1.5 grid grid-cols-5 items-center gap-0.5 select-none"
       >
-        {thumb && (
+        {(scrubThumb || thumb) && (
           <motion.div
             aria-hidden="true"
             initial={false}
-            animate={{
-              x: thumb.left,
-              width: thumb.width,
-              backgroundImage:
-                navGradCycle.tick > 0
-                  ? [
-                      `linear-gradient(135deg, ${navGradCycle.fromA}, ${navGradCycle.fromB})`,
-                      `linear-gradient(135deg, ${navGradCycle.fromA}, ${navGradCycle.toA})`,
-                      `linear-gradient(135deg, ${navGradCycle.toA}, ${navGradCycle.toB})`,
-                    ]
-                  : `linear-gradient(135deg, ${navCurrentFrom}, ${navCurrentTo})`,
-              boxShadow: navCurrentShadow,
-            }}
-            transition={{
-              x: { type: 'spring', stiffness: 450, damping: 34, mass: 0.82 },
-              width: { type: 'spring', stiffness: 450, damping: 34, mass: 0.82 },
-              backgroundImage: { duration: 0.45, ease: 'easeInOut' },
-            }}
+            animate={
+              scrubThumb
+                ? {
+                    x: scrubThumb.left,
+                    width: scrubThumb.width,
+                    backgroundImage: `linear-gradient(135deg, ${scrubThumb.gradFrom}, ${scrubThumb.gradTo})`,
+                    boxShadow: navCurrentShadow,
+                  }
+                : {
+                    x: thumb!.left,
+                    width: thumb!.width,
+                    backgroundImage:
+                      navGradCycle.tick > 0
+                        ? [
+                            `linear-gradient(135deg, ${navGradCycle.fromA}, ${navGradCycle.fromB})`,
+                            `linear-gradient(135deg, ${navGradCycle.fromA}, ${navGradCycle.toA})`,
+                            `linear-gradient(135deg, ${navGradCycle.toA}, ${navGradCycle.toB})`,
+                          ]
+                        : `linear-gradient(135deg, ${navCurrentFrom}, ${navCurrentTo})`,
+                    boxShadow: navCurrentShadow,
+                  }
+            }
+            transition={
+              scrubThumb
+                ? { duration: 0 }
+                : {
+                    x: { type: 'spring', stiffness: 450, damping: 34, mass: 0.82 },
+                    width: { type: 'spring', stiffness: 450, damping: 34, mass: 0.82 },
+                    backgroundImage: { duration: 0.45, ease: 'easeInOut' },
+                  }
+            }
             style={{
-              top: thumb.top,
-              height: thumb.height,
+              top: (scrubThumb || thumb)!.top,
+              height: (scrubThumb || thumb)!.height,
             }}
             className="absolute left-0 rounded-[24px] pointer-events-none z-0"
           />
         )}
         {navItems.map((item, idx) => {
           const Icon = item.icon;
-          const isActive =
-            activeTab === item.id || (item.id === Tab.TOOLBOX && activeTab === Tab.PACKING);
+          const isActive = scrubThumb
+            ? scrubThumb.hoverIndex === idx
+            : activeTab === item.id || (item.id === Tab.TOOLBOX && activeTab === Tab.PACKING);
           return (
             <button
               type="button"
@@ -717,17 +858,20 @@ const WorkspaceDock: React.FC<WorkspaceNavSharedProps> = ({
               ref={(el) => {
                 btnRefs.current[idx] = el;
               }}
-              onClick={() => onSelectTab(item.id)}
+              onClick={() => {
+                if ((dragMetaRef.current?.suppressClickUntil || 0) > Date.now()) return;
+                onSelectTab(item.id);
+              }}
               aria-label={item.label}
               style={
-                !thumb && isActive
+                !thumb && !scrubThumb && isActive
                   ? {
                       background: `linear-gradient(135deg, ${navCurrentFrom}, ${navCurrentTo})`,
                       boxShadow: navCurrentShadow,
                     }
                   : undefined
               }
-              className={`relative z-10 h-full min-w-0 px-1 rounded-[24px] flex flex-col items-center justify-center gap-0.5 transition-colors duration-200 cursor-pointer select-none ${
+              className={`relative z-10 h-full min-w-0 px-1 rounded-[24px] flex flex-col items-center justify-center gap-0.5 transition-colors duration-150 cursor-pointer select-none ${
                 isActive
                   ? 'text-white'
                   : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
@@ -906,24 +1050,14 @@ function App() {
       appleBarMeta.setAttribute('content', isDarkResolved ? 'black-translucent' : 'default');
     }
 
-    const existingThemeMeta =
-      document.getElementById('waynote-theme-color') ||
-      document.querySelector('meta[name="theme-color"]');
-    if (existingThemeMeta) {
-      if (existingThemeMeta.getAttribute('content') !== currentTopTint) {
-        const replacement = existingThemeMeta.cloneNode() as HTMLMetaElement;
-        replacement.id = 'waynote-theme-color';
-        replacement.name = 'theme-color';
-        replacement.content = currentTopTint;
-        existingThemeMeta.replaceWith(replacement);
-      }
-    } else {
-      const created = document.createElement('meta');
-      created.id = 'waynote-theme-color';
-      created.name = 'theme-color';
-      created.content = currentTopTint;
-      document.head.appendChild(created);
-    }
+    // Remove all existing theme-color tags (including any media-scoped tags) and append a fresh one
+    // so iOS Safari reliably repaints the Dynamic Island / status-bar area when toggling dark mode.
+    document.querySelectorAll('meta[name="theme-color"]').forEach((el) => el.remove());
+    const freshThemeMeta = document.createElement('meta');
+    freshThemeMeta.id = 'waynote-theme-color';
+    freshThemeMeta.name = 'theme-color';
+    freshThemeMeta.content = currentTopTint;
+    document.head.appendChild(freshThemeMeta);
 
     localStorage.setItem(STORAGE_THEME_MODE_KEY, themeMode);
   }, [isDarkResolved, themeMode, currentTopTint]);
@@ -1940,13 +2074,14 @@ function App() {
 
   const globeFocusCity = useMemo(() => {
     if (view === 'TRIP') {
-      return tripData?.destination || selectedHomeTrip?.destination || '東京';
+      return tripData?.destination || selectedHomeTrip?.destination || null;
     }
     if (view === 'CREATE') {
-      return createPreviewCity || rotatingShowcaseCity;
+      return createPreviewCity || null;
     }
-    return selectedHomeTrip?.destination || exploreCity || rotatingShowcaseCity;
-  }, [view, tripData?.destination, selectedHomeTrip?.destination, createPreviewCity, exploreCity, rotatingShowcaseCity]);
+    // On HOME, show World Map if user hasn't added a trip or selected an explore city
+    return selectedHomeTrip?.destination || exploreCity || null;
+  }, [view, tripData?.destination, selectedHomeTrip?.destination, createPreviewCity, exploreCity]);
 
   const activePageTitle = useMemo(() => {
     switch (activeTab) {
@@ -1976,6 +2111,13 @@ function App() {
     <MotionConfig reducedMotion="user">
       <div
         data-scroll-lock
+        style={
+          {
+            '--tab-accent': navCurrentFrom,
+            '--tab-accent-hover': navCurrentTo,
+            '--tab-accent-soft': `${navCurrentFrom}20`,
+          } as React.CSSProperties
+        }
         className="fixed inset-0 w-full h-full overflow-clip app-canvas text-zinc-900 dark:text-zinc-100 select-none sm:select-auto"
       >
         <div
@@ -3400,6 +3542,7 @@ function App() {
                     navGradCycle={navGradCycle}
                     onSelectTab={setActiveTab}
                     isHidden={isAnyModalOpen}
+                    isDark={isDarkResolved}
                   />
                 </main>
               </motion.div>

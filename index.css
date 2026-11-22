@@ -88,9 +88,14 @@
     -webkit-tap-highlight-color: transparent;
   }
 
+  html,
+  body {
+    background-color: #CFE4FC;
+  }
+
   html.dark,
   html.dark body {
-    background-color: var(--safe-top-tint);
+    background-color: #080D1B;
   }
 
   #root {
@@ -125,27 +130,27 @@
   background: transparent;
 }
 
-/* Unified Daylight Sky & Clouds / Cosmic Night Starlight Backdrop */
+/* Unified Crisp Daylight Sky / Cosmic Night Starlight Backdrop */
 .app-backdrop {
   position: fixed;
   inset: 0;
-  background-color: var(--safe-top-tint);
+  background-color: #CFE4FC;
   background-image:
     linear-gradient(
       180deg,
       #CFE4FC 0%,
-      #D9EBFF calc(env(safe-area-inset-top, 0px) + 120px),
-      #EBF4FF 58%,
-      #F6FAFF 100%
+      #DCEBFF calc(env(safe-area-inset-top, 0px) + 120px),
+      #ECF4FF 58%,
+      #F7FAFF 100%
     );
 }
 
 html.dark .app-backdrop {
-  background-color: var(--safe-top-tint);
+  background-color: #080D1B;
   background-image:
-    radial-gradient(64% 52% at 22% 18%, rgba(30, 64, 175, 0.24) 0%, transparent 72%),
-    radial-gradient(56% 48% at 84% 26%, rgba(14, 165, 233, 0.12) 0%, transparent 72%),
-    radial-gradient(60% 48% at 48% 92%, rgba(79, 70, 229, 0.16) 0%, transparent 75%),
+    radial-gradient(64% 52% at 22% 18%, rgba(30, 64, 175, 0.20) 0%, transparent 72%),
+    radial-gradient(56% 48% at 84% 26%, rgba(14, 165, 233, 0.11) 0%, transparent 72%),
+    radial-gradient(60% 48% at 48% 92%, rgba(79, 70, 229, 0.14) 0%, transparent 75%),
     linear-gradient(180deg, #080D1B 0%, #0A1124 55%, #0D162E 100%);
 }
 

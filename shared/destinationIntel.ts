@@ -813,6 +813,20 @@ export function detectDestinationIntel(rawDestination: string): DestinationIntel
   };
 }
 
+export function resolveAirportByCode(iataCode?: string | null): DestinationAirport | null {
+  const code = (iataCode || '').trim().toUpperCase();
+  if (!code) return null;
+  for (const list of Object.values(CITY_AIRPORTS)) {
+    const found = list.find((item) => item.code.toUpperCase() === code);
+    if (found) return found;
+  }
+  return {
+    code,
+    name: `${code} 機場`,
+    query: `${code} Airport`,
+  };
+}
+
 export function getDestinationLocalTime(utcOffsetHours: number): { timeStr: string; dateStr: string } {
   const now = new Date();
   const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;

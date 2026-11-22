@@ -1894,6 +1894,7 @@ async function startServer() {
       destination?: string;
       focusCategory?: string;
       excludeNames?: string[];
+      batchSeed?: number;
     };
 
     const destination = String(body.destination || '').trim().slice(0, 200);
@@ -1904,8 +1905,17 @@ async function startServer() {
 
     const focusCategory = String(body.focusCategory || 'all').trim();
     const excludeNames = Array.isArray(body.excludeNames)
-      ? body.excludeNames.map((n) => String(n).trim()).filter(Boolean).slice(0, 25)
+      ? body.excludeNames.map((n) => String(n).trim()).filter(Boolean).slice(-120)
       : [];
+    const batchSeed = Math.max(1, Number(body.batchSeed) || 1);
+
+    const normalizeSpotKey = (name: string) =>
+      name
+        .toLowerCase()
+        .replace(/[\s・·\-—–_()（）[\]【】「」『』.,/]+/g, '')
+        .trim();
+
+    const excludedKeys = new Set(excludeNames.map(normalizeSpotKey).filter(Boolean));
 
     const ai = new GoogleGenAI({
       apiKey,
@@ -1948,11 +1958,22 @@ async function startServer() {
               ? '只推薦經典必訪地標與深度風景秘境'
               : '均衡包含經典景點、在地美食、特色咖啡與逛街好去處';
 
+    const explorationAngles = [
+      '優先探索不同生活圈與地鐵沿線的特色亮點',
+      '刻意換成遊客較少知道的在地私房名店、職人巷弄與建築美學去處',
+      '從夕陽散步、下町老街或設計感選物空間切入推薦全新名單',
+      '換到其他區域或不同價格帶，挑選評價極佳但較少出現在第一輪清單的場所',
+    ];
+    const angleHint = explorationAngles[(batchSeed - 1) % explorationAngles.length];
+
     const prompt = [
       `目的地：${destination}`,
       `推薦類型：${categoryHint}`,
-      `請精選 6 個真實存在且評價極高的具體地點。`,
-      excludeNames.length > 0 ? `請避開以下已收錄地點：${excludeNames.join('、')}` : '',
+      `探索視角（第 ${batchSeed} 批）：${angleHint}。`,
+      `請精選 10 個真實存在且評價極高的具體地點，涵蓋多個不同區域，並確保彼此完全不重複。`,
+      excludeNames.length > 0
+        ? `【絕對不可重複或使用同義／簡稱出現的地點清單（務必跳過這些，換成全新名單）】：\n${excludeNames.join('、')}`
+        : '',
     ]
       .filter(Boolean)
       .join('\n');
@@ -1963,9 +1984,10 @@ async function startServer() {
         contents: prompt,
         config: {
           systemInstruction:
-            '你是熟門熟路的台灣旅遊顧問，一律以台灣繁體中文簡潔精準推薦真實存在的地點，絕不編造不存在的店名。',
+            '你是熟門熟路的台灣旅遊顧問，一律以台灣繁體中文簡潔精準推薦真實存在的地點，絕不編造不存在的店名，且絕對禁止重複清單中已出現過的任何地點。',
           responseMimeType: 'application/json',
           responseSchema,
+          temperature: 1.0,
           thinkingConfig: { thinkingLevel },
           abortSignal: AbortSignal.timeout(timeoutMs),
         },
@@ -1997,18 +2019,36 @@ async function startServer() {
         }>;
       };
 
-      const spots = (parsed.spots || []).slice(0, 8).map((s) => {
-        const rawCat = String(s.category || '').toLowerCase();
-        const cat =
-          rawCat === 'food' || rawCat === 'cafe' || rawCat === 'shopping' ? rawCat : 'sightseeing';
-        return {
-          name: String(s.name || '').trim(),
-          category: cat as 'sightseeing' | 'food' | 'cafe' | 'shopping',
-          area: String(s.area || destination).trim(),
-          note: String(s.note || '').trim(),
-          estimatedCost: Math.max(0, Number(s.estimatedCost) || 0),
-        };
-      }).filter((s) => s.name.length > 0);
+      const seenBatchKeys = new Set<string>();
+      const spots = (parsed.spots || [])
+        .map((s) => {
+          const rawCat = String(s.category || '').toLowerCase();
+          const cat =
+            rawCat === 'food' || rawCat === 'cafe' || rawCat === 'shopping' ? rawCat : 'sightseeing';
+          return {
+            name: String(s.name || '').trim(),
+            category: cat as 'sightseeing' | 'food' | 'cafe' | 'shopping',
+            area: String(s.area || destination).trim(),
+            note: String(s.note || '').trim(),
+            estimatedCost: Math.max(0, Number(s.estimatedCost) || 0),
+          };
+        })
+        .filter((s) => {
+          if (!s.name) return false;
+          const key = normalizeSpotKey(s.name);
+          if (!key) return false;
+          if (seenBatchKeys.has(key)) return false;
+          if (excludedKeys.has(key)) return false;
+          // Catch slight suffix/prefix variations like "淺草寺" vs "東京淺草寺"
+          for (const exKey of excludedKeys) {
+            if (exKey.length >= 3 && key.length >= 3 && (exKey.includes(key) || key.includes(exKey))) {
+              return false;
+            }
+          }
+          seenBatchKeys.add(key);
+          return true;
+        })
+        .slice(0, 6);
 
       res.json({ spots });
     } catch (err: unknown) {
