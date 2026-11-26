@@ -540,4 +540,79 @@ export const StarIcon = ({ className, filled = false }: { className?: string; fi
   </svg>
 );
 
+export const BookmarkIcon = ({ className, filled = false }: { className?: string; filled?: boolean }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill={filled ? 'currentColor' : 'none'}
+    stroke="currentColor"
+    strokeWidth={1.7}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M18.5 20.5 12 15.75 5.5 20.5V5.5A2 2 0 0 1 7.5 3.5h9a2 2 0 0 1 2 2z" />
+  </svg>
+);
+
+export const HeartIcon = ({ className, filled = false }: { className?: string; filled?: boolean }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill={filled ? 'currentColor' : 'none'}
+    stroke="currentColor"
+    strokeWidth={1.75}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M20.2 5.2a5.2 5.2 0 0 0-7.35 0L12 6.06l-.85-.86a5.2 5.2 0 0 0-7.35 7.36l.85.85L12 20.5l7.35-7.09.85-.85a5.2 5.2 0 0 0 0-7.36z" />
+  </svg>
+);
+
+export const PaperAirplaneIcon = ({ className }: { className?: string }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.8}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M21.5 2.5 10.5 13.5" />
+    <path d="M21.5 2.5 14.5 21.5l-4-8-8-4 19-7z" />
+  </svg>
+);
+
+export const SpeakerWaveIcon = ({ className }: { className?: string }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.65}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M11 5.5 6.5 9H4a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h2.5l4.5 3.5V5.5z" />
+    <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+    <path d="M18.3 5.8a8.8 8.8 0 0 1 0 12.4" />
+  </svg>
+);
+
+export const SpeakerXMarkIcon = ({ className }: { className?: string }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.65}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M11 5.5 6.5 9H4a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h2.5l4.5 3.5V5.5z" />
+    <path d="m16 9.5 5 5m0-5-5 5" />
+  </svg>
+);
+
+
 

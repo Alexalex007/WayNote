@@ -22,6 +22,8 @@ import { RouteMapModal, PreviousStopOption } from './RouteMapModal';
 import { AiPlannerModal, AiPlannedDay } from './AiPlannerModal';
 import { DateRangeCalendar, getDaySpanUtc } from './DateRangeCalendar';
 import { LiquidModal, ConfirmSheet, SlidingSegmentedControl } from './LiquidPrimitives';
+import { RouteSwapButton } from './TactileButtons';
+import { tactileAudio } from '../services/tactileAudio';
 import {
   PlusIcon,
   CoffeeIcon,
@@ -2118,8 +2120,8 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
+              <div className="flex items-end gap-2">
+                <div className="flex-1 min-w-0">
                   <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1 block">
                     {t('出發機場', '出发机场', 'Departure Airport')}
                   </label>
@@ -2131,7 +2133,23 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                     onChange={(e) => setNewFlight({ ...newFlight, departureCode: e.target.value.toUpperCase() })}
                   />
                 </div>
-                <div>
+                <div className="pb-1 shrink-0">
+                  <RouteSwapButton
+                    size="md"
+                    onSwap={() => {
+                      setNewFlight((prev) => ({
+                        ...prev,
+                        departureCode: prev.arrivalCode,
+                        arrivalCode: prev.departureCode,
+                      }));
+                      const prevDep = depTz;
+                      const prevArr = arrTz;
+                      setDepTz(prevArr);
+                      setArrTz(prevDep);
+                    }}
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
                   <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1 block">
                     {t('抵達機場', '抵达机场', 'Arrival Airport')}
                   </label>
@@ -2239,11 +2257,14 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
           )}
           <button
             type="button"
-            onClick={handleSaveActivity}
+            onClick={() => {
+              tactileAudio.playStamp();
+              handleSaveActivity();
+            }}
             disabled={!isFormValid}
-            className={`flex-1 min-h-[46px] rounded-full font-semibold text-sm transition-all cursor-pointer ${
+            className={`flex-1 min-h-[46px] rounded-full font-semibold text-sm transition-all active:scale-[0.97] cursor-pointer ${
               isFormValid
-                ? 'bg-[#F26B3A] hover:bg-[#E15A2A] text-white'
+                ? 'bg-[var(--tab-accent)] hover:bg-[var(--tab-accent-hover)] text-white shadow-sm'
                 : 'bg-zinc-100 dark:bg-white/5 text-zinc-400 cursor-not-allowed'
             }`}
           >
@@ -2712,6 +2733,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
         confirmLabel={t('確認刪除', '确认删除', 'Delete')}
         cancelLabel={t('取消', '取消', 'Cancel')}
         icon={<TrashIcon className="w-6 h-6" />}
+        requireHold
       />
 
       <ConfirmSheet
@@ -2723,6 +2745,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
         confirmLabel={t('確認刪除', '确认删除', 'Delete')}
         cancelLabel={t('取消', '取消', 'Cancel')}
         icon={<TrashIcon className="w-6 h-6" />}
+        requireHold
       />
     </div>
   );

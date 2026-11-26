@@ -7,6 +7,8 @@ import { fetchDestinationPhotoFast } from './hooks/useDestinationPhoto';
 import { mergeTrips, generateSyncCode, normalizeSyncCode } from './shared/syncMerge';
 import { detectDestinationIntel, getDestinationLocalTime } from './shared/destinationIntel';
 import { useI18n } from './hooks/useI18n';
+import { useTactileSound } from './hooks/useTactileSound';
+import { tactileAudio } from './services/tactileAudio';
 import {
   AppLanguage,
   LANGUAGE_OPTIONS,
@@ -35,6 +37,7 @@ import {
   useAnyModalOpen,
 } from './components/LiquidPrimitives';
 import { DestinationCover } from './components/DestinationCover';
+import { StretchToggle, CopyMorphButton, DownloadProgressButton } from './components/TactileButtons';
 import {
   WaynoteLogoIcon,
   WalletIcon,
@@ -65,6 +68,8 @@ import {
   DevicePhoneMobileIcon,
   CloudIcon,
   UserCircleIcon,
+  SpeakerWaveIcon,
+  SpeakerXMarkIcon,
 } from './components/Icons';
 
 const APP_VERSION = 'v6.0.0';
@@ -438,7 +443,10 @@ const WorkspaceSidebar: React.FC<
                   ref={(el) => {
                     btnRefs.current[idx] = el;
                   }}
-                  onClick={() => onSelectTab(item.id)}
+                  onClick={() => {
+                    if (!isActive) tactileAudio.playTick(0.9 + idx * 0.06);
+                    onSelectTab(item.id);
+                  }}
                   style={
                     !thumb && isActive
                       ? {
@@ -616,6 +624,7 @@ const WorkspaceDock: React.FC<
         const targetIdx = Math.max(0, Math.min(navItems.length - 1, Math.round(frac)));
         const targetItem = navItems[targetIdx];
         if (targetItem && targetItem.id !== activeTab) {
+          tactileAudio.playTick(0.9 + targetIdx * 0.06);
           onSelectTab(targetItem.id);
         }
       }
@@ -721,6 +730,7 @@ const WorkspaceDock: React.FC<
               }}
               onClick={() => {
                 if ((dragMetaRef.current?.suppressClickUntil || 0) > Date.now()) return;
+                if (!isActive) tactileAudio.playTick(0.9 + idx * 0.06);
                 onSelectTab(item.id);
               }}
               aria-label={item.label}
@@ -752,6 +762,7 @@ const WorkspaceDock: React.FC<
 
 function App() {
   const { lang, setLanguage, t } = useI18n();
+  const { soundEnabled, setSoundEnabled } = useTactileSound();
   const isAnyModalOpen = useAnyModalOpen();
   const [view, setView] = useState<'HOME' | 'CREATE' | 'TRIP'>('HOME');
   const [activeTab, setActiveTab] = useState<Tab>(Tab.ITINERARY);
@@ -779,7 +790,6 @@ function App() {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isArchiveConfirmOpen, setIsArchiveConfirmOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [copySuccess, setCopySuccess] = useState(false);
 
   // Toast & Top Sync Bubble State
   const [toast, setToast] = useState<{ id: number; text: string; tone?: 'info' | 'success' | 'error' } | null>(null);
@@ -1489,17 +1499,6 @@ function App() {
 
     return content;
   }, [tripData, lang, t]);
-
-  const handleCopyToClipboard = async () => {
-    try {
-      await navigator.clipboard.writeText(exportContent);
-      setCopySuccess(true);
-      showToast(t('已複製文字', '已复制文字', 'Copied text'), 'success');
-      setTimeout(() => setCopySuccess(false), 2000);
-    } catch {
-      showToast(t('複製失敗，請手動選取', '复制失败，请手动选取', 'Copy failed, please select manually'), 'error');
-    }
-  };
 
   const handleDownloadTxt = () => {
     if (!tripData) return;
@@ -2293,6 +2292,25 @@ function App() {
                                     );
                                   })}
                                 </div>
+                              </div>
+
+                              <div className="px-3 py-2 border-b border-zinc-200/70 dark:border-white/[0.08] flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  {soundEnabled ? (
+                                    <SpeakerWaveIcon className="w-4 h-4 text-[var(--tab-accent)] shrink-0" />
+                                  ) : (
+                                    <SpeakerXMarkIcon className="w-4 h-4 text-zinc-400 shrink-0" />
+                                  )}
+                                  <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate">
+                                    {t('觸感音效', '触感音效', 'Tactile Sound')}
+                                  </span>
+                                </div>
+                                <StretchToggle
+                                  size="sm"
+                                  checked={soundEnabled}
+                                  onChange={setSoundEnabled}
+                                  ariaLabel={t('觸感互動音效', '触感互动音效', 'Tactile Sound FX')}
+                                />
                               </div>
 
                               <button
@@ -3534,6 +3552,36 @@ function App() {
                                     }))}
                                   />
                                 </div>
+
+                                <div className="pt-4 border-t border-zinc-200/70 dark:border-white/[0.08] flex items-center justify-between gap-3">
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <div className="w-9 h-9 rounded-xl bg-[var(--tab-accent-soft)] text-[var(--tab-accent)] flex items-center justify-center shrink-0">
+                                      {soundEnabled ? (
+                                        <SpeakerWaveIcon className="w-4 h-4" />
+                                      ) : (
+                                        <SpeakerXMarkIcon className="w-4 h-4" />
+                                      )}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <div className="font-display font-bold text-sm text-zinc-900 dark:text-white">
+                                        {t('觸感互動音效', '触感互动音效', 'Tactile Sound FX')}
+                                      </div>
+                                      <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                                        {t(
+                                          '點擊按鈕、切換開關與蓋章時播放合成音效',
+                                          '点击按钮、切换开关与盖章时播放合成音效',
+                                          'Play subtle synthesized audio for buttons, toggles, and stamps'
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <StretchToggle
+                                    checked={soundEnabled}
+                                    onChange={setSoundEnabled}
+                                    ariaLabel={t('觸感互動音效', '触感互动音效', 'Tactile Sound FX')}
+                                    className="shrink-0"
+                                  />
+                                </div>
                               </div>
                             </section>
                           </div>
@@ -3592,7 +3640,6 @@ function App() {
                                   type="button"
                                   onClick={() => {
                                     setIsExportModalOpen(true);
-                                    setCopySuccess(false);
                                   }}
                                   className="w-full px-4 sm:px-5 py-3.5 flex items-center justify-between gap-3 text-left hover:bg-zinc-50/80 dark:hover:bg-white/[0.04] transition-colors cursor-pointer group"
                                 >
@@ -3774,6 +3821,7 @@ function App() {
           cancelLabel={t('取消', '取消', 'Cancel')}
           tone="danger"
           icon={<TrashIcon className="w-6 h-6" />}
+          requireHold
         />
 
         <ConfirmSheet
@@ -3956,31 +4004,28 @@ function App() {
               </pre>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 shrink-0">
-              <button
-                type="button"
-                onClick={handleCopyToClipboard}
-                className={`min-h-[44px] px-3 rounded-full font-semibold text-xs transition-colors cursor-pointer ${
-                  copySuccess
-                    ? 'bg-[#2563EB] text-white'
-                    : 'bg-zinc-100 dark:bg-white/10 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200/80'
-                }`}
-              >
-                {copySuccess ? t('已複製', '已复制', 'Copied') : t('複製文字', '复制文本', 'Copy Text')}
-              </button>
-              <button
-                type="button"
-                onClick={handleDownloadTxt}
-                className="min-h-[44px] px-3 rounded-full font-semibold text-xs bg-zinc-100 dark:bg-white/15 text-zinc-900 dark:text-white cursor-pointer"
-              >
-                {t('下載 .TXT', '下载 .TXT', 'Download .TXT')}
-              </button>
-              <button
-                type="button"
-                onClick={handleDownloadJsonBackup}
-                className="min-h-[44px] px-3 rounded-full font-semibold text-xs bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 cursor-pointer"
-              >
-                {t('備份 .JSON', '备份 .JSON', 'Backup .JSON')}
-              </button>
+              <CopyMorphButton
+                variant="subtle"
+                textToCopy={exportContent}
+                label={t('複製文字', '复制文本', 'Copy Text')}
+                copiedLabel={t('已複製', '已复制', 'Copied')}
+                onCopy={() => showToast(t('已複製文字', '已复制文字', 'Copied text'), 'success')}
+                className="rounded-full"
+              />
+              <DownloadProgressButton
+                variant="subtle"
+                onDownload={handleDownloadTxt}
+                label={t('下載 .TXT', '下载 .TXT', 'Download .TXT')}
+                doneLabel={t('已下載', '已下载', 'Saved')}
+                className="rounded-full"
+              />
+              <DownloadProgressButton
+                variant="accent"
+                onDownload={handleDownloadJsonBackup}
+                label={t('備份 .JSON', '备份 .JSON', 'Backup .JSON')}
+                doneLabel={t('已備份', '已备份', 'Backed Up')}
+                className="rounded-full"
+              />
             </div>
           </div>
         </LiquidModal>

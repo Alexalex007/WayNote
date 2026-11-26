@@ -6,6 +6,8 @@ import { detectDestinationIntel } from '../shared/destinationIntel';
 import { localizeDestinationLabel } from '../shared/i18n';
 import { useI18n } from '../hooks/useI18n';
 import { LiquidModal, ConfirmSheet, SlidingSegmentedControl } from './LiquidPrimitives';
+import { StretchToggle, StepperPill } from './TactileButtons';
+import { tactileAudio } from '../services/tactileAudio';
 import {
   PlusIcon,
   DiningIcon,
@@ -1744,66 +1746,53 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                 <UsersIcon className="w-4 h-4 text-[var(--tab-accent)]" />
                 <span>{t('是否有多人攤分此筆開支？', '是否有多人分摊此笔开支？', 'Split this expense?')}</span>
               </div>
-              <SlidingSegmentedControl
+              <StretchToggle
                 size="sm"
-                value={newExpense.splitCount > 1 ? 'SPLIT' : 'SOLO'}
-                onChange={(mode) =>
+                soundType="liquid"
+                checked={newExpense.splitCount > 1}
+                onChange={(isSplit) =>
                   setNewExpense((prev) => ({
                     ...prev,
-                    splitCount: mode === 'SPLIT' ? (prev.splitCount > 1 ? prev.splitCount : 2) : 1,
+                    splitCount: isSplit ? (prev.splitCount > 1 ? prev.splitCount : 2) : 1,
                   }))
                 }
-                options={[
-                  { id: 'SOLO', label: t('單獨支付', '单独支付', 'Solo'), accentFrom: '#27272A', accentTo: '#3F3F46' },
-                  { id: 'SPLIT', label: t('多人攤分', '多人分摊', 'Split'), accentFrom: '#4F5DF5', accentTo: '#6366F1' },
-                ]}
+                ariaLabel={t('是否有多人攤分此筆開支？', '是否有多人分摊此笔开支？', 'Split this expense?')}
               />
             </div>
 
             {newExpense.splitCount > 1 && (
               <div className="pt-2 border-t border-zinc-200/60 dark:border-white/[0.08] space-y-2.5">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs text-zinc-500 dark:text-zinc-400">
                     {t('攤分人數', '分摊人数', 'People')}
                   </span>
-                  <div className="flex items-center gap-1.5">
-                    {[2, 3, 4, 5, 6].map((cnt) => (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {[2, 3, 4, 5].map((cnt) => (
                       <button
                         key={cnt}
                         type="button"
-                        onClick={() => setNewExpense((prev) => ({ ...prev, splitCount: cnt }))}
-                        className={`w-7 h-7 rounded-full text-xs font-num font-bold transition-colors cursor-pointer ${
+                        onClick={() => {
+                          tactileAudio.playTick(0.84 + (cnt / 10) * 0.4);
+                          setNewExpense((prev) => ({ ...prev, splitCount: cnt }));
+                        }}
+                        className={`w-8 h-8 rounded-full text-xs font-num font-bold transition-all active:scale-90 cursor-pointer ${
                           newExpense.splitCount === cnt
-                            ? 'bg-indigo-600 text-white'
+                            ? 'bg-[var(--tab-accent)] text-white shadow-xs'
                             : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200/70 dark:border-white/10'
                         }`}
                       >
                         {cnt}
                       </button>
                     ))}
-                    <div className="flex items-center bg-white dark:bg-zinc-800 border border-zinc-200/70 dark:border-white/10 rounded-full px-1.5 h-7">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setNewExpense((prev) => ({ ...prev, splitCount: Math.max(2, prev.splitCount - 1) }))
-                        }
-                        className="w-5 h-5 text-xs font-bold text-zinc-600 dark:text-zinc-300 cursor-pointer"
-                      >
-                        -
-                      </button>
-                      <span className="px-1.5 text-xs font-num font-bold text-zinc-900 dark:text-white">
-                        {t(`${newExpense.splitCount}人`, `${newExpense.splitCount}人`, `${newExpense.splitCount}`)}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setNewExpense((prev) => ({ ...prev, splitCount: Math.min(30, prev.splitCount + 1) }))
-                        }
-                        className="w-5 h-5 text-xs font-bold text-zinc-600 dark:text-zinc-300 cursor-pointer"
-                      >
-                        +
-                      </button>
-                    </div>
+                    <StepperPill
+                      size="sm"
+                      min={2}
+                      max={30}
+                      value={newExpense.splitCount}
+                      onChange={(next) => setNewExpense((prev) => ({ ...prev, splitCount: next }))}
+                      formatValue={(v) => t(`${v}人`, `${v}人`, `${v}`)}
+                      ariaLabel={t('攤分人數', '分摊人数', 'Split count')}
+                    />
                   </div>
                 </div>
                 {parseFloat(newExpense.amount) > 0 && (
@@ -1860,9 +1849,12 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
 
         <button
           type="button"
-          onClick={() => handleSaveExpense(activeModal === 'ADD_PRE')}
+          onClick={() => {
+            tactileAudio.playStamp();
+            handleSaveExpense(activeModal === 'ADD_PRE');
+          }}
           disabled={!newExpense.amount || !newExpense.title.trim() || !newExpense.category}
-          className="w-full min-h-[48px] rounded-full font-semibold text-sm bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-35 cursor-pointer shrink-0"
+          className="w-full min-h-[48px] rounded-full font-semibold text-sm bg-[var(--tab-accent)] hover:bg-[var(--tab-accent-hover)] text-white disabled:opacity-35 cursor-pointer shrink-0 transition-transform active:scale-[0.98]"
         >
           {editingId ? t('儲存變更', '保存更改', 'Save Changes') : t('新增紀錄', '添加记录', 'Add Expense')}
         </button>
@@ -1987,6 +1979,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
         confirmLabel={t('確認刪除', '确认删除', 'Delete')}
         cancelLabel={t('取消', '取消', 'Cancel')}
         icon={<TrashIcon className="w-6 h-6" />}
+        requireHold
       />
     </div>
   );

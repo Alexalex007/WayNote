@@ -12,6 +12,8 @@ import {
 import { useI18n } from '../hooks/useI18n';
 import { getDaySpanUtc, addDaysUtc } from './DateRangeCalendar';
 import { LiquidModal, ConfirmSheet, SlidingSegmentedControl } from './LiquidPrimitives';
+import { BookmarkBurstButton, StampButton } from './TactileButtons';
+import { tactileAudio } from '../services/tactileAudio';
 import {
   CompassIcon,
   PlusIcon,
@@ -793,27 +795,29 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => toggleMustGo(place)}
-                            aria-label={place.mustGo ? t('取消必去星標', '取消必去星标', 'Remove Must-Go') : t('標記為必去', '标记为必去', 'Mark Must-Go')}
-                            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <BookmarkBurstButton
+                            size="sm"
+                            mode="bookmark"
+                            active={Boolean(place.mustGo)}
+                            onToggle={() => toggleMustGo(place)}
+                            ariaLabel={
                               place.mustGo
-                                ? 'bg-amber-500/15 text-amber-500'
-                                : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/[0.06]'
-                            }`}
-                          >
-                            <StarIcon className="w-4 h-4" filled={Boolean(place.mustGo)} />
-                          </button>
+                                ? t('取消必去收藏', '取消必去收藏', 'Remove Must-Go')
+                                : t('收藏為必去', '收藏为必去', 'Save as Must-Go')
+                            }
+                          />
 
                           <button
                             type="button"
-                            onClick={() => toggleVisited(place)}
+                            onClick={() => {
+                              tactileAudio.playPop(place.visited ? 0.85 : 1.15);
+                              toggleVisited(place);
+                            }}
                             aria-label={place.visited ? t('取消已造訪', '取消已访问', 'Unmark Visited') : t('標記已造訪', '标记已访问', 'Mark Visited')}
-                            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+                            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-90 cursor-pointer ${
                               place.visited
-                                ? 'bg-emerald-500 text-white'
+                                ? 'bg-emerald-500 text-white shadow-xs'
                                 : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/[0.06]'
                             }`}
                           >
@@ -886,14 +890,14 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                           </button>
                         </div>
                       ) : (
-                        <button
-                          type="button"
+                        <StampButton
+                          size="sm"
                           onClick={() => openScheduleModal(place)}
-                          className="h-8 px-3.5 rounded-full bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap"
-                        >
-                          <CalendarIcon className="w-3.5 h-3.5" />
-                          <span>{t('排入行程', '排入行程', 'Schedule')}</span>
-                        </button>
+                          idleLabel={t('排入行程', '排入行程', 'Schedule')}
+                          stampedLabel={t('排入行程', '排入行程', 'Schedule')}
+                          idleIcon={<CalendarIcon className="w-3.5 h-3.5" />}
+                          className="rounded-full"
+                        />
                       )}
                     </div>
                   </motion.div>
@@ -1275,18 +1279,15 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                       </p>
                     </div>
 
-                    <button
-                      type="button"
+                    <StampButton
+                      size="sm"
+                      stamped={alreadySaved}
                       disabled={alreadySaved}
                       onClick={() => handleCollectAiSpot(spot)}
-                      className={`h-8 px-3.5 rounded-full text-xs font-semibold shrink-0 transition-all cursor-pointer whitespace-nowrap ${
-                        alreadySaved
-                          ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 cursor-default'
-                          : 'bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white hover:opacity-90 shadow-sm'
-                      }`}
-                    >
-                      {alreadySaved ? t('已收錄', '已收藏', 'Saved') : t('+ 收錄', '+ 收藏', '+ Save')}
-                    </button>
+                      idleLabel={t('+ 收錄', '+ 收藏', '+ Save')}
+                      stampedLabel={t('已收錄', '已收藏', 'Saved')}
+                      className="rounded-full shrink-0"
+                    />
                   </div>
                 );
               })}
@@ -1309,6 +1310,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
         cancelLabel={t('取消', '取消', 'Cancel')}
         tone="danger"
         icon={<TrashIcon className="w-6 h-6" />}
+        requireHold
       />
     </div>
   );

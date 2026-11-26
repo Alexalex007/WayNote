@@ -5,6 +5,8 @@ import { generateUniqueId } from '../shared/syncMerge';
 import { detectDestinationIntel, getDestinationLocalTime } from '../shared/destinationIntel';
 import { WeatherModal, WeatherGlyph, useLiveWeather } from './WeatherModal';
 import { LiquidModal, ConfirmSheet, SlidingSegmentedControl } from './LiquidPrimitives';
+import { DownloadProgressButton } from './TactileButtons';
+import { tactileAudio } from '../services/tactileAudio';
 import { uploadCloudFile, downloadCloudFileUrl, deleteCloudFile } from '../services/firebaseClient';
 import { useI18n } from '../hooks/useI18n';
 import {
@@ -117,15 +119,18 @@ const PackingRow: React.FC<PackingRowProps> = ({ item, onToggle, onCommitName, o
     >
       <button
         type="button"
-        onClick={() => onToggle(item.id)}
+        onClick={() => {
+          tactileAudio.playPop(item.checked ? 0.85 : 1.18);
+          onToggle(item.id);
+        }}
         aria-label={
           item.checked
             ? t('標記為未完成', '标记为未完成', 'Mark as incomplete')
             : t('標記為已完成', '标记为已完成', 'Mark as complete')
         }
-        className={`w-6 h-6 rounded-full border-[1.75px] flex items-center justify-center shrink-0 transition-all cursor-pointer ${
+        className={`w-6 h-6 rounded-full border-[1.75px] flex items-center justify-center shrink-0 transition-all active:scale-90 cursor-pointer ${
           item.checked
-            ? 'bg-[var(--tab-accent)] border-[var(--tab-accent)] text-white'
+            ? 'bg-[var(--tab-accent)] border-[var(--tab-accent)] text-white shadow-xs'
             : 'border-zinc-300 dark:border-zinc-600 hover:border-[var(--tab-accent)]'
         }`}
       >
@@ -1232,23 +1237,29 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
             </div>
 
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] font-num text-zinc-500 dark:text-zinc-400">
+              <span className="text-[11px] font-num text-zinc-500 dark:text-zinc-400 truncate">
                 {previewDoc.fileName || previewDoc.title}
                 {previewDoc.fileSize ? ` · ${formatFileSize(previewDoc.fileSize)}` : ''}
               </span>
-              <a
-                href={resolvedPreviewUrl || '#'}
-                download={previewDoc.fileName || previewDoc.title}
-                onClick={(e) => {
-                  if (!resolvedPreviewUrl) e.preventDefault();
+              <DownloadProgressButton
+                variant="accent"
+                disabled={!resolvedPreviewUrl}
+                label={t('下載檔案', '下载文件', 'Download')}
+                doneLabel={t('已下載', '已下载', 'Saved')}
+                icon={<ArrowDownTrayIcon className="w-4 h-4" />}
+                onDownload={() => {
+                  if (!resolvedPreviewUrl) return;
+                  const link = document.createElement('a');
+                  link.href = resolvedPreviewUrl;
+                  link.download = previewDoc.fileName || previewDoc.title;
+                  link.target = '_blank';
+                  link.rel = 'noopener noreferrer';
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
                 }}
-                className={`min-h-[42px] px-5 rounded-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-xs font-semibold inline-flex items-center gap-2 shrink-0 ${
-                  !resolvedPreviewUrl ? 'opacity-40 pointer-events-none' : ''
-                }`}
-              >
-                <ArrowDownTrayIcon className="w-4 h-4" />
-                <span>{t('下載檔案', '下载文件', 'Download')}</span>
-              </a>
+                className="rounded-full shrink-0"
+              />
             </div>
           </div>
         )}
@@ -1274,6 +1285,7 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
         confirmLabel={t('確認清除', '确认清除', 'Clear')}
         cancelLabel={t('取消', '取消', 'Cancel')}
         icon={<TrashIcon className="w-6 h-6" />}
+        requireHold
       />
 
       <ConfirmSheet
@@ -1289,6 +1301,7 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
         confirmLabel={t('確認刪除', '确认删除', 'Delete')}
         cancelLabel={t('取消', '取消', 'Cancel')}
         icon={<TrashIcon className="w-6 h-6" />}
+        requireHold
       />
     </div>
   );

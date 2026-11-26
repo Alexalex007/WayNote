@@ -2,6 +2,8 @@ import React, { useEffect, useLayoutEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { XMarkIcon, CheckIcon, DevicePhoneMobileIcon } from './Icons';
 import { useI18n } from '../hooks/useI18n';
+import { tactileAudio } from '../services/tactileAudio';
+import { HoldConfirmButton } from './TactileButtons';
 
 const modalCountListeners = new Set<(count: number) => void>();
 let activeModalCount = 0;
@@ -177,7 +179,12 @@ export function SlidingSegmentedControl<T extends string>({
                 buttonRefs.current[idx] = el;
               }}
               type="button"
-              onClick={() => onChange(opt.id)}
+              onClick={() => {
+                if (opt.id !== value) {
+                  tactileAudio.playTick(0.92 + idx * 0.12);
+                }
+                onChange(opt.id);
+              }}
               className={`relative z-10 pb-2.5 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                 active ? 'text-zinc-900 dark:text-white' : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
               }`}
@@ -234,7 +241,12 @@ export function SlidingSegmentedControl<T extends string>({
               buttonRefs.current[idx] = el;
             }}
             type="button"
-            onClick={() => onChange(opt.id)}
+            onClick={() => {
+              if (opt.id !== value) {
+                tactileAudio.playTick(0.92 + idx * 0.12);
+              }
+              onChange(opt.id);
+            }}
             className={`relative z-10 ${fullWidth ? 'flex-1' : ''} ${btnPaddingClass} h-full ${thumbRadiusClass} font-semibold transition-colors duration-200 flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap select-none ${
               active ? activeTextClass : inactiveTextClass
             }`}
@@ -412,6 +424,7 @@ interface ConfirmSheetProps {
   cancelLabel?: string;
   tone?: 'danger' | 'primary';
   icon?: React.ReactNode;
+  requireHold?: boolean;
 }
 
 export const ConfirmSheet: React.FC<ConfirmSheetProps> = ({
@@ -424,6 +437,7 @@ export const ConfirmSheet: React.FC<ConfirmSheetProps> = ({
   cancelLabel,
   tone = 'danger',
   icon,
+  requireHold = false,
 }) => {
   const { t } = useI18n();
   const resolvedConfirm = confirmLabel || t('確認', '确认', 'Confirm');
@@ -443,29 +457,52 @@ export const ConfirmSheet: React.FC<ConfirmSheetProps> = ({
           </div>
         )}
         <h3 className="text-lg font-display font-bold text-zinc-900 dark:text-zinc-50 mb-1.5">{title}</h3>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed mb-6">{description}</p>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed mb-5">{description}</p>
+        {requireHold && tone === 'danger' && (
+          <p className="text-[11px] font-medium text-red-500/90 dark:text-red-400/90 mb-4">
+            {t('為防止誤觸，請長按右方按鈕確認刪除', '为防止误触，请长按右方按钮确认删除', 'Press & hold to confirm deletion')}
+          </p>
+        )}
         <div className="flex gap-2.5">
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 min-h-[46px] rounded-full font-semibold text-sm bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200/80 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+            className="flex-1 min-h-[46px] rounded-full font-semibold text-sm bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200/80 dark:hover:bg-zinc-700 active:scale-[0.98] transition-all cursor-pointer"
           >
             {resolvedCancel}
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              onConfirm();
-              onClose();
-            }}
-            className={`flex-1 min-h-[46px] rounded-full font-semibold text-sm transition-transform active:scale-[0.98] cursor-pointer ${
-              tone === 'danger'
-                ? 'bg-red-600 hover:bg-red-700 text-white'
-                : 'bg-zinc-900 hover:bg-black text-white dark:bg-zinc-100 dark:hover:bg-white dark:text-zinc-900'
-            }`}
-          >
-            {resolvedConfirm}
-          </button>
+          {requireHold ? (
+            <HoldConfirmButton
+              tone={tone}
+              label={resolvedConfirm}
+              holdingLabel={t('按住確認...', '按住确认...', 'Hold...')}
+              onConfirm={() => {
+                onConfirm();
+                onClose();
+              }}
+              className="flex-1"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                if (tone === 'danger') {
+                  tactileAudio.playWarn();
+                } else {
+                  tactileAudio.playClick(560);
+                }
+                onConfirm();
+                onClose();
+              }}
+              className={`flex-1 min-h-[46px] rounded-full font-semibold text-sm transition-transform active:scale-[0.98] cursor-pointer ${
+                tone === 'danger'
+                  ? 'bg-red-600 hover:bg-red-700 text-white'
+                  : 'bg-zinc-900 hover:bg-black text-white dark:bg-zinc-100 dark:hover:bg-white dark:text-zinc-900'
+              }`}
+            >
+              {resolvedConfirm}
+            </button>
+          )}
         </div>
       </div>
     </LiquidModal>

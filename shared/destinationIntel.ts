@@ -1,4 +1,4 @@
-import { AppLanguage, localizeSinglePlaceToken, tr } from './i18n';
+import { type AppLanguage, localizeSinglePlaceToken, tr } from './i18n.ts';
 
 export interface DestinationAirport {
   code: string;

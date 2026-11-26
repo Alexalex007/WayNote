@@ -8,7 +8,7 @@ import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
 import type { Trip, SyncDevice } from './types.ts';
 import { mergeTrips, normalizeSyncCode } from './shared/syncMerge.ts';
 import { detectDestinationIntel } from './shared/destinationIntel.ts';
-import { AppLanguage, normalizeAppLanguage, tr } from './shared/i18n.ts';
+import { type AppLanguage, normalizeAppLanguage, tr } from './shared/i18n.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

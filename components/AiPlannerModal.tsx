@@ -10,6 +10,8 @@ import {
   localizeDestinationLabel,
 } from '../shared/i18n';
 import { LiquidModal, SlidingSegmentedControl } from './LiquidPrimitives';
+import { StepperPill, SendPlaneButton, StampButton } from './TactileButtons';
+import { tactileAudio } from '../services/tactileAudio';
 import {
   SparklesIcon,
   MapIcon,
@@ -412,25 +414,16 @@ export const AiPlannerModal: React.FC<AiPlannerModalProps> = ({
                     <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300 block px-0.5">
                       {t('規劃天數', '规划天数', 'Duration')}
                     </label>
-                    <div className="bg-zinc-100 dark:bg-white/[0.05] border border-zinc-200/70 dark:border-white/10 rounded-2xl px-2.5 h-11 flex items-center justify-between">
-                      <button
-                        type="button"
-                        onClick={() => setDaysCount((d) => Math.max(1, d - 1))}
-                        className="w-7 h-7 rounded-full bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 font-bold text-sm cursor-pointer"
-                      >
-                        -
-                      </button>
-                      <span className="font-num font-bold text-sm text-zinc-900 dark:text-white">
-                        {t(`${daysCount} 天`, `${daysCount} 天`, `${daysCount} ${daysCount === 1 ? 'Day' : 'Days'}`)}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setDaysCount((d) => Math.min(10, d + 1))}
-                        className="w-7 h-7 rounded-full bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 font-bold text-sm cursor-pointer"
-                      >
-                        +
-                      </button>
-                    </div>
+                    <StepperPill
+                      size="sm"
+                      min={1}
+                      max={10}
+                      value={daysCount}
+                      onChange={setDaysCount}
+                      formatValue={(d) => t(`${d} 天`, `${d} 天`, `${d} ${d === 1 ? 'Day' : 'Days'}`)}
+                      ariaLabel={t('規劃天數', '规划天数', 'Duration')}
+                      className="w-full"
+                    />
                   </div>
                 )}
               </div>
@@ -488,18 +481,15 @@ export const AiPlannerModal: React.FC<AiPlannerModalProps> = ({
                 </div>
               )}
 
-              <button
+              <SendPlaneButton
                 type="submit"
+                sending={loading}
                 disabled={loading || (!destinationInput.trim() && !userPrompt.trim())}
-                className="w-full min-h-[48px] rounded-full bg-[var(--tab-accent)] hover:bg-[var(--tab-accent-hover)] text-white font-semibold text-sm flex items-center justify-center gap-2 shadow-sm disabled:opacity-45 cursor-pointer transition-all active:scale-[0.99]"
-              >
-                <SparklesIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                <span>
-                  {loading
-                    ? t('正在為您規劃最佳順路行程...', '正在为您规划最佳顺路行程...', 'Crafting optimal itinerary & route...')
-                    : t('開始 AI 規劃行程與路線', '开始 AI 规划行程与路线', 'Generate AI Itinerary & Route')}
-                </span>
-              </button>
+                idleLabel={t('開始 AI 規劃行程與路線', '开始 AI 规划行程与路线', 'Generate AI Itinerary & Route')}
+                sendingLabel={t('正在為您規劃最佳順路行程...', '正在为您规划最佳顺路行程...', 'Crafting optimal itinerary & route...')}
+                icon={<SparklesIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />}
+                className="w-full min-h-[48px]"
+              />
             </form>
           ) : (
             <div className="space-y-4">
@@ -653,20 +643,20 @@ export const AiPlannerModal: React.FC<AiPlannerModalProps> = ({
           <div className="pt-3 border-t border-zinc-200/70 dark:border-white/10 flex flex-col sm:flex-row gap-2.5 shrink-0">
             <button
               type="button"
-              onClick={() => onOpenRouteForStops(previewActivities)}
-              className="sm:flex-1 min-h-[46px] px-4 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200/80 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white font-semibold text-xs sm:text-sm flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+              onClick={() => {
+                tactileAudio.playClick(520);
+                onOpenRouteForStops(previewActivities);
+              }}
+              className="sm:flex-1 min-h-[46px] px-4 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200/80 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white font-semibold text-xs sm:text-sm flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-[0.97]"
             >
               <NavigationArrowIcon className="w-4 h-4 text-[var(--tab-accent)]" />
               <span>{t('預覽互動路線圖', '预览交互路线图', 'Interactive Route Map')}</span>
             </button>
-            <button
-              type="button"
+            <StampButton
+              stamped
               onClick={handleApply}
-              className="sm:flex-1 min-h-[46px] px-5 rounded-full bg-[var(--tab-accent)] hover:bg-[var(--tab-accent-hover)] text-white font-semibold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-sm cursor-pointer transition-colors"
-            >
-              <CheckIcon className="w-4 h-4" />
-              <span>
-                {result.days.length > 1
+              idleLabel={
+                result.days.length > 1
                   ? t(
                       `滿意，套用這 ${result.days.length} 天完整行程`,
                       `满意，应用这 ${result.days.length} 天完整行程`,
@@ -676,9 +666,24 @@ export const AiPlannerModal: React.FC<AiPlannerModalProps> = ({
                       `滿意，套用到 ${targetStartDate.slice(5)}`,
                       `满意，应用到 ${targetStartDate.slice(5)}`,
                       `Apply to ${targetStartDate.slice(5)}`
-                    )}
-              </span>
-            </button>
+                    )
+              }
+              stampedLabel={
+                result.days.length > 1
+                  ? t(
+                      `滿意，套用這 ${result.days.length} 天完整行程`,
+                      `满意，应用这 ${result.days.length} 天完整行程`,
+                      `Apply ${result.days.length}-Day Itinerary`
+                    )
+                  : t(
+                      `滿意，套用到 ${targetStartDate.slice(5)}`,
+                      `满意，应用到 ${targetStartDate.slice(5)}`,
+                      `Apply to ${targetStartDate.slice(5)}`
+                    )
+              }
+              stampedIcon={<CheckIcon className="w-4 h-4" />}
+              className="sm:flex-1 min-h-[46px] rounded-full"
+            />
           </div>
         )}
       </div>

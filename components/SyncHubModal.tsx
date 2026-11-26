@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { LiquidModal } from './LiquidPrimitives';
+import { CopyMorphButton, SendPlaneButton } from './TactileButtons';
+import { tactileAudio } from '../services/tactileAudio';
 import { useI18n } from '../hooks/useI18n';
 import type { SyncConnectionState, SyncDevice } from '../types';
 import type { User } from 'firebase/auth';
 import {
   WifiIcon,
-  DocumentDuplicateIcon,
-  CheckIcon,
   DevicePhoneMobileIcon,
   RefreshIcon,
   LinkIcon,
@@ -45,30 +45,11 @@ export const SyncHubModal: React.FC<SyncHubModalProps> = ({
   const { t, localeTag } = useI18n();
   const [joinCode, setJoinCode] = useState('');
   const [joining, setJoining] = useState(false);
-  const [copiedCode, setCopiedCode] = useState(false);
-  const [copiedLink, setCopiedLink] = useState(false);
 
   const shareUrl =
     typeof window !== 'undefined'
       ? `${window.location.origin}${window.location.pathname}?sync=${encodeURIComponent(syncId)}`
       : '';
-
-  const copyText = async (text: string, mode: 'code' | 'link') => {
-    try {
-      await navigator.clipboard.writeText(text);
-      if (mode === 'code') {
-        setCopiedCode(true);
-        setTimeout(() => setCopiedCode(false), 1800);
-        onShowToast(t('已複製同步碼', '已复制同步码', 'Sync code copied'), 'success');
-      } else {
-        setCopiedLink(true);
-        setTimeout(() => setCopiedLink(false), 1800);
-        onShowToast(t('已複製同步連結', '已复制同步链接', 'Sync link copied'), 'success');
-      }
-    } catch {
-      onShowToast(t('無法自動複製，請手動選取', '无法自动复制，请手动选取', 'Could not copy automatically. Please copy manually.'), 'error');
-    }
-  };
 
   const handleJoinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -195,29 +176,37 @@ export const SyncHubModal: React.FC<SyncHubModalProps> = ({
               <span className="font-num font-bold text-lg tracking-wide text-zinc-900 dark:text-white select-all">
                 {syncId}
               </span>
-              <button
-                type="button"
-                onClick={() => copyText(syncId, 'code')}
-                className="min-w-[38px] min-h-[38px] rounded-xl bg-zinc-200/60 dark:bg-white/10 flex items-center justify-center text-zinc-700 dark:text-zinc-200 hover:bg-blue-600/10 hover:text-blue-600 transition-colors cursor-pointer"
-                title={t('複製代碼', '复制代码', 'Copy code')}
-              >
-                {copiedCode ? <CheckIcon className="w-4 h-4 text-emerald-500" /> : <DocumentDuplicateIcon className="w-4 h-4" />}
-              </button>
+              <CopyMorphButton
+                size="sm"
+                textToCopy={syncId}
+                label={t('複製', '复制', 'Copy')}
+                copiedLabel={t('已複製', '已复制', 'Copied')}
+                onCopy={() => {
+                  onShowToast(t('已複製同步碼', '已复制同步码', 'Sync code copied'), 'success');
+                }}
+                className="rounded-full"
+              />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2.5 w-full">
+            <CopyMorphButton
+              variant="accent"
+              textToCopy={shareUrl}
+              label={t('複製連結', '复制链接', 'Copy Link')}
+              copiedLabel={t('已複製', '已复制', 'Copied')}
+              icon={<LinkIcon className="w-4 h-4" />}
+              onCopy={() => {
+                onShowToast(t('已複製同步連結', '已复制同步链接', 'Sync link copied'), 'success');
+              }}
+              className="rounded-full"
+            />
             <button
               type="button"
-              onClick={() => copyText(shareUrl, 'link')}
-              className="min-h-[44px] px-3 rounded-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-semibold text-xs flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap"
-            >
-              {copiedLink ? <CheckIcon className="w-4 h-4" /> : <LinkIcon className="w-4 h-4" />}
-              <span>{copiedLink ? t('已複製', '已复制', 'Copied') : t('複製連結', '复制链接', 'Copy Link')}</span>
-            </button>
-            <button
-              type="button"
-              onClick={onRegenerateCode}
+              onClick={() => {
+                tactileAudio.playWhoosh(true);
+                onRegenerateCode();
+              }}
               className="min-h-[44px] px-3 rounded-full bg-zinc-200/70 dark:bg-white/10 hover:bg-zinc-200 dark:hover:bg-white/15 text-zinc-800 dark:text-zinc-200 font-semibold text-xs flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap"
             >
               <RefreshIcon className="w-4 h-4" />
@@ -237,15 +226,17 @@ export const SyncHubModal: React.FC<SyncHubModalProps> = ({
               value={joinCode}
               onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
               placeholder="SKY-XXXX-XXXX"
-              className="flex-1 min-h-[44px] px-4 rounded-full bg-zinc-100 dark:bg-white/[0.06] border border-zinc-200/80 dark:border-white/10 font-num font-semibold text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-600/30"
+              className="flex-1 min-h-[44px] px-4 rounded-full bg-zinc-100 dark:bg-white/[0.06] border border-zinc-200/80 dark:border-white/10 font-num font-semibold text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[var(--tab-accent)]/30"
             />
-            <button
+            <SendPlaneButton
               type="submit"
               disabled={!joinCode.trim() || joining}
-              className="min-h-[44px] px-5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
-            >
-              {joining ? t('連線中', '连接中', 'Joining') : t('加入', '加入', 'Join')}
-            </button>
+              sending={joining}
+              idleLabel={t('加入', '加入', 'Join')}
+              sendingLabel={t('連線中', '连接中', 'Joining')}
+              sentLabel={t('已加入', '已加入', 'Joined')}
+              className="min-h-[44px] px-5 text-xs shrink-0"
+            />
           </div>
         </form>
       </div>
