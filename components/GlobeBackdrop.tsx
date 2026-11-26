@@ -411,7 +411,7 @@ export const GlobeBackdrop: React.FC<GlobeBackdropProps> = React.memo(({ focusCi
     <div
       ref={containerRef}
       aria-hidden="true"
-      className="fixed inset-0 w-full h-full pointer-events-none overflow-hidden select-none"
+      className="app-shell-fixed w-full pointer-events-none overflow-hidden select-none"
     >
       {/* Night Cosmos Twinkling Stars (Dark Mode Only) */}
       {isDark && (

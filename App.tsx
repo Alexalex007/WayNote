@@ -662,7 +662,7 @@ const WorkspaceDock: React.FC<
     <div
       aria-hidden={isHidden}
       className={`${
-        isHidden ? 'hidden' : 'lg:hidden fixed'
+        isHidden ? 'hidden' : 'lg:hidden absolute'
       } bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-3 right-3 z-40 pointer-events-none flex justify-center`}
     >
       <nav
@@ -901,6 +901,8 @@ function App() {
   // Unified Safe-Area top tint per appearance mode & launch surface
   const currentTopTint = isDarkResolved ? '#080D1B' : isStandalone ? '#2E7CF6' : '#CFE4FC';
 
+  const cachedStandaloneGapRef = useRef<number>(0);
+
   useLayoutEffect(() => {
     const root = window.document.documentElement;
     if (isStandalone) {
@@ -920,7 +922,7 @@ function App() {
     root.style.setProperty('--safe-top-tint', currentTopTint);
     root.style.backgroundColor = currentTopTint;
     if (document.body) {
-      document.body.style.backgroundColor = currentTopTint;
+      document.body.style.backgroundColor = isStandalone && !isDarkResolved ? 'transparent' : currentTopTint;
     }
 
     const schemeMeta =
@@ -949,6 +951,89 @@ function App() {
     localStorage.setItem(STORAGE_THEME_MODE_KEY, themeMode);
     return () => window.cancelAnimationFrame(rafId);
   }, [isDarkResolved, themeMode, currentTopTint, isStandalone]);
+
+  useLayoutEffect(() => {
+    const root = window.document.documentElement;
+    const syncStandaloneGap = () => {
+      if (!isStandalone) {
+        cachedStandaloneGapRef.current = 0;
+        root.style.setProperty('--standalone-bottom-gap', '0px');
+        return;
+      }
+
+      const ua = navigator.userAgent || '';
+      const isIOS =
+        /iPad|iPhone|iPod/.test(ua) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      if (!isIOS || !window.screen) {
+        cachedStandaloneGapRef.current = 0;
+        root.style.setProperty('--standalone-bottom-gap', '0px');
+        return;
+      }
+
+      const vv = window.visualViewport;
+      const activeEl = document.activeElement;
+      const isKeyboardLikelyOpen =
+        (vv && Math.abs(vv.height - window.innerHeight) > 24) ||
+        Boolean(activeEl && /^(INPUT|TEXTAREA|SELECT)$/.test(activeEl.tagName));
+
+      if (isKeyboardLikelyOpen) {
+        root.style.setProperty('--standalone-bottom-gap', `${cachedStandaloneGapRef.current}px`);
+        return;
+      }
+
+      const sw = window.screen.width;
+      const sh = window.screen.height;
+      const iw = window.innerWidth;
+      const ih = window.innerHeight;
+      const isPortrait = iw <= ih;
+      const expectedW = isPortrait ? Math.min(sw, sh) : Math.max(sw, sh);
+      const expectedH = isPortrait ? Math.max(sw, sh) : Math.min(sw, sh);
+
+      if (Math.abs(iw - expectedW) > 6) {
+        cachedStandaloneGapRef.current = 0;
+        root.style.setProperty('--standalone-bottom-gap', '0px');
+        return;
+      }
+
+      const rawGap = Math.round(expectedH - ih);
+      if (rawGap <= 0) {
+        cachedStandaloneGapRef.current = 0;
+        root.style.setProperty('--standalone-bottom-gap', '0px');
+        return;
+      }
+
+      let maxExpectedShortfall = 112;
+      if (document.body) {
+        const probe = document.createElement('div');
+        probe.style.cssText =
+          'position:fixed;top:0;left:0;width:0;height:0;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);';
+        document.body.appendChild(probe);
+        const cs = window.getComputedStyle(probe);
+        const safeTop = parseFloat(cs.paddingTop) || 0;
+        const safeBottom = parseFloat(cs.paddingBottom) || 0;
+        document.body.removeChild(probe);
+        if (safeTop > 0 || safeBottom > 0) {
+          maxExpectedShortfall = Math.ceil(safeTop + safeBottom + 16);
+        }
+      }
+
+      const nextGap = rawGap <= maxExpectedShortfall ? rawGap : 0;
+      cachedStandaloneGapRef.current = nextGap;
+      root.style.setProperty('--standalone-bottom-gap', `${nextGap}px`);
+    };
+
+    syncStandaloneGap();
+    window.addEventListener('resize', syncStandaloneGap);
+    window.addEventListener('orientationchange', syncStandaloneGap);
+    window.visualViewport?.addEventListener('resize', syncStandaloneGap);
+
+    return () => {
+      window.removeEventListener('resize', syncStandaloneGap);
+      window.removeEventListener('orientationchange', syncStandaloneGap);
+      window.visualViewport?.removeEventListener('resize', syncStandaloneGap);
+    };
+  }, [isStandalone]);
 
   const resetScrollDrift = useCallback(() => {
     if (typeof window === 'undefined') return;
@@ -2078,12 +2163,12 @@ function App() {
             '--tab-accent-soft': `${navCurrentFrom}20`,
           } as React.CSSProperties
         }
-        className="fixed inset-0 w-full h-full overflow-clip app-canvas text-zinc-900 dark:text-zinc-100 select-none sm:select-auto"
+        className="app-shell-fixed w-full overflow-clip app-canvas text-zinc-900 dark:text-zinc-100 select-none sm:select-auto"
       >
         <div
           aria-hidden="true"
           className="app-backdrop pointer-events-none z-0"
-          style={{ backgroundColor: currentTopTint }}
+          style={{ backgroundColor: isStandalone && !isDarkResolved ? '#F7FAFF' : currentTopTint }}
         >
           <GlobeBackdrop focusCity={globeFocusCity} isDark={isDarkResolved} />
         </div>
@@ -2165,7 +2250,7 @@ function App() {
                 className="h-full w-full overflow-y-auto no-scrollbar relative flex flex-col"
               >
                 {showHomeSettings && (
-                  <div className="fixed inset-0 z-40" onClick={() => setShowHomeSettings(false)} />
+                  <div className="app-shell-fixed z-40" onClick={() => setShowHomeSettings(false)} />
                 )}
 
                 <div className="relative z-10 w-full max-w-xl md:max-w-2xl lg:max-w-5xl mx-auto pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] sm:px-6 lg:px-8 pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))] flex-1 flex flex-col justify-between gap-6">

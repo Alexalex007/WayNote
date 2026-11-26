@@ -364,10 +364,10 @@ export const LiquidModal: React.FC<LiquidModalProps> = ({
           onClick={onClose}
           style={
             viewportMetrics.keyboardInset > 0
-              ? { paddingBottom: `${viewportMetrics.keyboardInset + 8}px` }
+              ? { paddingBottom: `calc(${viewportMetrics.keyboardInset + 8}px + var(--standalone-bottom-gap, 0px))` }
               : undefined
           }
-          className={`fixed inset-0 ${zIndexClass} flex ${
+          className={`app-shell-fixed ${zIndexClass} flex ${
             bottomSheetOnMobile || viewportMetrics.keyboardInset > 0 ? 'items-end sm:items-center' : 'items-center'
           } justify-center bg-zinc-950/40 dark:bg-black/70 backdrop-blur-sm p-0 sm:p-4 transition-[padding-bottom] duration-150`}
         >

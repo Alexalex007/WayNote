@@ -45,6 +45,20 @@
     --safe-top-tint: #2E7CF6;
   }
 
+  html.is-standalone:not(.dark) {
+    background-color: #2E7CF6;
+    background-image:
+      linear-gradient(
+        180deg,
+        #2E7CF6 0%,
+        #4A90F8 calc(env(safe-area-inset-top, 0px) * 0.72 + 12px),
+        #CFE4FC calc(env(safe-area-inset-top, 0px) + 64px),
+        #ECF4FF 58%,
+        #F7FAFF 100%
+      );
+    background-repeat: no-repeat;
+  }
+
   html.dark {
     color-scheme: dark;
     --bg-canvas: #080D1B;
@@ -79,7 +93,6 @@
     width: 100%;
     height: 100%;
     min-height: 100dvh;
-    min-height: -webkit-fill-available;
     overscroll-behavior: none;
     background-color: var(--safe-top-tint);
   }
@@ -90,7 +103,6 @@
     width: 100%;
     min-height: 100%;
     min-height: 100dvh;
-    min-height: -webkit-fill-available;
     overscroll-behavior: none;
     background-color: var(--safe-top-tint);
     font-family: var(--font-sans);
@@ -98,10 +110,17 @@
     -webkit-tap-highlight-color: transparent;
   }
 
+  html.is-standalone:not(.dark) body {
+    background-color: transparent;
+  }
+
+  html.is-standalone body {
+    min-height: calc(100% + var(--standalone-bottom-gap, 0px));
+  }
+
   #root {
     width: 100%;
     min-height: 100%;
-    min-height: 100dvh;
   }
 
   h1, h2, h3, .font-display {
@@ -125,6 +144,15 @@
   scrollbar-width: none;
 }
 
+/* Full-bleed fixed shell extending across iOS standalone WebKit viewport shortfall */
+.app-shell-fixed {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: calc(-1 * var(--standalone-bottom-gap, 0px));
+}
+
 /* Transparent overlay shell inheriting continuous html/body canvas without safe-area seam */
 .app-canvas {
   background: transparent;
@@ -136,7 +164,7 @@
   top: -24px;
   left: -12px;
   right: -12px;
-  bottom: -24px;
+  bottom: calc(-24px - var(--standalone-bottom-gap, 0px));
   background-color: #CFE4FC;
   background-image:
     linear-gradient(
@@ -149,7 +177,7 @@
 }
 
 html.is-standalone:not(.dark) .app-backdrop {
-  background-color: #2E7CF6;
+  background-color: #F7FAFF;
   background-image:
     linear-gradient(
       180deg,

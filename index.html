@@ -10,7 +10,12 @@
     <meta id="waynote-theme-color" name="theme-color" content="#CFE4FC" />
     <style>
       html, body { background-color: #CFE4FC; }
-      html.is-standalone, html.is-standalone body { background-color: #2E7CF6; }
+      html.is-standalone:not(.dark) {
+        background-color: #2E7CF6;
+        background-image: linear-gradient(180deg, #2E7CF6 0%, #4A90F8 90px, #CFE4FC 180px, #ECF4FF 58%, #F7FAFF 100%);
+        background-repeat: no-repeat;
+      }
+      html.is-standalone:not(.dark) body { background-color: transparent; }
       html.dark, html.dark body { background-color: #080D1B !important; }
     </style>
     <script>
@@ -41,6 +46,23 @@
 
           if (isStandalone) {
             root.classList.add('is-standalone');
+            var ua = navigator.userAgent || '';
+            var isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+            if (isIOS && window.screen) {
+              var sw = window.screen.width;
+              var sh = window.screen.height;
+              var iw = window.innerWidth;
+              var ih = window.innerHeight;
+              var isPortrait = iw <= ih;
+              var expectedW = isPortrait ? Math.min(sw, sh) : Math.max(sw, sh);
+              var expectedH = isPortrait ? Math.max(sw, sh) : Math.min(sw, sh);
+              if (Math.abs(iw - expectedW) <= 6) {
+                var gap = Math.round(expectedH - ih);
+                if (gap > 0 && gap <= 112) {
+                  root.style.setProperty('--standalone-bottom-gap', gap + 'px');
+                }
+              }
+            }
           }
 
           var topTint = isDark ? '#080D1B' : (isStandalone ? '#2E7CF6' : '#CFE4FC');
@@ -70,8 +92,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;900&family=Noto+Sans+TC:wght@400;500;600;700;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   </head>
-  <body class="antialiased min-h-[100dvh] selection:bg-sky-600 selection:text-white">
-    <div id="root" class="min-h-[100dvh] w-full"></div>
+  <body class="antialiased selection:bg-sky-600 selection:text-white">
+    <div id="root" class="min-h-full w-full"></div>
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>
