@@ -82,7 +82,7 @@ import {
   ArrowUpRightIcon,
 } from './components/Icons';
 
-const APP_VERSION = 'v6.0.0';
+const APP_VERSION = 'v6.8';
 
 const QUICK_CITIES = ['東京', '大阪', '首爾', '曼谷', '台北', '香港', '巴黎', '倫敦'];
 const SHOWCASE_CITIES = [

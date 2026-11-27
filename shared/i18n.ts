@@ -299,23 +299,66 @@ export function getChangelogItems(lang: AppLanguage): Array<{ version: string; d
   if (lang === 'en') {
     return [
       {
-        version: '3.0.0',
+        version: '6.8',
         date: 'Latest',
         notes: [
-          'Full Traditional Chinese, Simplified Chinese & English language support with strict text consistency.',
-          'Crisp geometric typography matching Plus Jakarta Sans across English copy and numerals.',
-          'Instant iPhone live status-bar & Dynamic Island theme switching without restarting the app.',
-          'Upgraded 10m Ultra-HD vector world & city map backdrop without graticule grid lines.',
-          'Refined AI Explore into 3 pure categories (Scenic & Sights, Food & Cafes, Shopping) with 10 non-repeating spots per batch.',
+          'Restored local-on-top FX layout with full-box keyboard tap, two-way sync, single % ring, and Pop firework celebration.',
         ],
       },
       {
-        version: '2.9.0',
-        date: 'Previous',
+        version: '6.7',
+        date: 'Update',
         notes: [
-          'Added multi-day AI itinerary planner with route preview and one-tap day import.',
-          'Built-in Explorations bucket list for saving spots, tracking visits, and scheduling onto your timeline.',
-          'Real-time cross-device sync via room codes and cloud account backup.',
+          'Added batch Google Calendar export, simplified app copy, and redesigned Toolbox as a zero-scroll Bento widget grid.',
+        ],
+      },
+      {
+        version: '6.6',
+        date: 'Update',
+        notes: [
+          'Moved calendar export into Settings with progress ring animation, added live FX refresh and global tax-free tracking.',
+        ],
+      },
+      {
+        version: '6.5',
+        date: 'Update',
+        notes: [
+          'Switched AI Explore to manual trigger, marked current device in Sync Hub, added App Share, and refined top blur.',
+        ],
+      },
+      {
+        version: '6.4',
+        date: 'Update',
+        notes: [
+          'Fixed AI Explore with unified trip planning, smoothed globe transitions, and removed stray shadows on date pills.',
+        ],
+      },
+      {
+        version: '6.3',
+        date: 'Update',
+        notes: [
+          'Fixed iPhone standalone PWA bottom safe-area gap so gradients and content extend cleanly to the screen edge.',
+        ],
+      },
+      {
+        version: '6.2',
+        date: 'Update',
+        notes: [
+          'Added tactile travel buttons, morphing feedback, hold-to-delete, accent adaptation, and optional synthesized audio.',
+        ],
+      },
+      {
+        version: '6.1',
+        date: 'Update',
+        notes: [
+          'Resolved Cloud Run port startup timeouts and dev client errors for reliable cross-device loading.',
+        ],
+      },
+      {
+        version: '6.0',
+        date: 'Baseline',
+        notes: [
+          'Trilingual UI support, crisp geometric numerals, iPhone live status-bar sync, and 10m vector map backdrop.',
         ],
       },
     ];
@@ -323,46 +366,132 @@ export function getChangelogItems(lang: AppLanguage): Array<{ version: string; d
   if (lang === 'zh-CN') {
     return [
       {
-        version: '3.0.0',
-        date: '当前版本',
+        version: '6.8',
+        date: '最新版本',
         notes: [
-          '完整适配繁体中文、简体中文与英文三语界面，严格区分用语零混杂。',
-          '全站英文与数字统一升级为几何无衬线字体，视觉利落清晰。',
-          '修复 iPhone 切换浅色／深色外观时顶部状态栏与灵动岛实时同步变色。',
-          '背景地图升级为 10m 超高清矢量海岸线，并移除多余经纬网格线。',
-          'AI 探索精简为「风景景点」「美食甜品」「逛街购物」三大纯正分类，每批推荐 10 项不重复地点。',
+          '汇率换算改回当地货币在上、港币在下，双框皆支持整格点击弹出键盘并实时双向换算；修正免税进度环百分比重叠，达标触发 Pop 弹跳与小烟花特效。',
         ],
       },
       {
-        version: '2.9.0',
-        date: '先前版本',
+        version: '6.7',
+        date: '更新记录',
         notes: [
-          '支持自由规划单日或多日 AI 行程，含路线预览与一键写入时间轴。',
-          '新增探索口袋名单，可收藏地点并一键排入行程日期。',
-          '跨设备实时同步码与云端账号备份，随时多人协同编辑。',
+          '新增 Google 日历单日与整趟一键批量加入，精简全站说明文字；百宝箱改版为单页免滚动多尺寸工具格，点击主卡片可查看完整时区天气与插座信息。',
+        ],
+      },
+      {
+        version: '6.6',
+        date: '更新记录',
+        notes: [
+          '将加入日历整合至设置并为日历文件加入进度环动画，精简设置分享栏与移除易误触按钮；汇率新增免费实时刷新与全球目的地免税额度自动追踪。',
+        ],
+      },
+      {
+        version: '6.5',
+        date: '更新记录',
+        notes: [
+          '改为手动点击才触发 AI 探索避免误耗额度；跨设备同步标示本机与他机，设置页新增分享本 App 与日历导出，并调整顶部模糊遮罩确保文字清晰。',
+        ],
+      },
+      {
+        version: '6.4',
+        date: '更新记录',
+        notes: [
+          '修复 AI 探索推荐并整合行程规划为单一完整页面，优化首页切换旅程时背景地图滑动流畅度，并移除日期标签底部多余阴影，呈现轻盈悬浮视觉效果。',
+        ],
+      },
+      {
+        version: '6.3',
+        date: '更新记录',
+        notes: [
+          '修复 iPhone 主屏幕网页应用底部导航栏下方的空白断层问题，动态补齐安全区域视窗高度，让背景渐变与页面内容完整延伸并贴合全屏幕边缘。',
+        ],
+      },
+      {
+        version: '6.2',
+        date: '更新记录',
+        notes: [
+          '全面导入旅游触感互动按钮，包含路线对调、护照盖章、书签粒子、复制发送变形与长按防误触删除，并依日夜分页色系适配及新增按键音效开关。',
+        ],
+      },
+      {
+        version: '6.1',
+        date: '更新记录',
+        notes: [
+          '修复云端容器启动超时与开发环境连接错误，强化服务器监听与启动流程，确保网页应用在各类设备与浏览器上皆能稳定连接并顺畅实时开启。',
+        ],
+      },
+      {
+        version: '6.0',
+        date: '基础版本',
+        notes: [
+          '完整适配繁简中文与英文三语切换、几何无衬线字体、iPhone 状态栏日夜即时同步变色，以及 10m 超高清矢量地图背景与三分类 AI 探索体验。',
         ],
       },
     ];
   }
   return [
     {
-      version: '3.0.0',
+      version: '6.8',
       date: '最新版本',
       notes: [
-        '完整支援繁體中文、簡體中文與英文三語切換，嚴格維持單一語言純淨體驗。',
-        '全站英文字體與數字全面統一為幾何無襯線體，版面俐落更具現代感。',
-        '修復 iPhone 即時切換日光／黑暗外觀時頂部狀態欄與動態島同步變色問題。',
-        '背景地圖升級為 10m 超高清向量海岸線，並徹底移除經緯網格線條。',
-        'AI 探索整合為「風景景點」「美食甜點」「逛街購物」三大精準分類，每批固定推薦 10 個不重複地點。',
+        '匯率換算改回當地貨幣在上、港幣在下，雙框皆支援整格點擊彈出鍵盤並即時雙向換算；修正免稅進度環百分比重疊，達標時觸發 Pop 彈跳與小煙花特效。',
       ],
     },
     {
-      version: '2.9.0',
-      date: '先前版本',
+      version: '6.7',
+      date: '更新紀錄',
       notes: [
-        '支援單日／多日 AI 行程規劃與路線預覽，一鍵匯入指定日期時間軸。',
-        '新增探索口袋名單功能，輕鬆管理想去清單並一鍵排入行程。',
-        '支援跨裝置同步碼與雲端帳號備份，即時顯示多裝置協作狀態。',
+        '新增 Google 日曆單日與整趟一鍵批量加入，精簡全站說明文字；百寶箱改版為單頁免滾動多尺寸工具格，點擊主卡片可查看完整時區天氣與插座資訊。',
+      ],
+    },
+    {
+      version: '6.6',
+      date: '更新紀錄',
+      notes: [
+        '將加入日曆整合至設定並為行事曆檔加入進度環動畫，精簡設定分享列與移除易誤觸按鈕；匯率新增免費實時刷新與全球目的地免稅額度自動追蹤。',
+      ],
+    },
+    {
+      version: '6.5',
+      date: '更新紀錄',
+      notes: [
+        '改為手動點擊才觸發 AI 探索避免誤耗額度；跨裝置同步標示本機與他機，設定頁新增分享本 App 與日曆匯出，並調整頂部模糊遮罩確保按鈕文字清晰。',
+      ],
+    },
+    {
+      version: '6.4',
+      date: '更新紀錄',
+      notes: [
+        '修復 AI 探索推薦並整合行程規劃為單一完整頁面，優化首頁切換旅程時背景地圖滑動流暢度，並移除日期標籤底部多餘陰影，呈現輕盈懸浮視覺效果。',
+      ],
+    },
+    {
+      version: '6.3',
+      date: '更新紀錄',
+      notes: [
+        '修復 iPhone 主畫面網頁應用程式底部導覽列下方的空白斷層問題，動態補齊安全區域視窗高度，讓背景漸層與頁面內容完整延伸並貼合全螢幕邊緣。',
+      ],
+    },
+    {
+      version: '6.2',
+      date: '更新紀錄',
+      notes: [
+        '全面導入旅遊觸感互動按鈕，包含路線對調、護照蓋章、書籤粒子、複製發送變形與長按防誤觸刪除，並依日夜分頁色系適配及新增按鍵音效開關。',
+      ],
+    },
+    {
+      version: '6.1',
+      date: '更新紀錄',
+      notes: [
+        '修復雲端容器啟動逾時與開發環境連線錯誤，強化伺服器監聽與啟動流程，確保網頁應用程式在各類裝置與瀏覽器上皆能穩定連線並順暢即時開啟。',
+      ],
+    },
+    {
+      version: '6.0',
+      date: '基礎版本',
+      notes: [
+        '完整支援繁簡中文與英文三語切換、幾何無襯線字體、iPhone 狀態欄日夜即時同步變色，以及 10m 超高清向量地圖背景與三分類 AI 探索體驗。',
       ],
     },
   ];
