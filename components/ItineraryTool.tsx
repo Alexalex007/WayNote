@@ -19,7 +19,6 @@ import {
 } from '../shared/i18n';
 import { WeatherModal, WeatherGlyph, useLiveWeather } from './WeatherModal';
 import { RouteMapModal, PreviousStopOption } from './RouteMapModal';
-import { AiPlannerModal, AiPlannedDay } from './AiPlannerModal';
 import { DateRangeCalendar, getDaySpanUtc } from './DateRangeCalendar';
 import { LiquidModal, ConfirmSheet, SlidingSegmentedControl } from './LiquidPrimitives';
 import { RouteSwapButton } from './TactileButtons';
@@ -57,6 +56,7 @@ interface Props {
   onToggleFullScreen?: (isOpen: boolean) => void;
   onShowToast: (text: string, tone?: 'info' | 'success' | 'error') => void;
   focusDateSignal?: { date: string; nonce: number } | null;
+  onOpenExplorePlanner?: () => void;
 }
 
 function formatGmtOffset(offset: number): string {
@@ -387,13 +387,18 @@ const TimelineRow: React.FC<{
   );
 };
 
-const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focusDateSignal }) => {
+const ItineraryTool: React.FC<Props> = ({
+  trip,
+  onUpdateTrip,
+  onShowToast,
+  focusDateSignal,
+  onOpenExplorePlanner,
+}) => {
   const { lang, t } = useI18n();
   const [selectedDate, setSelectedDate] = useState<string>(trip.startDate);
   const [dates, setDates] = useState<string[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showRouteModal, setShowRouteModal] = useState(false);
-  const [showAiModal, setShowAiModal] = useState(false);
   const [showWeatherModal, setShowWeatherModal] = useState(false);
   const [showHotelModal, setShowHotelModal] = useState(false);
   const [modalMode, setModalMode] = useState<'PLAN' | 'FLIGHT' | 'THEME'>('PLAN');
@@ -1143,91 +1148,6 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
     setShowRouteModal(true);
   };
 
-  const handleOpenAiRoutePreview = (aiStops: Activity[]) => {
-    if (aiStops.length === 0) {
-      onShowToast(t('此日 AI 規劃尚無可用地點', '此日 AI 规划暂无可用地点', 'No stops available in this AI day plan'), 'info');
-      return;
-    }
-    setRouteIsPreview(true);
-    setRouteLocations(aiStops);
-    setShowRouteModal(true);
-  };
-
-  const handleApplyAiPlan = ({
-    startDate,
-    applyStrategy,
-    days,
-  }: {
-    startDate: string;
-    mode: 'single_day' | 'multi_day';
-    applyStrategy: 'append' | 'replace';
-    days: AiPlannedDay[];
-  }) => {
-    const now = Date.now();
-    const nextActivities = { ...trip.activities };
-    const nextThemes = { ...(trip.themes || {}) };
-    const nextThemesTs = { ...(trip.themesUpdatedAt || {}) };
-    const nextOrderTs = { ...(trip.activitiesOrderUpdatedAt || {}) };
-    const nextTombstones = { ...(trip.tombstones || {}) };
-
-    let latestDate = trip.endDate;
-    days.forEach((dayPlan, offsetIdx) => {
-      const startMs = Date.parse(`${startDate}T00:00:00Z`);
-      if (Number.isNaN(startMs)) return;
-      const d = new Date(startMs);
-      d.setUTCDate(d.getUTCDate() + offsetIdx);
-      const targetIso = d.toISOString().slice(0, 10);
-      if (targetIso > latestDate) latestDate = targetIso;
-
-      const generated: Activity[] = dayPlan.stops.map((s) => ({
-        id: generateUniqueId('act'),
-        time: s.time,
-        title: s.title,
-        location: s.location,
-        completed: false,
-        type: s.type,
-        duration: s.duration,
-        description: s.description,
-        updatedAt: now,
-      }));
-
-      const existing = nextActivities[targetIso] || [];
-      if (applyStrategy === 'replace') {
-        existing.forEach((old) => {
-          nextTombstones[old.id] = now;
-        });
-        nextActivities[targetIso] = generated.sort((a, b) => a.time.localeCompare(b.time));
-      } else {
-        nextActivities[targetIso] = [...existing, ...generated].sort((a, b) => a.time.localeCompare(b.time));
-      }
-
-      if (dayPlan.theme) {
-        nextThemes[targetIso] = dayPlan.theme;
-        nextThemesTs[targetIso] = now;
-      }
-      nextOrderTs[targetIso] = now;
-    });
-
-    onUpdateTrip({
-      ...trip,
-      endDate: latestDate > trip.endDate ? latestDate : trip.endDate,
-      activities: nextActivities,
-      themes: nextThemes,
-      themesUpdatedAt: nextThemesTs,
-      activitiesOrderUpdatedAt: nextOrderTs,
-      tombstones: nextTombstones,
-      updatedAt: now,
-    });
-
-    setSelectedDate(startDate);
-    onShowToast(
-      days.length > 1
-        ? t(`已套用 ${days.length} 天 AI 行程至旅程`, `已应用 ${days.length} 天 AI 行程至旅程`, `Applied ${days.length}-day AI itinerary`)
-        : t(`已套用 AI 行程至 ${startDate.slice(5)}`, `已应用 AI 行程至 ${startDate.slice(5)}`, `Applied AI plan to ${startDate.slice(5)}`),
-      'success'
-    );
-  };
-
   const openEditModal = (activity: Activity) => {
     setEditingActivityId(activity.id);
     if (activity.type === 'flight' && activity.flightInfo) {
@@ -1354,7 +1274,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
         </div>
       </div>
 
-      {/* Centered Horizontal Day Pill Strip (No activity dots) */}
+      {/* Centered Horizontal Day Pill Strip (Clean floating pills, zero bottom shadow cutoff) */}
       <div className="px-5 sm:px-8 pb-3 shrink-0 relative z-20">
         <div className="overflow-x-auto no-scrollbar py-1">
           <div className="w-max min-w-full flex items-center justify-center gap-2">
@@ -1365,10 +1285,10 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                   key={date}
                   type="button"
                   onClick={() => setSelectedDate(date)}
-                  className={`shrink-0 min-w-[60px] h-[60px] px-3 rounded-2xl flex flex-col items-center justify-center gap-0.5 transition-all duration-150 cursor-pointer ${
+                  className={`shrink-0 min-w-[60px] h-[60px] px-3 rounded-2xl flex flex-col items-center justify-center gap-0.5 transition-all duration-150 cursor-pointer shadow-none ${
                     isSelected
-                      ? 'bg-[#F26B3A] text-white shadow-[0_10px_22px_-8px_rgba(242,107,58,0.65)]'
-                      : 'surface-elevated text-zinc-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-800/70'
+                      ? 'bg-[#F26B3A] text-white border border-transparent'
+                      : 'bg-white/88 dark:bg-[#10192D]/82 backdrop-blur-md border border-white/80 dark:border-white/10 text-zinc-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-slate-800/85'
                   }`}
                 >
                   <span className={`text-[10px] font-medium leading-none ${isSelected ? 'text-white/85' : 'text-zinc-400'}`}>
@@ -1414,14 +1334,16 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                 </span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => setShowAiModal(true)}
-                className="min-h-[36px] px-3 sm:px-3.5 rounded-full bg-[var(--tab-accent-soft)] hover:brightness-95 text-[var(--tab-accent)] border border-[var(--tab-accent)]/25 flex items-center gap-1.5 font-semibold text-xs transition-all cursor-pointer whitespace-nowrap shrink-0"
-              >
-                <SparklesIcon className="w-3.5 h-3.5" />
-                <span>{t('AI 規劃', 'AI 规划', 'AI Plan')}</span>
-              </button>
+              {onOpenExplorePlanner && (
+                <button
+                  type="button"
+                  onClick={onOpenExplorePlanner}
+                  className="min-h-[36px] px-3 sm:px-3.5 rounded-full bg-[var(--tab-accent-soft)] hover:brightness-95 text-[var(--tab-accent)] border border-[var(--tab-accent)]/25 flex items-center gap-1.5 font-semibold text-xs transition-all cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <SparklesIcon className="w-3.5 h-3.5" />
+                  <span>{t('AI 規劃', 'AI 规划', 'AI Plan')}</span>
+                </button>
+              )}
             </div>
 
             <button
@@ -1492,14 +1414,16 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                     <PlusIcon className="w-4 h-4" />
                     <span>{t('手動新增', '手动新增', 'Add Manually')}</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowAiModal(true)}
-                    className="min-h-[42px] px-5 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-semibold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm"
-                  >
-                    <SparklesIcon className="w-4 h-4" />
-                    <span>{t('AI 規劃行程', 'AI 规划行程', 'Plan with AI')}</span>
-                  </button>
+                  {onOpenExplorePlanner && (
+                    <button
+                      type="button"
+                      onClick={onOpenExplorePlanner}
+                      className="min-h-[42px] px-5 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-semibold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm"
+                    >
+                      <SparklesIcon className="w-4 h-4" />
+                      <span>{t('前往探索與 AI 規劃', '前往探索与 AI 规划', 'Open AI Planner')}</span>
+                    </button>
+                  )}
                 </div>
               </div>
             ) : (
@@ -1608,7 +1532,7 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className={`grid gap-2.5 ${onOpenExplorePlanner ? 'grid-cols-2' : 'grid-cols-1'}`}>
               <button
                 type="button"
                 onClick={openAddModal}
@@ -1617,14 +1541,16 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
                 <PlusIcon className="w-4 h-4" />
                 <span>{t('新增行程 / 航班', '新增行程 / 航班', 'Add Stop / Flight')}</span>
               </button>
-              <button
-                type="button"
-                onClick={() => setShowAiModal(true)}
-                className="min-h-[44px] rounded-full bg-white/12 hover:bg-white/20 text-white font-semibold text-xs flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer"
-              >
-                <SparklesIcon className="w-4 h-4 text-[#FF9E7B]" />
-                <span>{t('AI 智慧規劃', 'AI 智能规划', 'AI Planner')}</span>
-              </button>
+              {onOpenExplorePlanner && (
+                <button
+                  type="button"
+                  onClick={onOpenExplorePlanner}
+                  className="min-h-[44px] rounded-full bg-white/12 hover:bg-white/20 text-white font-semibold text-xs flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer"
+                >
+                  <SparklesIcon className="w-4 h-4 text-[#FF9E7B]" />
+                  <span>{t('前往 AI 規劃', '前往 AI 规划', 'AI Planner')}</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -2291,17 +2217,6 @@ const ItineraryTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, focus
         onReorderStops={setRouteLocations}
         onApplyToDay={routeIsPreview ? undefined : handleApplyRouteOrderToDay}
         onOpenHotelsManager={openHotelManager}
-      />
-
-      {/* Built-In Gemini AI Itinerary & Route Planner */}
-      <AiPlannerModal
-        open={showAiModal}
-        onClose={() => setShowAiModal(false)}
-        trip={trip}
-        dates={dates}
-        selectedDate={selectedDate}
-        onApplyPlan={handleApplyAiPlan}
-        onOpenRouteForStops={handleOpenAiRoutePreview}
       />
 
       {/* Read-Only Activity Detail Modal (Opens First on Card Tap; Edit/Delete at Bottom) */}

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { geoMercator, geoNaturalEarth1, geoPath } from 'd3-geo';
 import { feature } from 'topojson-client';
 import type { Topology, GeometryCollection } from 'topojson-specification';
@@ -98,15 +98,46 @@ const STAR_COORDS = Array.from({ length: 64 }, (_, i) => {
   return { x, y, r, delay, hero };
 });
 
-interface CountryEntry {
-  feature: Feature<Geometry>;
+const BASE_SCALE = 512;
+const BASE_MERCATOR = geoMercator().center([0, 0]).scale(BASE_SCALE).translate([0, 0]);
+const BASE_WORLD = geoNaturalEarth1().center([0, 0]).scale(BASE_SCALE).translate([0, 0]);
+const WORLD_SPAN_X = 2 * Math.PI * BASE_SCALE;
+
+interface CompiledCountryEntry {
   id: string | undefined;
   bbox: [number, number, number, number]; // [minLng, minLat, maxLng, maxLat]
+  mercatorPath: Path2D | null;
+  worldPath: Path2D | null;
 }
 
-interface AtlasDataset {
-  countries: CountryEntry[];
-  collection: { type: 'FeatureCollection'; features: Feature<Geometry>[] };
+interface CompiledAtlas {
+  countries: CompiledCountryEntry[];
+  worldBounds: [[number, number], [number, number]];
+}
+
+function buildPath2DFromGeo(
+  projection: ReturnType<typeof geoMercator> | ReturnType<typeof geoNaturalEarth1>,
+  feat: Feature<Geometry>
+): Path2D | null {
+  if (typeof Path2D === 'undefined') return null;
+  const p = new Path2D();
+  const adapter = {
+    beginPath() {},
+    moveTo(x: number, y: number) {
+      p.moveTo(x, y);
+    },
+    lineTo(x: number, y: number) {
+      p.lineTo(x, y);
+    },
+    closePath() {
+      p.closePath();
+    },
+    arc(x: number, y: number, r: number, a0: number, a1: number) {
+      p.arc(x, y, r, a0, a1);
+    },
+  };
+  geoPath(projection, adapter as unknown as CanvasRenderingContext2D)(feat);
+  return p;
 }
 
 function computeGeoBBox(geom: Geometry | null): [number, number, number, number] {
@@ -148,35 +179,42 @@ function computeGeoBBox(geom: Geometry | null): [number, number, number, number]
   return [minLng, minLat, maxLng, maxLat];
 }
 
-function buildAtlasDataset(rawTopo: unknown): AtlasDataset {
+function compileAtlasDataset(rawTopo: unknown): CompiledAtlas {
   const topo = rawTopo as Topology<{ countries: GeometryCollection }>;
-  const countries = feature(topo, topo.objects.countries).features
-    .map((f) => ({
-      feature: f,
-      id: f.id !== undefined ? String(f.id).padStart(3, '0') : undefined,
-      bbox: computeGeoBBox(f.geometry),
-    }))
-    .filter((c) => c.id !== '010'); // exclude Antarctica for crisp habitable framing
+  const rawFeatures = feature(topo, topo.objects.countries).features;
+  const countries: CompiledCountryEntry[] = [];
+  const keptFeatures: Feature<Geometry>[] = [];
 
-  return {
-    countries,
-    collection: {
-      type: 'FeatureCollection',
-      features: countries.map((c) => c.feature),
-    },
-  };
+  for (const f of rawFeatures) {
+    const id = f.id !== undefined ? String(f.id).padStart(3, '0') : undefined;
+    if (id === '010') continue; // exclude Antarctica for crisp habitable framing
+    keptFeatures.push(f);
+    countries.push({
+      id,
+      bbox: computeGeoBBox(f.geometry),
+      mercatorPath: buildPath2DFromGeo(BASE_MERCATOR, f),
+      worldPath: buildPath2DFromGeo(BASE_WORLD, f),
+    });
+  }
+
+  const worldBounds = geoPath(BASE_WORLD).bounds({
+    type: 'FeatureCollection',
+    features: keptFeatures,
+  });
+
+  return { countries, worldBounds };
 }
 
-// Instant initial render dataset (50m); dynamically upgraded to Ultra-HD 10m on mount
-const INITIAL_ATLAS_50M = buildAtlasDataset(worldAtlas50m);
-let cachedHdAtlas10m: AtlasDataset | null = null;
-let pendingHdAtlas10mPromise: Promise<AtlasDataset> | null = null;
+// Instant compiled 50m atlas; dynamically upgraded to Ultra-HD 10m with pre-baked Path2D objects
+const INITIAL_ATLAS_50M = compileAtlasDataset(worldAtlas50m);
+let cachedHdAtlas10m: CompiledAtlas | null = null;
+let pendingHdAtlas10mPromise: Promise<CompiledAtlas> | null = null;
 
-function loadHdAtlas10m(): Promise<AtlasDataset> {
+function loadHdAtlas10m(): Promise<CompiledAtlas> {
   if (cachedHdAtlas10m) return Promise.resolve(cachedHdAtlas10m);
   if (!pendingHdAtlas10mPromise) {
     pendingHdAtlas10mPromise = import('world-atlas/countries-10m.json').then((mod) => {
-      cachedHdAtlas10m = buildAtlasDataset(mod.default ?? mod);
+      cachedHdAtlas10m = compileAtlasDataset(mod.default ?? mod);
       return cachedHdAtlas10m;
     });
   }
@@ -190,7 +228,8 @@ interface GlobeBackdropProps {
 
 export const GlobeBackdrop: React.FC<GlobeBackdropProps> = React.memo(({ focusCity, isDark }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [atlas, setAtlas] = useState<AtlasDataset>(() => cachedHdAtlas10m || INITIAL_ATLAS_50M);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [atlas, setAtlas] = useState<CompiledAtlas>(() => cachedHdAtlas10m || INITIAL_ATLAS_50M);
   const [viewport, setViewport] = useState<{ width: number; height: number }>(() => ({
     width: typeof window !== 'undefined' ? Math.max(320, window.innerWidth) : 390,
     height: typeof window !== 'undefined' ? Math.max(480, window.innerHeight) : 844,
@@ -271,141 +310,267 @@ export const GlobeBackdrop: React.FC<GlobeBackdropProps> = React.memo(({ focusCi
     };
   }, [focusCity]);
 
-  const [viewCamera, setViewCamera] = useState<{ lng: number; lat: number; spanDeg: number }>(() => ({
+  const cameraRef = useRef<{ lng: number; lat: number; spanDeg: number }>({
     lng: resolvedTarget?.lng ?? 139.6917,
     lat: resolvedTarget?.lat ?? 35.6895,
     spanDeg: resolvedTarget?.spanDeg ?? 11.5,
-  }));
-  const cameraRef = useRef(viewCamera);
+  });
 
+  // Store latest render inputs in refs so rAF draws directly at 60/120fps with zero React state churn
+  const renderParamsRef = useRef({
+    atlas,
+    viewport,
+    isDark,
+    hasFocusCity,
+    resolvedTarget,
+  });
+  renderParamsRef.current = {
+    atlas,
+    viewport,
+    isDark,
+    hasFocusCity,
+    resolvedTarget,
+  };
+
+  const drawFrameRef = useRef<() => void>(() => {});
+  drawFrameRef.current = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const { atlas: curAtlas, viewport: vp, isDark: dark, hasFocusCity: focused, resolvedTarget: target } =
+      renderParamsRef.current;
+
+    const vw = vp.width;
+    const vh = vp.height;
+    if (vw <= 0 || vh <= 0) return;
+
+    const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2.5) : 1;
+    const targetPxW = Math.round(vw * dpr);
+    const targetPxH = Math.round(vh * dpr);
+    if (canvas.width !== targetPxW || canvas.height !== targetPxH) {
+      canvas.width = targetPxW;
+      canvas.height = targetPxH;
+    }
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, vw, vh);
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+
+    const baseFill = dark ? 'rgba(148, 163, 184, 0.06)' : 'rgba(255, 255, 255, 0.35)';
+    const focusFill = dark ? 'rgba(56, 189, 248, 0.11)' : 'rgba(255, 255, 255, 0.64)';
+    const baseStroke = dark ? 'rgba(148, 163, 184, 0.15)' : 'rgba(96, 165, 250, 0.19)';
+    const focusStroke = dark ? 'rgba(125, 211, 252, 0.34)' : 'rgba(59, 130, 246, 0.30)';
+
+    if (!focused || !target) {
+      const isPortrait = vw < vh;
+      let zoom = 1;
+      let tx = vw * 0.5;
+      let ty = vh * 0.49;
+
+      if (isPortrait) {
+        const targetScale = Math.max(vw * 0.25, vh * 0.21);
+        zoom = targetScale / BASE_SCALE;
+        const centerPt = BASE_WORLD([18, 16]) || [0, 0];
+        tx = vw * 0.5 - centerPt[0] * zoom;
+        ty = vh * 0.49 - centerPt[1] * zoom;
+      } else {
+        const [[x0, y0], [x1, y1]] = curAtlas.worldBounds;
+        const bw = Math.max(1, x1 - x0);
+        const bh = Math.max(1, y1 - y0);
+        const fitW = vw * 1.06;
+        const fitH = vh * 0.92;
+        zoom = Math.min(fitW / bw, fitH / bh);
+        tx = vw * 0.5 - ((x0 + x1) * 0.5) * zoom;
+        ty = vh * 0.5 - ((y0 + y1) * 0.5) * zoom;
+      }
+
+      ctx.save();
+      ctx.translate(tx, ty);
+      ctx.scale(zoom, zoom);
+      ctx.fillStyle = baseFill;
+      ctx.strokeStyle = baseStroke;
+      ctx.lineWidth = 0.7 / Math.max(0.05, zoom);
+
+      for (let i = 0; i < curAtlas.countries.length; i++) {
+        const wp = curAtlas.countries[i].worldPath;
+        if (!wp) continue;
+        ctx.fill(wp);
+        ctx.stroke(wp);
+      }
+      ctx.restore();
+      return;
+    }
+
+    const cam = cameraRef.current;
+    const targetSpanPx = Math.min(Math.max(vw * 0.86, vh * 0.72), Math.hypot(vw, vh) * 0.72);
+    const scale = (targetSpanPx * 360) / (2 * Math.PI * Math.max(2.5, cam.spanDeg));
+    const zoom = scale / BASE_SCALE;
+
+    const clampedLat = Math.max(-80, Math.min(80, cam.lat));
+    const centerPt = BASE_MERCATOR([cam.lng, clampedLat]) || [0, 0];
+    const cmx = centerPt[0];
+    const cmy = centerPt[1];
+
+    const degPerPx = 360 / (2 * Math.PI * scale);
+    const halfSpanLng = Math.min(175, vw * degPerPx * 0.95 + 14);
+    const halfSpanLat = Math.min(82, vh * degPerPx * 0.95 + 14);
+    const minViewLat = cam.lat - halfSpanLat;
+    const maxViewLat = cam.lat + halfSpanLat;
+
+    // Determine visible antimeridian wrap offsets (-worldW, 0, +worldW)
+    const offsets: number[] = [0];
+    const leftEdgeWorldX = cmx - (vw * 0.5) / zoom;
+    const rightEdgeWorldX = cmx + (vw * 0.5) / zoom;
+    if (leftEdgeWorldX < -WORLD_SPAN_X * 0.5) offsets.push(-WORLD_SPAN_X);
+    if (rightEdgeWorldX > WORLD_SPAN_X * 0.5) offsets.push(WORLD_SPAN_X);
+
+    const normalLw = 0.7 / Math.max(0.05, zoom);
+    const focusLw = 1.15 / Math.max(0.05, zoom);
+
+    for (let o = 0; o < offsets.length; o++) {
+      const worldOffset = offsets[o];
+      const tx = vw * 0.5 + (worldOffset - cmx) * zoom;
+      const ty = vh * 0.48 - cmy * zoom;
+      const shiftDeg = (worldOffset / WORLD_SPAN_X) * 360;
+      const camLngInCopy = cam.lng - shiftDeg;
+
+      ctx.save();
+      ctx.translate(tx, ty);
+      ctx.scale(zoom, zoom);
+
+      for (let i = 0; i < curAtlas.countries.length; i++) {
+        const c = curAtlas.countries[i];
+        const mp = c.mercatorPath;
+        if (!mp) continue;
+
+        const isFocused = Boolean(target.countryId && c.id === target.countryId);
+        if (!isFocused) {
+          const [bMinLng, bMinLat, bMaxLng, bMaxLat] = c.bbox;
+          if (bMaxLat < minViewLat || bMinLat > maxViewLat) continue;
+          if (bMaxLng - bMinLng < 180) {
+            const coversCenter = bMinLng <= camLngInCopy && bMaxLng >= camLngInCopy;
+            const d1 = Math.abs(bMinLng - camLngInCopy);
+            const d2 = Math.abs(bMaxLng - camLngInCopy);
+            if (!coversCenter && d1 > halfSpanLng && d2 > halfSpanLng) continue;
+          }
+        }
+
+        ctx.fillStyle = isFocused ? focusFill : baseFill;
+        ctx.strokeStyle = isFocused ? focusStroke : baseStroke;
+        ctx.lineWidth = isFocused ? focusLw : normalLw;
+        ctx.fill(mp);
+        ctx.stroke(mp);
+      }
+
+      ctx.restore();
+    }
+
+    // Crisp Pinpoint Marker Centered on Focused City
+    const pinMerc = BASE_MERCATOR([target.lng, Math.max(-80, Math.min(80, target.lat))]);
+    if (pinMerc) {
+      let pinOffsetX = 0;
+      let bestDist = Infinity;
+      for (const offset of offsets) {
+        const d = Math.abs(pinMerc[0] + offset - cmx);
+        if (d < bestDist) {
+          bestDist = d;
+          pinOffsetX = offset;
+        }
+      }
+      const px = vw * 0.5 + (pinMerc[0] + pinOffsetX - cmx) * zoom;
+      const py = vh * 0.48 + (pinMerc[1] - cmy) * zoom;
+
+      if (Number.isFinite(px) && Number.isFinite(py) && px > -60 && px < vw + 60 && py > -60 && py < vh + 60) {
+        ctx.save();
+        ctx.translate(px, py);
+
+        ctx.beginPath();
+        ctx.arc(0, 0, 22, 0, Math.PI * 2);
+        ctx.fillStyle = dark ? 'rgba(56, 189, 248, 0.10)' : 'rgba(37, 99, 235, 0.08)';
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(0, 0, 9, 0, Math.PI * 2);
+        ctx.strokeStyle = dark ? 'rgba(125, 211, 252, 0.45)' : 'rgba(37, 99, 235, 0.45)';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(0, 0, 4, 0, Math.PI * 2);
+        ctx.fillStyle = dark ? '#38BDF8' : '#2563EB';
+        ctx.fill();
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.restore();
+      }
+    }
+  };
+
+  // Immediate redraw on theme, viewport, or atlas upgrade
   useEffect(() => {
-    if (!resolvedTarget) return;
+    drawFrameRef.current();
+  }, [atlas, viewport.width, viewport.height, isDark, hasFocusCity, resolvedTarget]);
+
+  // Silky 60/120fps canvas-only pan & zoom animation (zero React re-renders per frame)
+  useEffect(() => {
+    if (!resolvedTarget) {
+      drawFrameRef.current();
+      return;
+    }
+
     const prefersReducedMotion =
       typeof window !== 'undefined' &&
       window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-    const start = cameraRef.current;
+    const start = { ...cameraRef.current };
     const target = {
       lng: resolvedTarget.lng,
       lat: resolvedTarget.lat,
       spanDeg: resolvedTarget.spanDeg,
     };
 
-    if (
-      prefersReducedMotion ||
-      (Math.abs(target.lng - start.lng) < 0.05 &&
-        Math.abs(target.lat - start.lat) < 0.05 &&
-        Math.abs(target.spanDeg - start.spanDeg) < 0.1)
-    ) {
-      cameraRef.current = target;
-      setViewCamera(target);
-      return;
-    }
-
     const deltaLng = (((target.lng - start.lng + 540) % 360) + 360) % 360 - 180;
     const deltaLat = target.lat - start.lat;
     const deltaSpan = target.spanDeg - start.spanDeg;
-    const duration = 720;
+
+    if (
+      prefersReducedMotion ||
+      (Math.abs(deltaLng) < 0.05 && Math.abs(deltaLat) < 0.05 && Math.abs(deltaSpan) < 0.1)
+    ) {
+      cameraRef.current = target;
+      drawFrameRef.current();
+      return;
+    }
+
+    const duration = 640;
     const startedAt = performance.now();
     let rafId = 0;
 
     const step = (now: number) => {
       const t = Math.min(1, (now - startedAt) / duration);
       const eased = 1 - Math.pow(1 - t, 3);
-      const next = {
+      cameraRef.current = {
         lng: start.lng + deltaLng * eased,
         lat: start.lat + deltaLat * eased,
         spanDeg: start.spanDeg + deltaSpan * eased,
       };
-      cameraRef.current = next;
-      setViewCamera(next);
+      drawFrameRef.current();
       if (t < 1) {
         rafId = requestAnimationFrame(step);
+      } else {
+        cameraRef.current = target;
+        drawFrameRef.current();
       }
     };
 
     rafId = requestAnimationFrame(step);
     return () => cancelAnimationFrame(rafId);
   }, [resolvedTarget]);
-
-  const { countryPaths, markerPoint } = useMemo(() => {
-    const vw = viewport.width;
-    const vh = viewport.height;
-
-    if (!hasFocusCity || !resolvedTarget) {
-      const isPortrait = vw < vh;
-      const projection = isPortrait
-        ? geoNaturalEarth1()
-            .center([18, 16])
-            .scale(Math.max(vw * 0.25, vh * 0.21))
-            .translate([vw * 0.5, vh * 0.49])
-        : geoNaturalEarth1().fitExtent(
-            [
-              [-vw * 0.03, vh * 0.04],
-              [vw * 1.03, vh * 0.96],
-            ],
-            atlas.collection
-          );
-
-      const pathGen = geoPath(projection);
-      return {
-        countryPaths: atlas.countries.map((c) => ({
-          id: c.id,
-          d: pathGen(c.feature) || '',
-          isFocused: false,
-        })),
-        markerPoint: null,
-      };
-    }
-
-    // Crisp Country/City-Centered Flat Mercator Map filling 100% of Viewport
-    const targetSpanPx = Math.min(Math.max(vw * 0.86, vh * 0.72), Math.hypot(vw, vh) * 0.72);
-    const scale = (targetSpanPx * 360) / (2 * Math.PI * Math.max(2.5, viewCamera.spanDeg));
-
-    const projection = geoMercator()
-      .center([viewCamera.lng, viewCamera.lat])
-      .scale(scale)
-      .translate([vw * 0.5, vh * 0.48]);
-
-    const pathGen = geoPath(projection);
-
-    // Geographic O(1) bounding-box cull for smooth 60fps 10m coastlines during zoom/pan
-    const degPerPx = 360 / (2 * Math.PI * scale);
-    const halfSpanLng = Math.min(170, (vw * degPerPx) * 0.95 + 14);
-    const halfSpanLat = Math.min(82, (vh * degPerPx) * 0.95 + 14);
-    const minViewLat = viewCamera.lat - halfSpanLat;
-    const maxViewLat = viewCamera.lat + halfSpanLat;
-
-    const cPaths = atlas.countries.map((c) => {
-      const isFocused = Boolean(resolvedTarget.countryId && c.id === resolvedTarget.countryId);
-      if (!isFocused) {
-        const [bMinLng, bMinLat, bMaxLng, bMaxLat] = c.bbox;
-        if (bMaxLat < minViewLat || bMinLat > maxViewLat) {
-          return { id: c.id, d: '', isFocused: false };
-        }
-        // Only cull non-antimeridian spans
-        if (bMaxLng - bMinLng < 180) {
-          const distLng1 = Math.abs((((bMinLng - viewCamera.lng + 540) % 360) - 180));
-          const distLng2 = Math.abs((((bMaxLng - viewCamera.lng + 540) % 360) - 180));
-          const coversCenter = bMinLng <= viewCamera.lng && bMaxLng >= viewCamera.lng;
-          if (!coversCenter && distLng1 > halfSpanLng && distLng2 > halfSpanLng) {
-            return { id: c.id, d: '', isFocused: false };
-          }
-        }
-      }
-      return {
-        id: c.id,
-        d: pathGen(c.feature) || '',
-        isFocused,
-      };
-    });
-
-    const projectedPin = projection([resolvedTarget.lng, resolvedTarget.lat]);
-    return {
-      countryPaths: cPaths,
-      markerPoint: projectedPin ? { x: projectedPin[0], y: projectedPin[1] } : null,
-    };
-  }, [atlas, viewport.width, viewport.height, hasFocusCity, resolvedTarget, viewCamera]);
 
   return (
     <div
@@ -449,67 +614,11 @@ export const GlobeBackdrop: React.FC<GlobeBackdropProps> = React.memo(({ focusCi
         </svg>
       )}
 
-      {/* Full-Viewport Crisp Ultra-HD 10m Flat Vector Map (Zero Graticule Lines, Zero Blur) */}
-      <svg
-        viewBox={`0 0 ${viewport.width} ${viewport.height}`}
-        preserveAspectRatio="xMidYMid slice"
-        className="absolute inset-0 w-full h-full"
-      >
-        <g shapeRendering="geometricPrecision">
-          {countryPaths.map((c, idx) =>
-            c.d ? (
-              <path
-                key={`${c.id || 'r'}-${idx}`}
-                d={c.d}
-                fill={
-                  c.isFocused
-                    ? isDark
-                      ? 'rgba(56, 189, 248, 0.11)'
-                      : 'rgba(255, 255, 255, 0.64)'
-                    : isDark
-                      ? 'rgba(148, 163, 184, 0.06)'
-                      : 'rgba(255, 255, 255, 0.35)'
-                }
-                stroke={
-                  c.isFocused
-                    ? isDark
-                      ? 'rgba(125, 211, 252, 0.34)'
-                      : 'rgba(59, 130, 246, 0.30)'
-                    : isDark
-                      ? 'rgba(148, 163, 184, 0.15)'
-                      : 'rgba(96, 165, 250, 0.19)'
-                }
-                strokeWidth={c.isFocused ? 1.15 : 0.7}
-                strokeLinejoin="round"
-                vectorEffect="non-scaling-stroke"
-              />
-            ) : null
-          )}
-        </g>
-
-        {/* Subtle Pinpoint Centered on Focused City */}
-        {markerPoint && Number.isFinite(markerPoint.x) && Number.isFinite(markerPoint.y) && (
-          <g transform={`translate(${markerPoint.x}, ${markerPoint.y})`}>
-            <circle
-              r="22"
-              fill={isDark ? 'rgba(56, 189, 248, 0.10)' : 'rgba(37, 99, 235, 0.08)'}
-            />
-            <circle
-              r="9"
-              fill="none"
-              stroke={isDark ? '#7DD3FC' : '#2563EB'}
-              strokeWidth="1.2"
-              strokeOpacity="0.45"
-            />
-            <circle
-              r="4"
-              fill={isDark ? '#38BDF8' : '#2563EB'}
-              stroke="#FFFFFF"
-              strokeWidth="1.5"
-            />
-          </g>
-        )}
-      </svg>
+      {/* Full-Viewport Hardware-Accelerated DPR Canvas (Pre-Baked Ultra-HD 10m Path2D, 60/120fps) */}
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0 w-full h-full block"
+      />
     </div>
   );
 });

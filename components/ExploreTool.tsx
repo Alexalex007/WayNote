@@ -13,6 +13,8 @@ import { useI18n } from '../hooks/useI18n';
 import { getDaySpanUtc, addDaysUtc } from './DateRangeCalendar';
 import { LiquidModal, ConfirmSheet, SlidingSegmentedControl } from './LiquidPrimitives';
 import { BookmarkBurstButton, StampButton } from './TactileButtons';
+import { AiPlannerWorkspace, ApplyAiPlanOptions } from './AiPlannerModal';
+import { RouteMapModal } from './RouteMapModal';
 import { tactileAudio } from '../services/tactileAudio';
 import {
   CompassIcon,
@@ -35,11 +37,14 @@ import {
   RefreshIcon,
 } from './Icons';
 
+export type ExploreSection = 'DISCOVER' | 'PLANNER' | 'SAVED';
+
 interface Props {
   trip: Trip;
   onUpdateTrip: (trip: Trip) => void;
   onShowToast: (text: string, tone?: 'info' | 'success' | 'error') => void;
   onOpenItineraryDate?: (date: string) => void;
+  focusSectionSignal?: { section: ExploreSection; nonce: number } | null;
 }
 
 type AiFocusCategory = 'sightseeing' | 'food' | 'shopping';
@@ -69,10 +74,26 @@ const normalizeSpotKey = (name: string) =>
     .replace(/[\s・·\-—–_()（）[\]【】「」『』.,/]+/g, '')
     .trim();
 
-const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenItineraryDate }) => {
+const ExploreTool: React.FC<Props> = ({
+  trip,
+  onUpdateTrip,
+  onShowToast,
+  onOpenItineraryDate,
+  focusSectionSignal,
+}) => {
   const { lang, t } = useI18n();
   const intel = useMemo(() => detectDestinationIntel(trip.destination, lang), [trip.destination, lang]);
   const savedPlaces = trip.savedPlaces || [];
+
+  const [activeSection, setActiveSection] = useState<ExploreSection>(() =>
+    focusSectionSignal?.section || 'DISCOVER'
+  );
+
+  useEffect(() => {
+    if (focusSectionSignal?.section) {
+      setActiveSection(focusSectionSignal.section);
+    }
+  }, [focusSectionSignal]);
 
   const categoryMeta = useMemo<
     Record<
@@ -82,7 +103,6 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
         icon: React.ComponentType<{ className?: string }>;
         tintBg: string;
         textClass: string;
-        accentBar: string;
         activityType: Activity['type'];
       }
     >
@@ -93,7 +113,6 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
         icon: CameraIcon,
         tintBg: 'bg-orange-500/12 dark:bg-orange-400/16',
         textClass: 'text-orange-600 dark:text-orange-300',
-        accentBar: 'bg-orange-500',
         activityType: 'sightseeing',
       },
       food: {
@@ -101,7 +120,6 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
         icon: DiningIcon,
         tintBg: 'bg-rose-500/12 dark:bg-rose-400/16',
         textClass: 'text-rose-600 dark:text-rose-300',
-        accentBar: 'bg-rose-500',
         activityType: 'food',
       },
       shopping: {
@@ -109,7 +127,6 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
         icon: ShoppingBagIcon,
         tintBg: 'bg-fuchsia-500/12 dark:bg-fuchsia-400/16',
         textClass: 'text-fuchsia-600 dark:text-fuchsia-300',
-        accentBar: 'bg-fuchsia-500',
         activityType: 'sightseeing',
       },
       other: {
@@ -117,7 +134,6 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
         icon: TagIcon,
         tintBg: 'bg-zinc-500/12 dark:bg-zinc-400/16',
         textClass: 'text-zinc-600 dark:text-zinc-300',
-        accentBar: 'bg-zinc-400',
         activityType: 'sightseeing',
       },
     }),
@@ -138,7 +154,8 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
     });
   }, [trip.startDate, trip.endDate, trip.activities]);
 
-  // Verify live scheduled link against actual trip.activities so stale badges never appear
+  const tripDateList = useMemo(() => tripDays.map((d) => d.iso), [tripDays]);
+
   const resolvedScheduleMap = useMemo(() => {
     const map = new Map<string, { date: string; dayNum: number; time: string }>();
     const dayIndexLookup = new Map<string, number>(tripDays.map((d) => [d.iso, d.dayNum]));
@@ -169,12 +186,12 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
     return map;
   }, [savedPlaces, trip.activities, tripDays]);
 
-  // Filters & Search
+  // Filters & Search (Saved Wishlist)
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'UNSCHEDULED' | 'SCHEDULED' | 'VISITED'>('ALL');
   const [categoryFilter, setCategoryFilter] = useState<'ALL' | DisplaySavedCategory>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Add / Edit Modal State
+  // Add / Edit Place Modal
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingPlace, setEditingPlace] = useState<SavedPlace | null>(null);
   const [formName, setFormName] = useState('');
@@ -194,8 +211,11 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
   // Delete Confirm State
   const [deletingPlace, setDeletingPlace] = useState<SavedPlace | null>(null);
 
-  // AI Spot Discovery Modal State + Anti-Duplicate Session History (strict 3 categories, no 'all')
-  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  // Route Preview Modal for Inline AI Planner
+  const [plannerRouteStops, setPlannerRouteStops] = useState<Activity[]>([]);
+  const [showPlannerRouteModal, setShowPlannerRouteModal] = useState(false);
+
+  // Inline AI Spot Discovery State + Anti-Duplicate Session History
   const [aiFocusCategory, setAiFocusCategory] = useState<AiFocusCategory>('sightseeing');
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -204,13 +224,16 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
   const seenAiNamesRef = useRef<Set<string>>(new Set());
   const seenAiKeysRef = useRef<Set<string>>(new Set());
   const aiBatchSeedRef = useRef<number>(0);
+  const initialDiscoverAttemptedRef = useRef<string | null>(null);
 
   useEffect(() => {
     seenAiNamesRef.current.clear();
     seenAiKeysRef.current.clear();
     aiBatchSeedRef.current = 0;
+    initialDiscoverAttemptedRef.current = null;
     setAiBatchNum(0);
     setAiSuggestions([]);
+    setAiError(null);
   }, [trip.id, trip.destination, lang]);
 
   const stats = useMemo(() => {
@@ -397,16 +420,17 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
     const prevDayList = trip.activities?.[scheduleDate] || [];
     const nextDayList = [...prevDayList, newActivity].sort((a, b) => a.time.localeCompare(b.time));
 
-    const nextSavedPlaces = savedPlaces.map((p) =>
-      p.id === schedulingPlace.id
-        ? {
-            ...p,
-            scheduledDate: scheduleDate,
-            scheduledActivityId: newActId,
-            updatedAt: now,
-          }
-        : p
-    );
+    const alreadyExistsInSaved = savedPlaces.some((p) => p.id === schedulingPlace.id);
+    const updatedSchedulingPlace: SavedPlace = {
+      ...schedulingPlace,
+      scheduledDate: scheduleDate,
+      scheduledActivityId: newActId,
+      updatedAt: now,
+    };
+
+    const nextSavedPlaces = alreadyExistsInSaved
+      ? savedPlaces.map((p) => (p.id === schedulingPlace.id ? updatedSchedulingPlace : p))
+      : [updatedSchedulingPlace, ...savedPlaces];
 
     const dayIndex = tripDays.findIndex((d) => d.iso === scheduleDate);
     const dayLabel = dayIndex >= 0 ? formatDayBadge(dayIndex + 1, lang) : scheduleDate.slice(5);
@@ -530,23 +554,27 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
     }
   };
 
-  const handleOpenAiModal = () => {
-    setIsAiModalOpen(true);
-    if (aiSuggestions.length === 0 && !aiLoading) {
+  // Auto-load initial AI discovery batch once when visiting DISCOVER view
+  useEffect(() => {
+    const attemptKey = `${trip.id}::${trip.destination}::${lang}`;
+    if (
+      activeSection === 'DISCOVER' &&
+      aiSuggestions.length === 0 &&
+      !aiLoading &&
+      !aiError &&
+      initialDiscoverAttemptedRef.current !== attemptKey
+    ) {
+      initialDiscoverAttemptedRef.current = attemptKey;
       void handleFetchAiSpots(aiFocusCategory);
     }
-  };
+  }, [activeSection, trip.id, trip.destination, lang, aiSuggestions.length, aiLoading, aiError]);
 
-  const handleCollectAiSpot = (spot: AiExploreSuggestion) => {
-    const exists = savedPlaces.some(
+  const handleCollectAiSpot = (spot: AiExploreSuggestion): SavedPlace | null => {
+    const existing = savedPlaces.find(
       (p) => p.name.trim().toLowerCase() === spot.name.trim().toLowerCase()
     );
-    if (exists) {
-      onShowToast(
-        t(`「${spot.name}」已在口袋名單中`, `“${spot.name}”已在收藏列表中`, `"${spot.name}" is already saved`),
-        'info'
-      );
-      return;
+    if (existing) {
+      return existing;
     }
     const now = Date.now();
     const newPlace: SavedPlace = {
@@ -567,9 +595,112 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
       updatedAt: now,
     });
     onShowToast(t(`已收錄「${spot.name}」`, `已收藏“${spot.name}”`, `Saved "${spot.name}"`), 'success');
+    return newPlace;
   };
 
-  const getGoogleMapsUrl = (place: SavedPlace) => {
+  const handleScheduleAiSpot = (spot: AiExploreSuggestion) => {
+    const existing = savedPlaces.find(
+      (p) => p.name.trim().toLowerCase() === spot.name.trim().toLowerCase()
+    );
+    if (existing) {
+      openScheduleModal(existing);
+      return;
+    }
+    const draftPlace: SavedPlace = {
+      id: generateUniqueId('place'),
+      name: spot.name,
+      category: spot.category,
+      area: spot.area,
+      note: spot.note,
+      estimatedCost: spot.estimatedCost > 0 ? spot.estimatedCost : undefined,
+      mustGo: false,
+      visited: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: Date.now(),
+    };
+    openScheduleModal(draftPlace);
+  };
+
+  const handleApplyAiPlanFromExplore = ({
+    startDate,
+    applyStrategy,
+    days,
+  }: ApplyAiPlanOptions) => {
+    const now = Date.now();
+    const nextActivities = { ...trip.activities };
+    const nextThemes = { ...(trip.themes || {}) };
+    const nextThemesTs = { ...(trip.themesUpdatedAt || {}) };
+    const nextOrderTs = { ...(trip.activitiesOrderUpdatedAt || {}) };
+    const nextTombstones = { ...(trip.tombstones || {}) };
+
+    let latestDate = trip.endDate;
+    days.forEach((dayPlan, offsetIdx) => {
+      const startMs = Date.parse(`${startDate}T00:00:00Z`);
+      if (Number.isNaN(startMs)) return;
+      const d = new Date(startMs);
+      d.setUTCDate(d.getUTCDate() + offsetIdx);
+      const targetIso = d.toISOString().slice(0, 10);
+      if (targetIso > latestDate) latestDate = targetIso;
+
+      const generated: Activity[] = dayPlan.stops.map((s) => ({
+        id: generateUniqueId('act'),
+        time: s.time,
+        title: s.title,
+        location: s.location,
+        completed: false,
+        type: s.type,
+        duration: s.duration,
+        description: s.description,
+        updatedAt: now,
+      }));
+
+      const existing = nextActivities[targetIso] || [];
+      if (applyStrategy === 'replace') {
+        existing.forEach((old) => {
+          nextTombstones[old.id] = now;
+        });
+        nextActivities[targetIso] = generated.sort((a, b) => a.time.localeCompare(b.time));
+      } else {
+        nextActivities[targetIso] = [...existing, ...generated].sort((a, b) => a.time.localeCompare(b.time));
+      }
+
+      if (dayPlan.theme) {
+        nextThemes[targetIso] = dayPlan.theme;
+        nextThemesTs[targetIso] = now;
+      }
+      nextOrderTs[targetIso] = now;
+    });
+
+    onUpdateTrip({
+      ...trip,
+      endDate: latestDate > trip.endDate ? latestDate : trip.endDate,
+      activities: nextActivities,
+      themes: nextThemes,
+      themesUpdatedAt: nextThemesTs,
+      activitiesOrderUpdatedAt: nextOrderTs,
+      tombstones: nextTombstones,
+      updatedAt: now,
+    });
+
+    onShowToast(
+      days.length > 1
+        ? t(`已套用 ${days.length} 天 AI 行程至旅程`, `已应用 ${days.length} 天 AI 行程至旅程`, `Applied ${days.length}-day AI itinerary`)
+        : t(`已套用 AI 行程至 ${startDate.slice(5)}`, `已应用 AI 行程至 ${startDate.slice(5)}`, `Applied AI plan to ${startDate.slice(5)}`),
+      'success'
+    );
+    onOpenItineraryDate?.(startDate);
+  };
+
+  const handleOpenPlannerRoutePreview = (stops: Activity[]) => {
+    if (stops.length === 0) {
+      onShowToast(t('此日 AI 規劃尚無可用地點', '此日 AI 规划暂无可用地点', 'No stops available in this AI day plan'), 'info');
+      return;
+    }
+    setPlannerRouteStops(stops);
+    setShowPlannerRouteModal(true);
+  };
+
+  const getGoogleMapsUrl = (place: { name: string; area?: string; mapUrl?: string }) => {
     if (place.mapUrl && /^https?:\/\//i.test(place.mapUrl)) return place.mapUrl;
     const query = [place.name, place.area, intel.displayCity].filter(Boolean).join(' ');
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
@@ -578,7 +709,7 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
   return (
     <div className="h-full overflow-y-auto no-scrollbar px-4 sm:px-6 lg:px-8 pt-2 pb-10">
       <div className="max-w-2xl lg:max-w-5xl mx-auto space-y-4">
-        {/* Sunset Coral-Amber Discovery Hero & Controls */}
+        {/* Unified Coral-Amber Explore & AI Planning Studio Header */}
         <div className="surface-elevated rounded-3xl p-4 sm:p-5 space-y-4 relative overflow-hidden">
           <div
             aria-hidden="true"
@@ -591,13 +722,11 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
                 <CompassIcon className="w-5 h-5" />
               </div>
               <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-base sm:text-lg font-display font-bold text-zinc-900 dark:text-white truncate">
-                    {t(`${intel.displayCity} 探索靈感庫`, `${intel.displayCity} 探索灵感库`, `${intel.displayCity} Discovery`)}
-                  </h2>
-                </div>
+                <h2 className="text-base sm:text-lg font-display font-bold text-zinc-900 dark:text-white truncate">
+                  {t(`${intel.displayCity} 探索與 AI 規劃`, `${intel.displayCity} 探索与 AI 规划`, `${intel.displayCity} Explore & AI Studio`)}
+                </h2>
                 <div className="flex items-center flex-wrap gap-x-2.5 gap-y-0.5 text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 font-num">
-                  <span>{t(`共 ${stats.total} 處`, `共 ${stats.total} 处`, `${stats.total} saved`)}</span>
+                  <span>{t(`口袋 ${stats.total} 處`, `收藏 ${stats.total} 处`, `${stats.total} saved`)}</span>
                   <span aria-hidden="true">·</span>
                   <span className="text-amber-600 dark:text-amber-400 font-semibold">
                     {t(`必去 ${stats.mustGo}`, `必去 ${stats.mustGo}`, `${stats.mustGo} must-go`)}
@@ -612,300 +741,587 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={handleOpenAiModal}
-                className="h-10 px-4 rounded-full bg-zinc-900 dark:bg-white/12 text-white text-xs font-semibold flex items-center gap-1.5 hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap shrink-0"
-              >
-                <SparklesIcon className="w-3.5 h-3.5 text-amber-300" />
-                <span>{t('AI 探索推薦', 'AI 探索推荐', 'AI Discovery')}</span>
-              </button>
-              <button
-                type="button"
-                onClick={openAddModal}
-                className="h-10 px-4 rounded-full bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white text-xs font-semibold flex items-center gap-1.5 shadow-[0_8px_18px_-6px_rgba(225,29,72,0.5)] active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap shrink-0"
-              >
-                <PlusIcon className="w-4 h-4" />
-                <span>{t('新增地點', '添加地点', 'Add Spot')}</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={openAddModal}
+              className="h-10 px-4 rounded-full bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-[0_8px_18px_-6px_rgba(225,29,72,0.5)] active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap shrink-0"
+            >
+              <PlusIcon className="w-4 h-4" />
+              <span>{t('新增地點', '添加地点', 'Add Spot')}</span>
+            </button>
           </div>
 
-          {/* Search & Status Filter */}
-          <div className="flex flex-col md:flex-row md:items-center gap-3">
-            <div className="relative flex-1 min-w-0">
-              <MagnifyingGlassIcon className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={t('搜尋收藏景點、餐廳、街區或筆記...', '搜索收藏景点、餐厅、街区或笔记...', 'Search spots, cafes, districts, or notes...')}
-                className="w-full h-10 pl-9 pr-8 rounded-2xl bg-zinc-100/80 dark:bg-white/[0.06] text-xs sm:text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-rose-500/25"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  aria-label={t('清除搜尋', '清除搜索', 'Clear search')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 cursor-pointer"
-                >
-                  <XMarkIcon className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
+          {/* Unified 3-Mode Studio Switcher */}
+          <SlidingSegmentedControl
+            fullWidth
+            value={activeSection}
+            onChange={(next) => setActiveSection(next)}
+            options={[
+              {
+                id: 'DISCOVER',
+                label: t('AI 探索推薦', 'AI 探索推荐', 'AI Discovery'),
+                accentFrom: '#E11D48',
+                accentTo: '#F97316',
+              },
+              {
+                id: 'PLANNER',
+                label: t('AI 行程規劃', 'AI 行程规划', 'AI Planner'),
+                accentFrom: '#E11D48',
+                accentTo: '#F97316',
+              },
+              {
+                id: 'SAVED',
+                label:
+                  stats.total > 0
+                    ? t(`口袋名單 (${stats.total})`, `收藏清单 (${stats.total})`, `Saved (${stats.total})`)
+                    : t('口袋名單', '收藏清单', 'Saved Spots'),
+                accentFrom: '#E11D48',
+                accentTo: '#F97316',
+              },
+            ]}
+          />
 
-            <SlidingSegmentedControl
-              size="sm"
-              value={statusFilter}
-              onChange={setStatusFilter}
-              options={[
-                { id: 'ALL', label: t('全部', '全部', 'All'), accentFrom: '#E11D48', accentTo: '#F97316' },
-                { id: 'UNSCHEDULED', label: t('待排入', '待排入', 'To Plan'), accentFrom: '#F59E0B', accentTo: '#FB923C' },
-                { id: 'SCHEDULED', label: t('已排入', '已排入', 'Planned'), accentFrom: '#10B981', accentTo: '#059669' },
-                { id: 'VISITED', label: t('已打卡', '已打卡', 'Visited'), accentFrom: '#7C3AED', accentTo: '#A855F7' },
-              ]}
-            />
-          </div>
-
-          {/* Category Filter Strip */}
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-0.5">
-            {(['ALL', 'sightseeing', 'food', 'shopping', 'other'] as const).map((cat) => {
-              const active = categoryFilter === cat;
-              const label = cat === 'ALL' ? t('全部分類', '全部分类', 'All Categories') : categoryMeta[cat].label;
-              return (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setCategoryFilter(cat)}
-                  className={`h-8 px-3.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
-                    active
-                      ? 'bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white shadow-sm'
-                      : 'bg-zinc-100/80 dark:bg-white/[0.06] text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200/70 dark:hover:bg-white/10'
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Saved Places Grid */}
-        {filteredPlaces.length === 0 ? (
-          <div className="surface-elevated rounded-3xl p-8 sm:p-10 text-center space-y-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-rose-500/15 to-amber-500/15 text-rose-600 dark:text-rose-300 flex items-center justify-center mx-auto">
-              <CompassIcon className="w-6 h-6" />
-            </div>
-            <div className="space-y-1">
-              <h3 className="text-base font-display font-bold text-zinc-900 dark:text-white">
-                {savedPlaces.length === 0
-                  ? t('建立你的口袋景點名單', '创建你的心愿景点清单', 'Build Your Spot Wishlist')
-                  : t('沒有符合條件的收藏地點', '没有符合条件的收藏地点', 'No matching saved spots')}
-              </h3>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-md mx-auto leading-relaxed">
-                {t(
-                  '把看到想去的餐廳、咖啡廳或伴手禮先收進來，決定好哪天要去時，一鍵直接排進每日行程時間軸。',
-                  '把想去的餐厅、咖啡馆或手信好店先收藏起来，决定好日期后即可一键排入每日时间轴。',
-                  'Save must-visit sights, cafes, and shops here, then drop them onto any itinerary day with a single tap.'
-                )}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
-              <button
-                type="button"
-                onClick={handleOpenAiModal}
-                className="h-10 px-5 rounded-full bg-zinc-900 dark:bg-white/12 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-              >
-                <SparklesIcon className="w-3.5 h-3.5 text-amber-300" />
-                <span>{t(`讓 AI 推薦 ${intel.displayCity} 好去處`, `让 AI 推荐 ${intel.displayCity} 好去处`, `Explore ${intel.displayCity} with AI`)}</span>
-              </button>
-              <button
-                type="button"
-                onClick={openAddModal}
-                className="h-10 px-5 rounded-full bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-              >
-                <PlusIcon className="w-4 h-4" />
-                <span>{t('手動新增地點', '手动添加地点', 'Add Manually')}</span>
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-            <AnimatePresence initial={false}>
-              {filteredPlaces.map((place) => {
-                const meta = categoryMeta[normalizeCategory(place.category)] || categoryMeta.other;
-                const Icon = meta.icon;
-                const scheduled = resolvedScheduleMap.get(place.id);
-                const schedTimeObj = scheduled ? formatTimeDisplay(scheduled.time, lang) : null;
-                const schedTimeLabel = schedTimeObj
-                  ? schedTimeObj.suffix
-                    ? `${schedTimeObj.main} ${schedTimeObj.suffix}`
-                    : schedTimeObj.main
-                  : '';
-
-                return (
-                  <motion.div
-                    layout
-                    key={place.id}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.96 }}
-                    className={`surface-elevated rounded-3xl p-4 sm:p-5 flex flex-col justify-between gap-3.5 transition-opacity relative overflow-hidden ${
-                      place.visited ? 'opacity-75' : ''
+          {/* Section-Specific Filter Bar */}
+          {activeSection === 'DISCOVER' && (
+            <div className="flex flex-wrap items-center justify-between gap-2.5 pt-0.5">
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+                {(
+                  [
+                    { id: 'sightseeing', label: categoryMeta.sightseeing.label },
+                    { id: 'food', label: categoryMeta.food.label },
+                    { id: 'shopping', label: categoryMeta.shopping.label },
+                  ] as const
+                ).map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => {
+                      setAiFocusCategory(tab.id);
+                      void handleFetchAiSpots(tab.id);
+                    }}
+                    className={`h-9 px-3.5 rounded-full text-xs font-semibold shrink-0 cursor-pointer transition-all ${
+                      aiFocusCategory === tab.id
+                        ? 'bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white shadow-sm'
+                        : 'bg-zinc-100/90 dark:bg-white/[0.06] text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200/70 dark:hover:bg-white/10'
                     }`}
                   >
-                    <div className={`absolute left-0 top-5 bottom-5 w-1 rounded-r-full ${meta.accentBar} opacity-75`} />
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
 
-                    <div className="space-y-2.5 pl-1.5">
-                      <div className="flex items-start justify-between gap-2.5">
-                        <div className="flex items-start gap-3 min-w-0">
-                          <div
-                            className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${meta.tintBg} ${meta.textClass}`}
-                          >
-                            <Icon className="w-5 h-5" />
-                          </div>
-                          <div className="min-w-0">
-                            <h3
-                              className={`font-display font-bold text-base text-zinc-900 dark:text-white leading-snug ${
-                                place.visited ? 'line-through' : ''
-                              }`}
+              <div className="flex items-center gap-1.5 shrink-0">
+                {aiBatchNum > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => void handleFetchAiSpots(aiFocusCategory, true)}
+                    className="h-9 px-3 rounded-full bg-zinc-100/90 dark:bg-white/[0.08] text-zinc-600 dark:text-zinc-300 text-xs font-medium hover:text-zinc-900 dark:hover:text-white cursor-pointer whitespace-nowrap"
+                  >
+                    {t('重置紀錄', '重置记录', 'Reset')}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  disabled={aiLoading}
+                  onClick={() => void handleFetchAiSpots(aiFocusCategory)}
+                  className="h-9 px-4 rounded-full bg-zinc-900 dark:bg-white/14 text-white text-xs font-semibold disabled:opacity-50 cursor-pointer shrink-0 flex items-center gap-1.5 whitespace-nowrap active:scale-[0.98] transition-all"
+                >
+                  <RefreshIcon className={`w-3.5 h-3.5 ${aiLoading ? 'animate-spin' : ''}`} />
+                  <span>{aiLoading ? t('搜尋中...', '搜索中...', 'Searching...') : t('換一批', '换一批', 'Refresh')}</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeSection === 'SAVED' && (
+            <div className="space-y-3 pt-0.5">
+              <div className="flex flex-col md:flex-row md:items-center gap-3">
+                <div className="relative flex-1 min-w-0">
+                  <MagnifyingGlassIcon className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder={t('搜尋收藏景點、餐廳、街區或筆記...', '搜索收藏景点、餐厅、街区或笔记...', 'Search spots, cafes, districts, or notes...')}
+                    className="w-full h-10 pl-9 pr-8 rounded-2xl bg-zinc-100/80 dark:bg-white/[0.06] text-xs sm:text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-rose-500/25"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      aria-label={t('清除搜尋', '清除搜索', 'Clear search')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 cursor-pointer"
+                    >
+                      <XMarkIcon className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                <SlidingSegmentedControl
+                  size="sm"
+                  value={statusFilter}
+                  onChange={setStatusFilter}
+                  options={[
+                    { id: 'ALL', label: t('全部', '全部', 'All'), accentFrom: '#E11D48', accentTo: '#F97316' },
+                    { id: 'UNSCHEDULED', label: t('待排入', '待排入', 'To Plan'), accentFrom: '#F59E0B', accentTo: '#FB923C' },
+                    { id: 'SCHEDULED', label: t('已排入', '已排入', 'Planned'), accentFrom: '#10B981', accentTo: '#059669' },
+                    { id: 'VISITED', label: t('已打卡', '已打卡', 'Visited'), accentFrom: '#7C3AED', accentTo: '#A855F7' },
+                  ]}
+                />
+              </div>
+
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+                {(['ALL', 'sightseeing', 'food', 'shopping', 'other'] as const).map((cat) => {
+                  const active = categoryFilter === cat;
+                  const label = cat === 'ALL' ? t('全部分類', '全部分类', 'All Categories') : categoryMeta[cat].label;
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setCategoryFilter(cat)}
+                      className={`h-8 px-3.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                        active
+                          ? 'bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white shadow-sm'
+                          : 'bg-zinc-100/80 dark:bg-white/[0.06] text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200/70 dark:hover:bg-white/10'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ==================== VIEW 1: AI EXPLORE DISCOVERY (INLINE) ==================== */}
+        <AnimatePresence mode="wait">
+          {activeSection === 'DISCOVER' && (
+            <motion.div
+              key="DISCOVER"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.16 }}
+              className="space-y-3"
+            >
+              {aiBatchNum > 0 && !aiLoading && !aiError && (
+                <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400 px-1.5 font-num">
+                  <span>{t(`第 ${aiBatchNum} 批精選結果`, `第 ${aiBatchNum} 批精选结果`, `Batch #${aiBatchNum}`)}</span>
+                  <span>
+                    {t(
+                      `已排除 ${seenAiNamesRef.current.size} 個已看過／已收錄地點`,
+                      `已排除 ${seenAiNamesRef.current.size} 个已看过／已收藏地点`,
+                      `${seenAiNamesRef.current.size} seen/saved excluded`
+                    )}
+                  </span>
+                </div>
+              )}
+
+              {aiLoading && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="surface-elevated rounded-3xl p-5 space-y-3 animate-pulse">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-zinc-200/80 dark:bg-white/10" />
+                        <div className="space-y-1.5 flex-1">
+                          <div className="h-4 w-2/3 rounded-lg bg-zinc-200/80 dark:bg-white/10" />
+                          <div className="h-3 w-1/3 rounded-lg bg-zinc-200/60 dark:bg-white/[0.06]" />
+                        </div>
+                      </div>
+                      <div className="h-3 w-full rounded-lg bg-zinc-200/60 dark:bg-white/[0.06]" />
+                      <div className="h-3 w-4/5 rounded-lg bg-zinc-200/60 dark:bg-white/[0.06]" />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {!aiLoading && aiError && (
+                <div className="surface-elevated rounded-3xl p-6 sm:p-8 text-center space-y-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-red-500/12 text-red-600 dark:text-red-400 flex items-center justify-center mx-auto">
+                    <SparklesIcon className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-1 max-w-md mx-auto">
+                    <h3 className="text-sm sm:text-base font-display font-bold text-zinc-900 dark:text-white">
+                      {t('無法載入 AI 探索推薦', '无法加载 AI 探索推荐', 'Unable to Load AI Discovery')}
+                    </h3>
+                    <p className="text-xs text-red-600 dark:text-red-300 leading-relaxed">
+                      {aiError}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => void handleFetchAiSpots(aiFocusCategory)}
+                      className="h-10 px-5 rounded-full bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-sm"
+                    >
+                      <RefreshIcon className="w-3.5 h-3.5" />
+                      <span>{t('重新嘗試', '重试', 'Try Again')}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openAddModal}
+                      className="h-10 px-4 rounded-full bg-zinc-100 dark:bg-white/[0.08] text-zinc-800 dark:text-zinc-200 text-xs font-semibold cursor-pointer"
+                    >
+                      {t('手動新增口袋地點', '手动添加收藏地点', 'Add Spot Manually')}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {!aiLoading && !aiError && aiSuggestions.length === 0 && (
+                <div className="surface-elevated rounded-3xl p-8 text-center space-y-3">
+                  <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+                    {t(`探索 ${intel.displayCity} 的精選去處`, `探索 ${intel.displayCity} 的精选去处`, `Explore ${intel.displayCity}`)}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void handleFetchAiSpots(aiFocusCategory)}
+                    className="h-10 px-5 rounded-full bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <SparklesIcon className="w-4 h-4" />
+                    <span>{t('開始探索推薦', '开始探索推荐', 'Discover Spots')}</span>
+                  </button>
+                </div>
+              )}
+
+              {!aiLoading && !aiError && aiSuggestions.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  {aiSuggestions.map((spot) => {
+                    const alreadySaved = savedPlaces.some(
+                      (p) => p.name.trim().toLowerCase() === spot.name.trim().toLowerCase()
+                    );
+                    const meta = categoryMeta[spot.category] || categoryMeta.sightseeing;
+                    const Icon = meta.icon;
+                    return (
+                      <div
+                        key={spot.name}
+                        className="surface-elevated rounded-3xl p-4 sm:p-5 flex flex-col justify-between gap-3.5"
+                      >
+                        <div className="space-y-2.5">
+                          <div className="flex items-start gap-3">
+                            <div
+                              className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${meta.tintBg} ${meta.textClass}`}
                             >
-                              {place.name}
-                            </h3>
-                            <div className="flex items-center flex-wrap gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                              <span className={`font-semibold ${meta.textClass}`}>{meta.label}</span>
-                              {place.area && (
-                                <>
-                                  <span aria-hidden="true">·</span>
-                                  <span>{place.area}</span>
-                                </>
-                              )}
-                              {place.estimatedCost !== undefined && place.estimatedCost > 0 && (
-                                <>
-                                  <span aria-hidden="true">·</span>
-                                  <span className="font-num">
-                                    {t('約 ', '约 ', '~')}
-                                    {intel.currencySymbol}
-                                    {place.estimatedCost.toLocaleString()}
-                                  </span>
-                                </>
-                              )}
+                              <Icon className="w-5 h-5" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h3 className="font-display font-bold text-base text-zinc-900 dark:text-white leading-snug">
+                                {spot.name}
+                              </h3>
+                              <div className="flex items-center flex-wrap gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                                <span className={`font-semibold ${meta.textClass}`}>{meta.label}</span>
+                                {spot.area && (
+                                  <>
+                                    <span aria-hidden="true">·</span>
+                                    <span>{spot.area}</span>
+                                  </>
+                                )}
+                                {spot.estimatedCost > 0 && (
+                                  <>
+                                    <span aria-hidden="true">·</span>
+                                    <span className="font-num">
+                                      {t('約 ', '约 ', '~')}
+                                      {intel.currencySymbol}
+                                      {spot.estimatedCost.toLocaleString()}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
                             </div>
                           </div>
+
+                          {spot.note && (
+                            <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed pl-[52px]">
+                              {spot.note}
+                            </p>
+                          )}
                         </div>
 
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <BookmarkBurstButton
-                            size="sm"
-                            mode="bookmark"
-                            active={Boolean(place.mustGo)}
-                            onToggle={() => toggleMustGo(place)}
-                            ariaLabel={
-                              place.mustGo
-                                ? t('取消必去收藏', '取消必去收藏', 'Remove Must-Go')
-                                : t('收藏為必去', '收藏为必去', 'Save as Must-Go')
-                            }
-                          />
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              tactileAudio.playPop(place.visited ? 0.85 : 1.15);
-                              toggleVisited(place);
-                            }}
-                            aria-label={place.visited ? t('取消已造訪', '取消已访问', 'Unmark Visited') : t('標記已造訪', '标记已访问', 'Mark Visited')}
-                            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-90 cursor-pointer ${
-                              place.visited
-                                ? 'bg-emerald-500 text-white shadow-xs'
-                                : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/[0.06]'
-                            }`}
+                        <div className="pt-2.5 border-t border-zinc-200/70 dark:border-white/[0.08] flex items-center justify-between gap-2">
+                          <a
+                            href={getGoogleMapsUrl({ name: spot.name, area: spot.area })}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="h-8 px-3 rounded-full bg-zinc-100/90 dark:bg-white/[0.06] text-zinc-700 dark:text-zinc-200 text-xs font-medium inline-flex items-center gap-1 hover:bg-zinc-200/80 dark:hover:bg-white/10 transition-colors"
                           >
-                            <CheckIcon className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
+                            <MapIcon className="w-3.5 h-3.5" />
+                            <span>{t('地圖', '地图', 'Map')}</span>
+                            <ArrowUpRightIcon className="w-3 h-3 opacity-70" />
+                          </a>
 
-                      {place.note && (
-                        <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed pl-[52px]">
-                          {place.note}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="pt-2.5 pl-1.5 border-t border-zinc-200/70 dark:border-white/[0.08] flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5">
-                        <a
-                          href={getGoogleMapsUrl(place)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="h-8 px-3 rounded-full bg-zinc-100/90 dark:bg-white/[0.06] text-zinc-700 dark:text-zinc-200 text-xs font-medium inline-flex items-center gap-1 hover:bg-zinc-200/80 dark:hover:bg-white/10 transition-colors"
-                        >
-                          <MapIcon className="w-3.5 h-3.5" />
-                          <span>{t('地圖', '地图', 'Map')}</span>
-                          <ArrowUpRightIcon className="w-3 h-3 opacity-70" />
-                        </a>
-
-                        <button
-                          type="button"
-                          onClick={() => openEditModal(place)}
-                          aria-label={t('編輯', '编辑', 'Edit')}
-                          className="w-8 h-8 rounded-full text-zinc-400 hover:text-zinc-800 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/[0.06] flex items-center justify-center cursor-pointer transition-colors"
-                        >
-                          <EditIcon className="w-3.5 h-3.5" />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setDeletingPlace(place)}
-                          aria-label={t('刪除', '删除', 'Delete')}
-                          className="w-8 h-8 rounded-full text-zinc-400 hover:text-red-500 hover:bg-red-500/10 flex items-center justify-center cursor-pointer transition-colors"
-                        >
-                          <TrashIcon className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-
-                      {scheduled ? (
-                        <div className="flex items-center gap-1.5">
-                          {onOpenItineraryDate ? (
+                          <div className="flex items-center gap-1.5">
+                            <StampButton
+                              size="sm"
+                              stamped={alreadySaved}
+                              disabled={alreadySaved}
+                              onClick={() => handleCollectAiSpot(spot)}
+                              idleLabel={t('+ 收錄', '+ 收藏', '+ Save')}
+                              stampedLabel={t('已收錄', '已收藏', 'Saved')}
+                              className="rounded-full shrink-0"
+                            />
                             <button
                               type="button"
-                              onClick={() => onOpenItineraryDate(scheduled.date)}
-                              className="h-8 px-3 rounded-full bg-emerald-500/14 text-emerald-700 dark:text-emerald-300 text-xs font-num font-semibold flex items-center gap-1 cursor-pointer hover:bg-emerald-500/22 transition-colors whitespace-nowrap"
+                              onClick={() => handleScheduleAiSpot(spot)}
+                              className="h-8 px-3 rounded-full bg-zinc-900 dark:bg-white/14 text-white text-xs font-semibold inline-flex items-center gap-1 hover:opacity-90 active:scale-95 transition-all cursor-pointer shrink-0"
                             >
                               <CalendarIcon className="w-3.5 h-3.5" />
-                              <span>{formatDayBadge(scheduled.dayNum, lang)} · {schedTimeLabel}</span>
+                              <span>{t('排入行程', '排入行程', 'Plan')}</span>
                             </button>
-                          ) : (
-                            <span className="text-xs font-num font-semibold text-emerald-600 dark:text-emerald-300">
-                              {t(`已排入 ${formatDayBadge(scheduled.dayNum, lang)}`, `已排入 ${formatDayBadge(scheduled.dayNum, lang)}`, `Planned · ${formatDayBadge(scheduled.dayNum, lang)}`)}
-                            </span>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => openScheduleModal(place)}
-                            className="h-8 px-2.5 rounded-full text-[11px] font-semibold text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white cursor-pointer"
-                          >
-                            {t('改期', '改期', 'Reschedule')}
-                          </button>
+                          </div>
                         </div>
-                      ) : (
-                        <StampButton
-                          size="sm"
-                          onClick={() => openScheduleModal(place)}
-                          idleLabel={t('排入行程', '排入行程', 'Schedule')}
-                          stampedLabel={t('排入行程', '排入行程', 'Schedule')}
-                          idleIcon={<CalendarIcon className="w-3.5 h-3.5" />}
-                          className="rounded-full"
-                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {/* ==================== VIEW 2: AI ITINERARY & ROUTE PLANNER (MOVED INTO EXPLORE) ==================== */}
+          {activeSection === 'PLANNER' && (
+            <motion.div
+              key="PLANNER"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.16 }}
+            >
+              <AiPlannerWorkspace
+                inline
+                trip={trip}
+                dates={tripDateList}
+                selectedDate={tripDateList[0] || trip.startDate}
+                onApplyPlan={handleApplyAiPlanFromExplore}
+                onOpenRouteForStops={handleOpenPlannerRoutePreview}
+              />
+            </motion.div>
+          )}
+
+          {/* ==================== VIEW 3: SAVED SPOTS WISHLIST ==================== */}
+          {activeSection === 'SAVED' && (
+            <motion.div
+              key="SAVED"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.16 }}
+            >
+              {filteredPlaces.length === 0 ? (
+                <div className="surface-elevated rounded-3xl p-8 sm:p-10 text-center space-y-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-rose-500/15 to-amber-500/15 text-rose-600 dark:text-rose-300 flex items-center justify-center mx-auto">
+                    <CompassIcon className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-base font-display font-bold text-zinc-900 dark:text-white">
+                      {savedPlaces.length === 0
+                        ? t('建立你的口袋景點名單', '创建你的心愿景点清单', 'Build Your Spot Wishlist')
+                        : t('沒有符合條件的收藏地點', '没有符合条件的收藏地点', 'No matching saved spots')}
+                    </h3>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-md mx-auto leading-relaxed">
+                      {t(
+                        '把看到想去的餐廳、咖啡廳或伴手禮先收進來，決定好哪天要去時，一鍵直接排進每日行程時間軸。',
+                        '把想去的餐厅、咖啡馆或手信好店先收藏起来，决定好日期后即可一键排入每日时间轴。',
+                        'Save must-visit sights, cafes, and shops here, then drop them onto any itinerary day with a single tap.'
                       )}
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </AnimatePresence>
-          </div>
-        )}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveSection('DISCOVER')}
+                      className="h-10 px-5 rounded-full bg-zinc-900 dark:bg-white/12 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                    >
+                      <SparklesIcon className="w-3.5 h-3.5 text-amber-300" />
+                      <span>{t(`讓 AI 推薦 ${intel.displayCity} 好去處`, `让 AI 推荐 ${intel.displayCity} 好去处`, `Explore ${intel.displayCity} with AI`)}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openAddModal}
+                      className="h-10 px-5 rounded-full bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                    >
+                      <PlusIcon className="w-4 h-4" />
+                      <span>{t('手動新增地點', '手动添加地点', 'Add Manually')}</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  <AnimatePresence initial={false}>
+                    {filteredPlaces.map((place) => {
+                      const meta = categoryMeta[normalizeCategory(place.category)] || categoryMeta.other;
+                      const Icon = meta.icon;
+                      const scheduled = resolvedScheduleMap.get(place.id);
+                      const schedTimeObj = scheduled ? formatTimeDisplay(scheduled.time, lang) : null;
+                      const schedTimeLabel = schedTimeObj
+                        ? schedTimeObj.suffix
+                          ? `${schedTimeObj.main} ${schedTimeObj.suffix}`
+                          : schedTimeObj.main
+                        : '';
+
+                      return (
+                        <motion.div
+                          layout
+                          key={place.id}
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.96 }}
+                          className={`surface-elevated rounded-3xl p-4 sm:p-5 flex flex-col justify-between gap-3.5 transition-opacity ${
+                            place.visited ? 'opacity-75' : ''
+                          }`}
+                        >
+                          <div className="space-y-2.5">
+                            <div className="flex items-start justify-between gap-2.5">
+                              <div className="flex items-start gap-3 min-w-0">
+                                <div
+                                  className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${meta.tintBg} ${meta.textClass}`}
+                                >
+                                  <Icon className="w-5 h-5" />
+                                </div>
+                                <div className="min-w-0">
+                                  <h3
+                                    className={`font-display font-bold text-base text-zinc-900 dark:text-white leading-snug ${
+                                      place.visited ? 'line-through' : ''
+                                    }`}
+                                  >
+                                    {place.name}
+                                  </h3>
+                                  <div className="flex items-center flex-wrap gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                                    <span className={`font-semibold ${meta.textClass}`}>{meta.label}</span>
+                                    {place.area && (
+                                      <>
+                                        <span aria-hidden="true">·</span>
+                                        <span>{place.area}</span>
+                                      </>
+                                    )}
+                                    {place.estimatedCost !== undefined && place.estimatedCost > 0 && (
+                                      <>
+                                        <span aria-hidden="true">·</span>
+                                        <span className="font-num">
+                                          {t('約 ', '约 ', '~')}
+                                          {intel.currencySymbol}
+                                          {place.estimatedCost.toLocaleString()}
+                                        </span>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <BookmarkBurstButton
+                                  size="sm"
+                                  mode="bookmark"
+                                  active={Boolean(place.mustGo)}
+                                  onToggle={() => toggleMustGo(place)}
+                                  ariaLabel={
+                                    place.mustGo
+                                      ? t('取消必去收藏', '取消必去收藏', 'Remove Must-Go')
+                                      : t('收藏為必去', '收藏为必去', 'Save as Must-Go')
+                                  }
+                                />
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    tactileAudio.playPop(place.visited ? 0.85 : 1.15);
+                                    toggleVisited(place);
+                                  }}
+                                  aria-label={place.visited ? t('取消已造訪', '取消已访问', 'Unmark Visited') : t('標記已造訪', '标记已访问', 'Mark Visited')}
+                                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-90 cursor-pointer ${
+                                    place.visited
+                                      ? 'bg-emerald-500 text-white shadow-xs'
+                                      : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/[0.06]'
+                                  }`}
+                                >
+                                  <CheckIcon className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {place.note && (
+                              <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed pl-[52px]">
+                                {place.note}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="pt-2.5 border-t border-zinc-200/70 dark:border-white/[0.08] flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5">
+                              <a
+                                href={getGoogleMapsUrl(place)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="h-8 px-3 rounded-full bg-zinc-100/90 dark:bg-white/[0.06] text-zinc-700 dark:text-zinc-200 text-xs font-medium inline-flex items-center gap-1 hover:bg-zinc-200/80 dark:hover:bg-white/10 transition-colors"
+                              >
+                                <MapIcon className="w-3.5 h-3.5" />
+                                <span>{t('地圖', '地图', 'Map')}</span>
+                                <ArrowUpRightIcon className="w-3 h-3 opacity-70" />
+                              </a>
+
+                              <button
+                                type="button"
+                                onClick={() => openEditModal(place)}
+                                aria-label={t('編輯', '编辑', 'Edit')}
+                                className="w-8 h-8 rounded-full text-zinc-400 hover:text-zinc-800 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/[0.06] flex items-center justify-center cursor-pointer transition-colors"
+                              >
+                                <EditIcon className="w-3.5 h-3.5" />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setDeletingPlace(place)}
+                                aria-label={t('刪除', '删除', 'Delete')}
+                                className="w-8 h-8 rounded-full text-zinc-400 hover:text-red-500 hover:bg-red-500/10 flex items-center justify-center cursor-pointer transition-colors"
+                              >
+                                <TrashIcon className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            {scheduled ? (
+                              <div className="flex items-center gap-1.5">
+                                {onOpenItineraryDate ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => onOpenItineraryDate(scheduled.date)}
+                                    className="h-8 px-3 rounded-full bg-emerald-500/14 text-emerald-700 dark:text-emerald-300 text-xs font-num font-semibold flex items-center gap-1 cursor-pointer hover:bg-emerald-500/22 transition-colors whitespace-nowrap"
+                                  >
+                                    <CalendarIcon className="w-3.5 h-3.5" />
+                                    <span>{formatDayBadge(scheduled.dayNum, lang)} · {schedTimeLabel}</span>
+                                  </button>
+                                ) : (
+                                  <span className="text-xs font-num font-semibold text-emerald-600 dark:text-emerald-300">
+                                    {t(`已排入 ${formatDayBadge(scheduled.dayNum, lang)}`, `已排入 ${formatDayBadge(scheduled.dayNum, lang)}`, `Planned · ${formatDayBadge(scheduled.dayNum, lang)}`)}
+                                  </span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => openScheduleModal(place)}
+                                  className="h-8 px-2.5 rounded-full text-[11px] font-semibold text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white cursor-pointer"
+                                >
+                                  {t('改期', '改期', 'Reschedule')}
+                                </button>
+                              </div>
+                            ) : (
+                              <StampButton
+                                size="sm"
+                                onClick={() => openScheduleModal(place)}
+                                idleLabel={t('排入行程', '排入行程', 'Schedule')}
+                                stampedLabel={t('排入行程', '排入行程', 'Schedule')}
+                                idleIcon={<CalendarIcon className="w-3.5 h-3.5" />}
+                                className="rounded-full"
+                              />
+                            )}
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </AnimatePresence>
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Add / Edit Place Modal */}
@@ -1152,149 +1568,16 @@ const ExploreTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast, onOpenI
         )}
       </LiquidModal>
 
-      {/* AI Spot Discovery Modal (Strictly 3 pure categories: sightseeing / food / shopping, 10 items per batch) */}
-      <LiquidModal
-        open={isAiModalOpen}
-        onClose={() => setIsAiModalOpen(false)}
-        title={t(`AI 探索 · ${intel.displayCity}`, `AI 探索 · ${intel.displayCity}`, `AI Discovery · ${intel.displayCity}`)}
-        maxWidthClass="max-w-lg"
-        bottomSheetOnMobile
-      >
-        <div className="space-y-4 overflow-y-auto no-scrollbar max-h-[72dvh] pr-0.5">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-              {(
-                [
-                  { id: 'sightseeing', label: categoryMeta.sightseeing.label },
-                  { id: 'food', label: categoryMeta.food.label },
-                  { id: 'shopping', label: categoryMeta.shopping.label },
-                ] as const
-              ).map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => {
-                    setAiFocusCategory(tab.id);
-                    void handleFetchAiSpots(tab.id);
-                  }}
-                  className={`h-8 px-3.5 rounded-full text-xs font-semibold shrink-0 cursor-pointer transition-all ${
-                    aiFocusCategory === tab.id
-                      ? 'bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white shadow-sm'
-                      : 'bg-zinc-100 dark:bg-white/[0.06] text-zinc-600 dark:text-zinc-300'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex items-center gap-1.5 shrink-0">
-              {aiBatchNum > 1 && (
-                <button
-                  type="button"
-                  onClick={() => void handleFetchAiSpots(aiFocusCategory, true)}
-                  title={t('清除已探索紀錄並重新推薦', '清除已探索记录并重新推荐', 'Reset discovery history')}
-                  className="h-8 px-2.5 rounded-full bg-zinc-100 dark:bg-white/[0.08] text-zinc-600 dark:text-zinc-300 text-[11px] font-medium hover:text-zinc-900 dark:hover:text-white cursor-pointer whitespace-nowrap"
-                >
-                  {t('重置紀錄', '重置记录', 'Reset')}
-                </button>
-              )}
-              <button
-                type="button"
-                disabled={aiLoading}
-                onClick={() => void handleFetchAiSpots(aiFocusCategory)}
-                className="h-8 px-3.5 rounded-full bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white text-xs font-semibold disabled:opacity-50 cursor-pointer shrink-0 flex items-center gap-1.5 shadow-sm whitespace-nowrap"
-              >
-                <RefreshIcon className={`w-3.5 h-3.5 ${aiLoading ? 'animate-spin' : ''}`} />
-                <span>{aiLoading ? t('搜尋中...', '搜索中...', 'Searching...') : t('換一批', '换一批', 'Refresh Batch')}</span>
-              </button>
-            </div>
-          </div>
-
-          {aiBatchNum > 0 && !aiLoading && (
-            <div className="flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400 px-0.5 font-num">
-              <span>{t(`第 ${aiBatchNum} 批探索結果`, `第 ${aiBatchNum} 批探索结果`, `Batch #${aiBatchNum}`)}</span>
-              <span>
-                {t(
-                  `已自動排除 ${seenAiNamesRef.current.size} 個已看過／已收錄地點`,
-                  `已自动排除 ${seenAiNamesRef.current.size} 个已看过／已收藏地点`,
-                  `${seenAiNamesRef.current.size} seen/saved spots excluded`
-                )}
-              </span>
-            </div>
-          )}
-
-          {aiLoading && (
-            <div className="py-10 text-center space-y-2.5">
-              <div className="w-8 h-8 rounded-full border-2 border-[#E11D48] border-t-transparent animate-spin mx-auto" />
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                {t(
-                  `正在精選 10 個 ${intel.displayCity} 全新不重複的好去處...`,
-                  `正在精选 10 个 ${intel.displayCity} 全新不重复的好去处...`,
-                  `Finding 10 fresh, non-repeating spots in ${intel.displayCity}...`
-                )}
-              </p>
-            </div>
-          )}
-
-          {!aiLoading && aiError && (
-            <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-xs text-red-600 dark:text-red-300 space-y-2">
-              <p>{aiError}</p>
-              <button
-                type="button"
-                onClick={() => void handleFetchAiSpots(aiFocusCategory)}
-                className="font-semibold underline cursor-pointer"
-              >
-                {t('重新嘗試', '重试', 'Try Again')}
-              </button>
-            </div>
-          )}
-
-          {!aiLoading && !aiError && aiSuggestions.length > 0 && (
-            <div className="space-y-2.5">
-              {aiSuggestions.map((spot) => {
-                const alreadySaved = savedPlaces.some(
-                  (p) => p.name.trim().toLowerCase() === spot.name.trim().toLowerCase()
-                );
-                const meta = categoryMeta[spot.category] || categoryMeta.sightseeing;
-                return (
-                  <div
-                    key={spot.name}
-                    className="p-3.5 rounded-2xl bg-zinc-100/80 dark:bg-white/[0.05] border border-zinc-200/50 dark:border-white/[0.06] flex items-start justify-between gap-3"
-                  >
-                    <div className="min-w-0 space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-display font-bold text-sm text-zinc-900 dark:text-white">
-                          {spot.name}
-                        </span>
-                        <span className={`text-[11px] font-semibold ${meta.textClass}`}>
-                          {meta.label}
-                        </span>
-                        {spot.area && (
-                          <span className="text-[11px] text-zinc-400">· {spot.area}</span>
-                        )}
-                      </div>
-                      <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
-                        {spot.note}
-                      </p>
-                    </div>
-
-                    <StampButton
-                      size="sm"
-                      stamped={alreadySaved}
-                      disabled={alreadySaved}
-                      onClick={() => handleCollectAiSpot(spot)}
-                      idleLabel={t('+ 收錄', '+ 收藏', '+ Save')}
-                      stampedLabel={t('已收錄', '已收藏', 'Saved')}
-                      className="rounded-full shrink-0"
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </LiquidModal>
+      {/* Interactive Route Preview Modal for AI Planner */}
+      <RouteMapModal
+        open={showPlannerRouteModal}
+        onClose={() => setShowPlannerRouteModal(false)}
+        stops={plannerRouteStops}
+        destinationCity={intel.displayCity}
+        hotels={trip.hotels || []}
+        airports={intel.airports}
+        onReorderStops={setPlannerRouteStops}
+      />
 
       <ConfirmSheet
         open={Boolean(deletingPlace)}

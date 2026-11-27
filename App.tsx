@@ -19,7 +19,7 @@ import {
   tr,
 } from './shared/i18n';
 import ItineraryTool from './components/ItineraryTool';
-import ExploreTool from './components/ExploreTool';
+import ExploreTool, { ExploreSection } from './components/ExploreTool';
 import ExpensesTool from './components/FoodTool';
 import PrepToolboxTool from './components/PrepToolboxTool';
 import { GlobeBackdrop } from './components/GlobeBackdrop';
@@ -781,6 +781,8 @@ function App() {
   const [isHomeJoining, setIsHomeJoining] = useState(false);
   const [isHomeWeatherOpen, setIsHomeWeatherOpen] = useState(false);
   const [focusDateSignal, setFocusDateSignal] = useState<{ date: string; nonce: number } | null>(null);
+  const [exploreSectionSignal, setExploreSectionSignal] = useState<{ section: ExploreSection; nonce: number } | null>(null);
+  const homeCarouselRafRef = useRef<number | null>(null);
 
   // Modals State
   const [isSyncHubOpen, setIsSyncHubOpen] = useState(false);
@@ -2117,6 +2119,41 @@ function App() {
     setActiveTab(Tab.ITINERARY);
   }, []);
 
+  const handleOpenExplorePlanner = useCallback(() => {
+    setExploreSectionSignal((prev) => ({ section: 'PLANNER', nonce: (prev?.nonce || 0) + 1 }));
+    setActiveTab(Tab.EXPLORE);
+  }, []);
+
+  const handleHomeCarouselScroll = useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      const container = e.currentTarget;
+      if (container.scrollWidth <= container.clientWidth + 4) return;
+      if (homeCarouselRafRef.current !== null) return;
+      homeCarouselRafRef.current = requestAnimationFrame(() => {
+        homeCarouselRafRef.current = null;
+        const containerCenter = container.scrollLeft + container.clientWidth * 0.5;
+        let closestId: string | null = null;
+        let minDist = Infinity;
+        const children = container.children;
+        for (let i = 0; i < children.length; i++) {
+          const el = children[i] as HTMLElement;
+          const tripId = el.dataset.tripId;
+          if (!tripId) continue;
+          const cardCenter = el.offsetLeft + el.offsetWidth * 0.5;
+          const dist = Math.abs(cardCenter - containerCenter);
+          if (dist < minDist) {
+            minDist = dist;
+            closestId = tripId;
+          }
+        }
+        if (closestId) {
+          setSelectedHomeTripId((prev) => (prev === closestId ? prev : closestId));
+        }
+      });
+    },
+    []
+  );
+
   const globeFocusCity = useMemo(() => {
     if (view === 'TRIP') {
       return tripData?.destination || selectedHomeTrip?.destination || null;
@@ -2515,6 +2552,7 @@ function App() {
                           </div>
                         ) : (
                           <div
+                            onScroll={handleHomeCarouselScroll}
                             className={
                               filteredHomeTrips.length > 1
                                 ? 'flex gap-3.5 overflow-x-auto no-scrollbar snap-x snap-mandatory -mx-1 px-1 py-1 lg:mx-0 lg:px-0 lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:overflow-visible'
@@ -2531,6 +2569,7 @@ function App() {
                               return (
                                 <div
                                   key={item.id}
+                                  data-trip-id={item.id}
                                   role="button"
                                   tabIndex={0}
                                   onClick={() => handleOpenTrip(item)}
@@ -2696,6 +2735,7 @@ function App() {
                                 <div
                                   key={entry.trip.id}
                                   onClick={() => handleOpenTrip(entry.trip)}
+                                  onMouseEnter={() => setSelectedHomeTripId(entry.trip.id)}
                                   className={`surface-elevated rounded-3xl p-4 sm:p-5 flex items-center justify-between gap-3.5 cursor-pointer hover:bg-white dark:hover:bg-zinc-800/80 transition-colors ${
                                     isHighlighted && homeCountdownList.length > 1
                                       ? 'ring-1 ring-[#2563EB]/45 dark:ring-sky-400/45'
@@ -3421,6 +3461,7 @@ function App() {
                         onUpdateTrip={handleLocalUpdateTrip}
                         onShowToast={showToast}
                         focusDateSignal={focusDateSignal}
+                        onOpenExplorePlanner={handleOpenExplorePlanner}
                       />
                     )}
                     {activeTab === Tab.EXPLORE && (
@@ -3429,6 +3470,7 @@ function App() {
                         onUpdateTrip={handleLocalUpdateTrip}
                         onShowToast={showToast}
                         onOpenItineraryDate={handleOpenItineraryDate}
+                        focusSectionSignal={exploreSectionSignal}
                       />
                     )}
                     {activeTab === Tab.EXPENSES && (

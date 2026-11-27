@@ -1840,11 +1840,76 @@ async function startServer() {
       }, 1500);
     }
 
+    const parseGeminiUpstreamError = (err: unknown, fallbackMsg: string): { status: number; message: string } => {
+      const e = err as { status?: number; message?: string };
+      let status = typeof e?.status === 'number' && e.status >= 400 && e.status < 600 ? e.status : 500;
+      let cleanMsg = e?.message || fallbackMsg;
+      if (cleanMsg.startsWith('{')) {
+        try {
+          const nested = JSON.parse(cleanMsg) as { error?: { code?: number; message?: string; status?: string } };
+          if (typeof nested?.error?.code === 'number' && nested.error.code >= 400 && nested.error.code < 600) {
+            status = nested.error.code;
+          }
+          if (nested?.error?.message) {
+            cleanMsg = nested.error.message;
+          }
+        } catch {
+          // keep original message
+        }
+      }
+      if (status === 402 || /prepayment credits|credits are depleted|billing/i.test(cleanMsg)) {
+        status = 402;
+        cleanMsg = tr(
+          lang,
+          'AI 額度目前不足（預付點數已用完），請前往 Google AI Studio 專案設定補充額度或切換帳單金鑰。',
+          'AI 额度当前不足（预付点数已用完），请前往 Google AI Studio 项目设置补充额度或切换账单密钥。',
+          'Gemini API prepayment credits are depleted. Please check your project billing in Google AI Studio.'
+        );
+      } else if (status === 403 || /PERMISSION_DENIED|API_KEY_INVALID|API key not valid/i.test(cleanMsg)) {
+        status = status === 400 ? 400 : 403;
+        cleanMsg = tr(
+          lang,
+          'GEMINI_API_KEY 無效或沒有權限，請在「Settings > Secrets」檢查金鑰設定。',
+          'GEMINI_API_KEY 无效或没有权限，请在「Settings > Secrets」检查密钥设置。',
+          'Invalid or unauthorized GEMINI_API_KEY. Please check Settings > Secrets.'
+        );
+      } else if (status === 503 || /high demand|UNAVAILABLE/i.test(cleanMsg)) {
+        status = 503;
+        cleanMsg = tr(
+          lang,
+          'AI 服務目前連線人數較多，請稍等數秒後再試一次。',
+          'AI 服务当前请求较多，请稍等几秒后重试。',
+          'AI service is busy right now. Please wait a few seconds and try again.'
+        );
+      } else if (status === 429 || /quota|rate|RESOURCE_EXHAUSTED/i.test(cleanMsg)) {
+        status = 429;
+        cleanMsg = tr(
+          lang,
+          'AI 請求頻率過高或已達配額上限，請稍候片刻再試。',
+          'AI 请求频率过高或已达配额上限，请稍候片刻再试。',
+          'AI rate limit or quota reached. Please wait a moment and try again.'
+        );
+      } else if (/abort|timeout/i.test(cleanMsg)) {
+        status = 504;
+        cleanMsg = tr(
+          lang,
+          'AI 回應逾時，請稍後再試一次。',
+          'AI 响应超时，请稍后再试一次。',
+          'AI request timed out. Please try again.'
+        );
+      }
+      return { status, message: cleanMsg };
+    };
+
     try {
       let response;
       try {
         response = await callModel('gemini-3.1-flash-lite', ThinkingLevel.MINIMAL, 28000);
-      } catch {
+      } catch (primaryErr: unknown) {
+        const pStatus = (primaryErr as { status?: number })?.status;
+        if (pStatus === 400 || pStatus === 401 || pStatus === 402 || pStatus === 403) {
+          throw primaryErr;
+        }
         response = await callModel('gemini-4-hydrogen', ThinkingLevel.LOW, 28000);
       }
 
@@ -1924,48 +1989,11 @@ async function startServer() {
       }
     } catch (err: unknown) {
       console.error('[Waynote AI Planner] Error:', err);
-      const e = err as { status?: number; message?: string };
-      let status = typeof e?.status === 'number' && e.status >= 400 && e.status < 600 ? e.status : 500;
-      let cleanMsg =
-        e?.message ||
-        tr(lang, 'AI 行程規劃請求失敗，請稍後再試。', 'AI 行程规划请求失败，请稍后再试。', 'AI planning request failed. Please try again shortly.');
-      if (cleanMsg.startsWith('{')) {
-        try {
-          const nested = JSON.parse(cleanMsg) as { error?: { code?: number; message?: string; status?: string } };
-          if (typeof nested?.error?.code === 'number' && nested.error.code >= 400 && nested.error.code < 600) {
-            status = nested.error.code;
-          }
-          if (nested?.error?.message) {
-            cleanMsg = nested.error.message;
-          }
-        } catch {
-          // keep original message
-        }
-      }
-      if (status === 503 || /high demand|UNAVAILABLE/i.test(cleanMsg)) {
-        cleanMsg = tr(
-          lang,
-          'AI 服務目前連線人數較多，請稍等數秒後再按一次規劃。',
-          'AI 服务当前请求较多，请稍等几秒后重试。',
-          'AI service is busy right now. Please wait a few seconds and try again.'
-        );
-      } else if (status === 429 || /quota|rate/i.test(cleanMsg)) {
-        cleanMsg = tr(
-          lang,
-          'AI 請求頻率過高，請稍候片刻再試。',
-          'AI 请求频率过高，请稍候片刻再试。',
-          'Too many AI requests right now. Please wait a moment and try again.'
-        );
-      } else if (/abort|timeout/i.test(cleanMsg)) {
-        status = 504;
-        cleanMsg = tr(
-          lang,
-          'AI 規劃回應逾時，請稍後再按一次規劃。',
-          'AI 规划响应超时，请稍后重试。',
-          'AI planning timed out. Please try again.'
-        );
-      }
-      sendError(status, cleanMsg);
+      const parsedErr = parseGeminiUpstreamError(
+        err,
+        tr(lang, 'AI 行程規劃請求失敗，請稍後再試。', 'AI 行程规划请求失败，请稍后再试。', 'AI planning request failed. Please try again shortly.')
+      );
+      sendError(parsedErr.status, parsedErr.message);
     } finally {
       if (keepaliveTimer) {
         clearInterval(keepaliveTimer);
@@ -2098,7 +2126,6 @@ async function startServer() {
             `Every single spot MUST strictly belong to category "${focusCategory}" — never mix cafes or restaurants into sightseeing, and never mix landmarks into food or shopping. Never invent fake places and never repeat any item in the forbidden list.`,
           responseMimeType: 'application/json',
           responseSchema,
-          temperature: 1.0,
           thinkingConfig: { thinkingLevel },
           abortSignal: AbortSignal.timeout(timeoutMs),
         },
@@ -2128,9 +2155,13 @@ async function startServer() {
     try {
       let response;
       try {
-        response = await callExploreModel('gemini-3.1-flash-lite', ThinkingLevel.MINIMAL, 22000);
-      } catch {
         response = await callExploreModel('gemini-4-hydrogen', ThinkingLevel.LOW, 24000);
+      } catch (primaryErr: unknown) {
+        const pStatus = (primaryErr as { status?: number })?.status;
+        if (pStatus === 400 || pStatus === 401 || pStatus === 402 || pStatus === 403) {
+          throw primaryErr;
+        }
+        response = await callExploreModel('gemini-3.1-flash-lite', ThinkingLevel.MINIMAL, 22000);
       }
 
       const rawText = (response.text || '')
@@ -2140,19 +2171,23 @@ async function startServer() {
         .replace(/\s*```$/i, '')
         .trim();
 
-      const jsonBodyMatch = rawText.match(/\{[\s\S]*\}/);
-      const parsed = JSON.parse(jsonBodyMatch ? jsonBodyMatch[0] : rawText) as {
-        spots?: Array<{
-          name?: string;
-          category?: string;
-          area?: string;
-          note?: string;
-          estimatedCost?: number;
-        }>;
-      };
+      if (!rawText) {
+        res.status(502).json({
+          error: tr(lang, 'AI 未回傳推薦地點，請重試。', 'AI 未返回推荐地点，请重试。', 'AI returned no recommendations. Please try again.'),
+        });
+        return;
+      }
+
+      const jsonObjMatch = rawText.match(/\{[\s\S]*\}/);
+      const jsonArrMatch = rawText.match(/\[[\s\S]*\]/);
+      const rawParsed = JSON.parse(jsonObjMatch ? jsonObjMatch[0] : jsonArrMatch ? jsonArrMatch[0] : rawText) as
+        | { spots?: Array<{ name?: string; category?: string; area?: string; note?: string; estimatedCost?: number }> }
+        | Array<{ name?: string; category?: string; area?: string; note?: string; estimatedCost?: number }>;
+
+      const rawSpotsList = Array.isArray(rawParsed) ? rawParsed : Array.isArray(rawParsed?.spots) ? rawParsed.spots : [];
 
       const seenBatchKeys = new Set<string>();
-      const dedupedCandidates = (parsed.spots || [])
+      const dedupedCandidates = rawSpotsList
         .map((s) => ({
           name: String(s.name || '').trim(),
           category: focusCategory,
@@ -2181,14 +2216,71 @@ async function startServer() {
       res.json({ spots });
     } catch (err: unknown) {
       console.error('[Waynote AI Explore] Error:', err);
-      res.status(502).json({
-        error: tr(
+      const e = err as { status?: number; message?: string };
+      let status = typeof e?.status === 'number' && e.status >= 400 && e.status < 600 ? e.status : 502;
+      let cleanMsg = e?.message || '';
+      if (cleanMsg.startsWith('{')) {
+        try {
+          const nested = JSON.parse(cleanMsg) as { error?: { code?: number; message?: string } };
+          if (typeof nested?.error?.code === 'number' && nested.error.code >= 400 && nested.error.code < 600) {
+            status = nested.error.code;
+          }
+          if (nested?.error?.message) {
+            cleanMsg = nested.error.message;
+          }
+        } catch {
+          // keep original
+        }
+      }
+      if (status === 402 || /prepayment credits|credits are depleted|billing/i.test(cleanMsg)) {
+        status = 402;
+        cleanMsg = tr(
+          lang,
+          'AI 額度目前不足（預付點數已用完），請前往 Google AI Studio 專案設定補充額度或切換帳單金鑰。',
+          'AI 额度当前不足（预付点数已用完），请前往 Google AI Studio 项目设置补充额度或切换账单密钥。',
+          'Gemini API prepayment credits are depleted. Please check your project billing in Google AI Studio.'
+        );
+      } else if (status === 403 || /PERMISSION_DENIED|API_KEY_INVALID|API key not valid/i.test(cleanMsg)) {
+        status = status === 400 ? 400 : 403;
+        cleanMsg = tr(
+          lang,
+          'GEMINI_API_KEY 無效或沒有權限，請在「Settings > Secrets」檢查金鑰設定。',
+          'GEMINI_API_KEY 无效或没有权限，请在「Settings > Secrets」检查密钥设置。',
+          'Invalid or unauthorized GEMINI_API_KEY. Please check Settings > Secrets.'
+        );
+      } else if (status === 429 || /quota|rate|RESOURCE_EXHAUSTED/i.test(cleanMsg)) {
+        status = 429;
+        cleanMsg = tr(
+          lang,
+          'AI 請求頻率過高或已達配額上限，請稍候片刻再試。',
+          'AI 请求频率过高或已达配额上限，请稍候片刻再试。',
+          'AI rate limit or quota reached. Please wait a moment and try again.'
+        );
+      } else if (status === 503 || /high demand|UNAVAILABLE/i.test(cleanMsg)) {
+        status = 503;
+        cleanMsg = tr(
+          lang,
+          'AI 服務目前連線人數較多，請稍等數秒後再試一次。',
+          'AI 服务当前请求较多，请稍等几秒后重试。',
+          'AI service is busy right now. Please wait a few seconds and try again.'
+        );
+      } else if (/abort|timeout/i.test(cleanMsg)) {
+        status = 504;
+        cleanMsg = tr(
+          lang,
+          'AI 探索回應逾時，請稍後再試一次。',
+          'AI 探索响应超时，请稍后再试一次。',
+          'AI Explore timed out. Please try again.'
+        );
+      } else if (!cleanMsg) {
+        cleanMsg = tr(
           lang,
           '目前無法取得 AI 探索推薦，請稍後再試。',
           '目前无法获取 AI 探索推荐，请稍后再试。',
           'Unable to load AI Explore recommendations right now. Please try again.'
-        ),
-      });
+        );
+      }
+      res.status(status).json({ error: cleanMsg });
     }
   });
 
