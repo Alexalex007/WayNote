@@ -27,6 +27,7 @@ interface SyncHubModalProps {
   onShowToast: (text: string, tone?: 'info' | 'success' | 'error') => void;
   cloudUser?: User | null;
   onOpenAuthModal?: () => void;
+  currentClientId?: string;
 }
 
 export const SyncHubModal: React.FC<SyncHubModalProps> = ({
@@ -41,6 +42,7 @@ export const SyncHubModal: React.FC<SyncHubModalProps> = ({
   onShowToast,
   cloudUser,
   onOpenAuthModal,
+  currentClientId,
 }) => {
   const { t, localeTag } = useI18n();
   const [joinCode, setJoinCode] = useState('');
@@ -149,15 +151,38 @@ export const SyncHubModal: React.FC<SyncHubModalProps> = ({
 
           {connectedDevices.length > 0 && (
             <div className="flex flex-wrap gap-1.5 pt-0.5">
-              {connectedDevices.map((dev) => (
-                <div
-                  key={dev.clientId}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white dark:bg-zinc-800/80 text-xs font-medium text-zinc-700 dark:text-zinc-200 border border-zinc-200/70 dark:border-white/10"
-                >
-                  <DevicePhoneMobileIcon className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                  <span>{dev.deviceName}</span>
-                </div>
-              ))}
+              {[...connectedDevices]
+                .sort((a, b) => {
+                  const aSelf = currentClientId && a.clientId === currentClientId ? 1 : 0;
+                  const bSelf = currentClientId && b.clientId === currentClientId ? 1 : 0;
+                  return bSelf - aSelf;
+                })
+                .map((dev) => {
+                  const isSelf = Boolean(currentClientId && dev.clientId === currentClientId);
+                  return (
+                    <div
+                      key={dev.clientId}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border ${
+                        isSelf
+                          ? 'bg-[var(--tab-accent-soft)] border-[var(--tab-accent)]/40 text-zinc-900 dark:text-white font-semibold'
+                          : 'bg-white dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-200 border-zinc-200/70 dark:border-white/10'
+                      }`}
+                    >
+                      {isSelf && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />}
+                      <DevicePhoneMobileIcon
+                        className={`w-3.5 h-3.5 shrink-0 ${
+                          isSelf ? 'text-[var(--tab-accent)]' : 'text-blue-600 dark:text-blue-400'
+                        }`}
+                      />
+                      <span>{dev.deviceName}</span>
+                      {isSelf && (
+                        <span className="text-[11px] text-[var(--tab-accent)] font-semibold whitespace-nowrap">
+                          · {t('本裝置', '本设备', 'This Device')}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
             </div>
           )}
         </div>

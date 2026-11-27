@@ -810,7 +810,7 @@ export const SendPlaneButton: React.FC<SendPlaneButtonProps> = ({
 };
 
 /* -------------------------------------------------------------------------- */
-/* 9. DownloadProgressButton — Live SVG progress arc -> completion check      */
+/* 9. DownloadProgressButton — Gallery "Download Ring" 0→100% morph -> pop    */
 /* -------------------------------------------------------------------------- */
 interface DownloadProgressButtonProps {
   onDownload: () => void | Promise<void>;
@@ -821,6 +821,14 @@ interface DownloadProgressButtonProps {
   disabled?: boolean;
   className?: string;
 }
+
+const DOWNLOAD_SPARK_OFFSETS = [
+  { x: -20, y: -12, delay: 0 },
+  { x: 20, y: -12, delay: 0.03 },
+  { x: -16, y: 12, delay: 0.05 },
+  { x: 18, y: 10, delay: 0.02 },
+  { x: 0, y: -18, delay: 0.04 },
+];
 
 export const DownloadProgressButton: React.FC<DownloadProgressButtonProps> = ({
   onDownload,
@@ -835,6 +843,7 @@ export const DownloadProgressButton: React.FC<DownloadProgressButtonProps> = ({
   const prefersReduced = useReducedMotion();
   const [phase, setPhase] = useState<'idle' | 'loading' | 'done'>('idle');
   const [progress, setProgress] = useState(0);
+  const [doneTick, setDoneTick] = useState(0);
   const rafRef = useRef<number | null>(null);
   const resetTimerRef = useRef<number | null>(null);
 
@@ -852,100 +861,285 @@ export const DownloadProgressButton: React.FC<DownloadProgressButtonProps> = ({
     if (prefersReduced) {
       await onDownload();
       tactileAudio.playChime();
+      setDoneTick((n) => n + 1);
       setPhase('done');
-      resetTimerRef.current = window.setTimeout(() => setPhase('idle'), 1600);
+      resetTimerRef.current = window.setTimeout(() => setPhase('idle'), 1700);
       return;
     }
 
     setPhase('loading');
     setProgress(0);
     const start = performance.now();
-    const duration = 680;
-    const downloadPromise = Promise.resolve(onDownload());
+    const duration = 520; // Snappy 0->100% progress ring while preserving browser download gesture
 
     const step = (now: number) => {
-      const p = Math.min(1, (now - start) / duration);
-      setProgress(p);
-      if (p < 1) {
+      const elapsed = now - start;
+      const tNorm = Math.min(1, elapsed / duration);
+      // Fast ease-out cubic feel for 0% -> 100%
+      const eased = 1 - Math.pow(1 - tNorm, 2.2);
+      setProgress(eased);
+
+      if (tNorm < 1) {
         rafRef.current = requestAnimationFrame(step);
       } else {
-        void downloadPromise.finally(() => {
-          tactileAudio.playChime();
-          setPhase('done');
-          resetTimerRef.current = window.setTimeout(() => {
-            setPhase('idle');
-            setProgress(0);
-          }, 1700);
-        });
+        setProgress(1);
+        tactileAudio.playChime();
+        setDoneTick((n) => n + 1);
+        setPhase('done');
+        void Promise.resolve(onDownload());
+        resetTimerRef.current = window.setTimeout(() => {
+          setPhase('idle');
+          setProgress(0);
+        }, 1850);
       }
     };
     rafRef.current = requestAnimationFrame(step);
   };
 
-  const r = 7;
-  const circ = 2 * Math.PI * r;
+  const ringRadius = 21;
+  const circ = 2 * Math.PI * ringRadius;
   const resolvedDone = doneLabel || t('已儲存', '已保存', 'Saved');
 
   const toneClass =
-    phase === 'done'
-      ? 'bg-emerald-500/15 dark:bg-emerald-500/20 border-emerald-500/50 text-emerald-700 dark:text-emerald-300'
-      : variant === 'accent'
-        ? 'text-white border-transparent shadow-[0_10px_24px_-8px_var(--tab-accent)]'
-        : 'bg-zinc-100/90 dark:bg-white/[0.08] border-zinc-200/80 dark:border-white/12 text-zinc-800 dark:text-zinc-100 hover:bg-zinc-200/80 dark:hover:bg-white/14';
+    phase === 'loading'
+      ? 'bg-zinc-900 dark:bg-zinc-900 border-zinc-800/80 dark:border-white/15 text-white shadow-lg'
+      : phase === 'done'
+        ? 'bg-emerald-500/15 dark:bg-emerald-500/20 border-emerald-500/55 text-emerald-700 dark:text-emerald-300 shadow-[0_8px_20px_-8px_rgba(16,185,129,0.45)]'
+        : variant === 'accent'
+          ? 'text-white border-transparent shadow-[0_10px_24px_-8px_var(--tab-accent)]'
+          : 'bg-zinc-100/90 dark:bg-white/[0.08] border-zinc-200/80 dark:border-white/12 text-zinc-800 dark:text-zinc-100 hover:bg-zinc-200/80 dark:hover:bg-white/14';
 
   return (
-    <motion.button
-      type="button"
-      whileTap={{ scale: 0.96 }}
-      disabled={disabled || phase === 'loading'}
-      onClick={handleClick}
-      style={
-        phase !== 'done' && variant === 'accent'
-          ? {
-              background:
-                'linear-gradient(135deg, var(--tab-accent, #2563EB), var(--tab-accent-hover, #1D4ED8))',
-            }
-          : undefined
-      }
-      className={`min-h-[44px] px-4 py-2 rounded-2xl border font-semibold text-xs sm:text-sm inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors duration-200 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${toneClass} ${className}`}
-    >
-      <span className="shrink-0 flex items-center justify-center w-4 h-4">
-        {phase === 'loading' ? (
-          <svg viewBox="0 0 20 20" className="w-4 h-4 -rotate-90">
+    <div className={`inline-flex items-center justify-center ${className}`}>
+      <motion.button
+        type="button"
+        whileTap={{ scale: 0.95 }}
+        animate={
+          phase === 'done' && !prefersReduced
+            ? { scale: [0.9, 1.07, 1] }
+            : { scale: 1 }
+        }
+        transition={{ duration: 0.34, ease: [0.34, 1.45, 0.64, 1] }}
+        disabled={disabled || phase === 'loading'}
+        onClick={handleClick}
+        style={{
+          transition: 'width 0.32s cubic-bezier(0.34,1.35,0.64,1), min-width 0.32s cubic-bezier(0.34,1.35,0.64,1), padding 0.28s ease, background-color 0.22s ease, border-color 0.22s ease',
+          ...(phase === 'idle' && variant === 'accent'
+            ? {
+                background:
+                  'linear-gradient(135deg, var(--tab-accent, #2563EB), var(--tab-accent-hover, #1D4ED8))',
+              }
+            : {}),
+        }}
+        className={`relative overflow-visible h-[44px] rounded-full border font-semibold text-xs sm:text-sm inline-flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer disabled:cursor-not-allowed ${
+          phase === 'loading'
+            ? 'w-[44px] min-w-[44px] px-0'
+            : 'w-full min-w-[136px] px-5'
+        } ${toneClass}`}
+      >
+        {phase === 'loading' && (
+          <svg
+            viewBox="0 0 48 48"
+            className="pointer-events-none absolute -inset-[2px] w-[calc(100%+4px)] h-[calc(100%+4px)] -rotate-90"
+          >
             <circle
-              cx="10"
-              cy="10"
-              r={r}
+              cx="24"
+              cy="24"
+              r={ringRadius}
               fill="none"
-              stroke="currentColor"
-              strokeOpacity="0.22"
-              strokeWidth="2.2"
+              stroke="rgba(255,255,255,0.16)"
+              strokeWidth="2.5"
             />
             <circle
-              cx="10"
-              cy="10"
-              r={r}
+              cx="24"
+              cy="24"
+              r={ringRadius}
               fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
+              stroke="#ffffff"
+              strokeWidth="2.5"
               strokeLinecap="round"
               strokeDasharray={circ}
               strokeDashoffset={circ * (1 - progress)}
             />
           </svg>
-        ) : phase === 'done' ? (
-          <CheckIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-300" />
-        ) : (
-          icon || <ArrowDownTrayIcon className="w-4 h-4" />
         )}
-      </span>
-      <span className="whitespace-nowrap">
-        {phase === 'loading'
-          ? `${Math.round(progress * 100)}%`
-          : phase === 'done'
-            ? resolvedDone
-            : label}
-      </span>
+
+        {doneTick > 0 && phase === 'done' && !prefersReduced && (
+          <span key={doneTick} aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            {DOWNLOAD_SPARK_OFFSETS.map((dot, idx) => (
+              <motion.span
+                key={idx}
+                initial={{ scale: 0.4, x: 0, y: 0, opacity: 0.9 }}
+                animate={{ scale: 1, x: dot.x, y: dot.y, opacity: 0 }}
+                transition={{ duration: 0.48, delay: dot.delay, ease: [0.16, 1, 0.3, 1] }}
+                className="w-1.5 h-1.5 rounded-full bg-emerald-400"
+              />
+            ))}
+          </span>
+        )}
+
+        {phase === 'loading' ? (
+          <span className="font-num text-[10px] font-bold tracking-tight text-white">
+            {Math.round(progress * 100)}%
+          </span>
+        ) : phase === 'done' ? (
+          <>
+            <CheckIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-300 shrink-0" />
+            <span className="whitespace-nowrap">{resolvedDone}</span>
+          </>
+        ) : (
+          <>
+            <span className="shrink-0 flex items-center justify-center">
+              {icon || <ArrowDownTrayIcon className="w-4 h-4" />}
+            </span>
+            <span className="whitespace-nowrap">{label}</span>
+          </>
+        )}
+      </motion.button>
+    </div>
+  );
+};
+
+/* -------------------------------------------------------------------------- */
+/* 10. ShareAppButton — Paper-plane launch + particle burst + share/copy      */
+/* -------------------------------------------------------------------------- */
+interface ShareAppButtonProps {
+  shareUrl: string;
+  shareTitle: string;
+  shareText: string;
+  label: string;
+  sharedLabel?: string;
+  copiedLabel?: string;
+  onResult?: (outcome: 'shared' | 'copied' | 'cancelled') => void;
+  className?: string;
+}
+
+const SHARE_BURST_OFFSETS = [
+  { x: -20, y: -14, delay: 0 },
+  { x: 20, y: -14, delay: 0.03 },
+  { x: -16, y: 14, delay: 0.05 },
+  { x: 18, y: 12, delay: 0.02 },
+  { x: 0, y: -20, delay: 0.04 },
+  { x: 24, y: 0, delay: 0.06 },
+];
+
+export const ShareAppButton: React.FC<ShareAppButtonProps> = ({
+  shareUrl,
+  shareTitle,
+  shareText,
+  label,
+  sharedLabel,
+  copiedLabel,
+  onResult,
+  className = '',
+}) => {
+  const { t } = useI18n();
+  const prefersReduced = useReducedMotion();
+  const [phase, setPhase] = useState<'idle' | 'launching' | 'shared' | 'copied'>('idle');
+  const [burstTick, setBurstTick] = useState(0);
+  const timerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  const handlePress = async () => {
+    if (phase === 'launching') return;
+    tactileAudio.playWhoosh(true);
+    setPhase('launching');
+
+    let outcome: 'shared' | 'copied' | 'cancelled' = 'copied';
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: shareText,
+          url: shareUrl,
+        });
+        outcome = 'shared';
+      } catch (err) {
+        if ((err as { name?: string })?.name === 'AbortError') {
+          setPhase('idle');
+          onResult?.('cancelled');
+          return;
+        }
+        await copyToClipboardSafe(shareUrl);
+        outcome = 'copied';
+      }
+    } else {
+      await copyToClipboardSafe(shareUrl);
+      outcome = 'copied';
+    }
+
+    tactileAudio.playChime();
+    setBurstTick((n) => n + 1);
+    setPhase(outcome === 'shared' ? 'shared' : 'copied');
+    onResult?.(outcome);
+
+    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    timerRef.current = window.setTimeout(() => setPhase('idle'), 1800);
+  };
+
+  const isDone = phase === 'shared' || phase === 'copied';
+  const displayLabel =
+    phase === 'shared'
+      ? sharedLabel || t('已分享', '已分享', 'Shared')
+      : phase === 'copied'
+        ? copiedLabel || t('已複製連結', '已复制链接', 'Link Copied')
+        : label;
+
+  return (
+    <motion.button
+      type="button"
+      whileHover={prefersReduced ? undefined : { scale: 1.02 }}
+      whileTap={{ scale: 0.95 }}
+      disabled={phase === 'launching'}
+      onClick={handlePress}
+      style={
+        isDone
+          ? undefined
+          : {
+              background:
+                'linear-gradient(135deg, var(--tab-accent, #7C3AED), var(--tab-accent-hover, #8B5CF6))',
+            }
+      }
+      className={`relative overflow-visible min-h-[44px] px-4 py-2 rounded-full font-semibold text-xs sm:text-sm text-white inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors duration-200 cursor-pointer shrink-0 shadow-[0_12px_24px_-10px_var(--tab-accent)] ${
+        isDone ? 'bg-emerald-500 shadow-emerald-500/30' : ''
+      } ${className}`}
+    >
+      {burstTick > 0 && !prefersReduced && (
+        <span key={burstTick} aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          {SHARE_BURST_OFFSETS.map((dot, idx) => (
+            <motion.span
+              key={idx}
+              initial={{ scale: 0.4, x: 0, y: 0, opacity: 0.95 }}
+              animate={{ scale: 1, x: dot.x, y: dot.y, opacity: 0 }}
+              transition={{ duration: 0.55, delay: dot.delay, ease: [0.16, 1, 0.3, 1] }}
+              className="w-1.5 h-1.5 rounded-full bg-emerald-300"
+            />
+          ))}
+        </span>
+      )}
+
+      <motion.span
+        animate={
+          phase === 'launching' && !prefersReduced
+            ? { x: [0, 18], y: [0, -14], rotate: [0, 18], opacity: [1, 0] }
+            : { x: 0, y: 0, rotate: 0, opacity: 1 }
+        }
+        transition={{ duration: 0.32, ease: [0.4, 0, 0.2, 1] }}
+        className="shrink-0 flex items-center justify-center"
+      >
+        {isDone ? (
+          <CheckIcon className="w-4 h-4" />
+        ) : (
+          <PaperAirplaneIcon className="w-4 h-4" />
+        )}
+      </motion.span>
+      <span className="whitespace-nowrap">{displayLabel}</span>
     </motion.button>
   );
 };
+

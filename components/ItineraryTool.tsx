@@ -56,7 +56,6 @@ interface Props {
   onToggleFullScreen?: (isOpen: boolean) => void;
   onShowToast: (text: string, tone?: 'info' | 'success' | 'error') => void;
   focusDateSignal?: { date: string; nonce: number } | null;
-  onOpenExplorePlanner?: () => void;
 }
 
 function formatGmtOffset(offset: number): string {
@@ -392,7 +391,6 @@ const ItineraryTool: React.FC<Props> = ({
   onUpdateTrip,
   onShowToast,
   focusDateSignal,
-  onOpenExplorePlanner,
 }) => {
   const { lang, t } = useI18n();
   const [selectedDate, setSelectedDate] = useState<string>(trip.startDate);
@@ -1333,17 +1331,6 @@ const ItineraryTool: React.FC<Props> = ({
                   {activeHotelForDay ? activeHotelForDay.name : t('新增酒店', '新增酒店', 'Add Hotel')}
                 </span>
               </button>
-
-              {onOpenExplorePlanner && (
-                <button
-                  type="button"
-                  onClick={onOpenExplorePlanner}
-                  className="min-h-[36px] px-3 sm:px-3.5 rounded-full bg-[var(--tab-accent-soft)] hover:brightness-95 text-[var(--tab-accent)] border border-[var(--tab-accent)]/25 flex items-center gap-1.5 font-semibold text-xs transition-all cursor-pointer whitespace-nowrap shrink-0"
-                >
-                  <SparklesIcon className="w-3.5 h-3.5" />
-                  <span>{t('AI 規劃', 'AI 规划', 'AI Plan')}</span>
-                </button>
-              )}
             </div>
 
             <button
@@ -1414,16 +1401,6 @@ const ItineraryTool: React.FC<Props> = ({
                     <PlusIcon className="w-4 h-4" />
                     <span>{t('手動新增', '手动新增', 'Add Manually')}</span>
                   </button>
-                  {onOpenExplorePlanner && (
-                    <button
-                      type="button"
-                      onClick={onOpenExplorePlanner}
-                      className="min-h-[42px] px-5 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-semibold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm"
-                    >
-                      <SparklesIcon className="w-4 h-4" />
-                      <span>{t('前往探索與 AI 規劃', '前往探索与 AI 规划', 'Open AI Planner')}</span>
-                    </button>
-                  )}
                 </div>
               </div>
             ) : (
@@ -1532,7 +1509,7 @@ const ItineraryTool: React.FC<Props> = ({
               </button>
             </div>
 
-            <div className={`grid gap-2.5 ${onOpenExplorePlanner ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            <div className="grid grid-cols-1 gap-2.5">
               <button
                 type="button"
                 onClick={openAddModal}
@@ -1541,16 +1518,6 @@ const ItineraryTool: React.FC<Props> = ({
                 <PlusIcon className="w-4 h-4" />
                 <span>{t('新增行程 / 航班', '新增行程 / 航班', 'Add Stop / Flight')}</span>
               </button>
-              {onOpenExplorePlanner && (
-                <button
-                  type="button"
-                  onClick={onOpenExplorePlanner}
-                  className="min-h-[44px] rounded-full bg-white/12 hover:bg-white/20 text-white font-semibold text-xs flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer"
-                >
-                  <SparklesIcon className="w-4 h-4 text-[#FF9E7B]" />
-                  <span>{t('前往 AI 規劃', '前往 AI 规划', 'AI Planner')}</span>
-                </button>
-              )}
             </div>
           </div>
 

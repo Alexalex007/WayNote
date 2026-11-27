@@ -18,6 +18,8 @@ export interface DestinationIntel {
   voltagePlug: string;
   emergency: string;
   taxFreeThreshold: number | null;
+  taxFreeVatRate: number | null;
+  taxFreeRefundRate: number | null;
   taxFreeNote: string | null;
   airports: DestinationAirport[];
 }
@@ -40,6 +42,8 @@ interface DestinationPreset {
   voltagePlug: LocalizedText;
   emergency: LocalizedText;
   taxFreeThreshold: number | null;
+  taxFreeVatRate: number | null;
+  taxFreeRefundRate: number | null;
   taxFreeNote: LocalizedText | null;
 }
 
@@ -53,10 +57,12 @@ const JP_COMMON = {
   voltagePlug: ['100V · A型兩孔扁插', '100V · A型两孔扁插', '100V · Type A (Two-pin)'] as LocalizedText,
   emergency: ['報警 110 · 救護 119', '报警 110 · 急救 119', 'Police 110 · Ambulance 119'] as LocalizedText,
   taxFreeThreshold: 5000,
+  taxFreeVatRate: 10,
+  taxFreeRefundRate: 9.09,
   taxFreeNote: [
-    '日本未稅滿 ¥5,000 可享 10% 免稅',
-    '日本未税满 ¥5,000 可享 10% 免税',
-    '10% tax-free on purchases over ¥5,000 (excl. tax)',
+    '日本未稅滿 ¥5,000 可享 10% 免稅（約商品含稅價 9.1%）',
+    '日本未税满 ¥5,000 可享 10% 免税（约商品含税价 9.1%）',
+    '10% tax-free over ¥5,000 excl. tax (~9.1% of retail price)',
   ] as LocalizedText,
 };
 
@@ -70,10 +76,12 @@ const KR_COMMON = {
   voltagePlug: ['220V · C/F型雙圓孔', '220V · C/F型双圆孔', '220V · Type C / F'] as LocalizedText,
   emergency: ['報警 112 · 救護 119', '报警 112 · 急救 119', 'Police 112 · Ambulance 119'] as LocalizedText,
   taxFreeThreshold: 15000,
+  taxFreeVatRate: 10,
+  taxFreeRefundRate: 7,
   taxFreeNote: [
-    '韓國單筆滿 ₩15,000 可申請現場／機場退稅',
-    '韩国单笔满 ₩15,000 可申请现场／机场退税',
-    'Tax refund available on receipts over ₩15,000',
+    '韓國單筆滿 ₩15,000 可退稅（扣手續費實退約 7%）',
+    '韩国单笔满 ₩15,000 可退税（扣手续费实退约 7%）',
+    'Tax refund over ₩15,000 per receipt (~7% net refund)',
   ] as LocalizedText,
 };
 
@@ -87,6 +95,13 @@ const TW_COMMON = {
   voltagePlug: ['110V · A/B型扁插', '110V · A/B型扁插', '110V · Type A / B'] as LocalizedText,
   emergency: ['報警 110 · 救護 119', '报警 110 · 急救 119', 'Police 110 · Ambulance 119'] as LocalizedText,
   taxFreeThreshold: 2000,
+  taxFreeVatRate: 5,
+  taxFreeRefundRate: 4.3,
+  taxFreeNote: [
+    '非台灣護照旅客同店同日滿 NT$2,000 可退 5% 營業稅（實退約 4.3%）',
+    '非台湾护照旅客同店同日满 NT$2,000 可退 5% 营业税（实退约 4.3%）',
+    'Tax refund over NT$2,000/day for eligible visitors (~4.3% net)',
+  ] as LocalizedText,
 };
 
 const PRESETS: DestinationPreset[] = [
@@ -139,17 +154,11 @@ const PRESETS: DestinationPreset[] = [
     keywords: ['台北', '臺北', '新北', '台灣', 'taipei', 'taiwan', '桃園', '桃园', '基隆'],
     cityQuery: 'Taipei',
     ...TW_COMMON,
-    taxFreeNote: [
-      '外籍旅客同店同日滿 NT$2,000 可退稅',
-      '外籍旅客同店同日满 NT$2,000 可退税',
-      'Foreign visitors eligible for tax refund over NT$2,000/day',
-    ],
   },
   {
-    keywords: ['高雄', '台中', '臺中', '台南', '臺南', '花蓮', '花莲', '宜蘭', '宜兰', 'kaohsiung', 'taichung', 'tainan'],
+    keywords: ['高雄', '台中', '臺中', '台南', '臺南', '花蓮', '花莲', '宜蘭', '宜兰', '墾丁', '垦丁', '台東', '台东', 'kaohsiung', 'taichung', 'tainan'],
     cityQuery: 'Kaohsiung',
     ...TW_COMMON,
-    taxFreeNote: null,
   },
   {
     keywords: ['香港', 'hong kong', '九龍', '九龙', '港島', '港岛'],
@@ -163,7 +172,9 @@ const PRESETS: DestinationPreset[] = [
     voltagePlug: ['220V · G型英式三方孔', '220V · G型英式三方孔', '220V · Type G (UK)'] as LocalizedText,
     emergency: ['報警／救護 999', '报警／急救 999', 'Emergency 999'],
     taxFreeThreshold: null,
-    taxFreeNote: ['香港為免稅港（無一般消費稅）', '香港为免税港（无一般消费税）', 'Hong Kong is a tax-free port (no sales tax / VAT)'],
+    taxFreeVatRate: null,
+    taxFreeRefundRate: null,
+    taxFreeNote: null,
   },
   {
     keywords: ['澳門', '澳门', 'macau', 'macao'],
@@ -177,6 +188,8 @@ const PRESETS: DestinationPreset[] = [
     voltagePlug: ['220V · G型英式三方孔', '220V · G型英式三方孔', '220V · Type G (UK)'],
     emergency: ['報警／救護 999', '报警／急救 999', 'Emergency 999'],
     taxFreeThreshold: null,
+    taxFreeVatRate: null,
+    taxFreeRefundRate: null,
     taxFreeNote: null,
   },
   {
@@ -191,7 +204,9 @@ const PRESETS: DestinationPreset[] = [
     voltagePlug: ['220V · A/B/C型插座', '220V · A/B/C型插座', '220V · Type A / B / C'],
     emergency: ['觀光警察 1155 · 救護 1669', '旅游警察 1155 · 急救 1669', 'Tourist Police 1155 · Ambulance 1669'],
     taxFreeThreshold: 2000,
-    taxFreeNote: ['泰國同日同店滿 ฿2,000 可申請 VAT 退稅', '泰国同日同店满 ฿2,000 可申请 VAT 退税', 'VAT refund available on same-day spend over ฿2,000'],
+    taxFreeVatRate: 7,
+    taxFreeRefundRate: 5,
+    taxFreeNote: ['泰國同日同店滿 ฿2,000 可申請 7% VAT 退稅（實退約 5%）', '泰国同日同店满 ฿2,000 可申请 7% VAT 退税（实退约 5%）', 'VAT refund over ฿2,000/day (~5% net refund)'],
   },
   {
     keywords: ['清邁', '清迈', 'chiang mai', '普吉', 'phuket'],
@@ -205,7 +220,9 @@ const PRESETS: DestinationPreset[] = [
     voltagePlug: ['220V · A/B/C型插座', '220V · A/B/C型插座', '220V · Type A / B / C'],
     emergency: ['觀光警察 1155 · 救護 1669', '旅游警察 1155 · 急救 1669', 'Tourist Police 1155 · Ambulance 1669'],
     taxFreeThreshold: 2000,
-    taxFreeNote: ['泰國同日同店滿 ฿2,000 可申請 VAT 退稅', '泰国同日同店满 ฿2,000 可申请 VAT 退税', 'VAT refund available on same-day spend over ฿2,000'],
+    taxFreeVatRate: 7,
+    taxFreeRefundRate: 5,
+    taxFreeNote: ['泰國同日同店滿 ฿2,000 可申請 7% VAT 退稅（實退約 5%）', '泰国同日同店满 ฿2,000 可申请 7% VAT 退税（实退约 5%）', 'VAT refund over ฿2,000/day (~5% net refund)'],
   },
   {
     keywords: ['新加坡', 'singapore'],
@@ -219,7 +236,9 @@ const PRESETS: DestinationPreset[] = [
     voltagePlug: ['230V · G型英式三方孔', '230V · G型英式三方孔', '230V · Type G (UK)'],
     emergency: ['報警 999 · 救護 995', '报警 999 · 急救 995', 'Police 999 · Ambulance 995'],
     taxFreeThreshold: 100,
-    taxFreeNote: ['新加坡同店滿 S$100 可申請 eTRS 退稅', '新加坡同店满 S$100 可申请 eTRS 退税', 'eTRS GST refund available on spend over S$100'],
+    taxFreeVatRate: 9,
+    taxFreeRefundRate: 7,
+    taxFreeNote: ['新加坡同店滿 S$100 可申請 9% GST 退稅（實退約 7%）', '新加坡同店满 S$100 可申请 9% GST 退税（实退约 7%）', 'eTRS 9% GST refund over S$100 (~7% net refund)'],
   },
   {
     keywords: ['吉隆坡', 'kuala lumpur', '馬來西亞', '马来西亚', 'malaysia', '檳城', '槟城', '沙巴'],
@@ -233,6 +252,8 @@ const PRESETS: DestinationPreset[] = [
     voltagePlug: ['240V · G型英式三方孔', '240V · G型英式三方孔', '240V · Type G (UK)'],
     emergency: ['緊急救援 999', '紧急救援 999', 'Emergency 999'],
     taxFreeThreshold: null,
+    taxFreeVatRate: null,
+    taxFreeRefundRate: null,
     taxFreeNote: null,
   },
   {
@@ -247,7 +268,9 @@ const PRESETS: DestinationPreset[] = [
     voltagePlug: ['220V · A/C型插座', '220V · A/C型插座', '220V · Type A / C'],
     emergency: ['報警 113 · 救護 115', '报警 113 · 急救 115', 'Police 113 · Ambulance 115'],
     taxFreeThreshold: 2000000,
-    taxFreeNote: ['越南同日同店滿 ₫2,000,000 可退稅', '越南同日同店满 ₫2,000,000 可退税', 'VAT refund available on spend over ₫2,000,000'],
+    taxFreeVatRate: 10,
+    taxFreeRefundRate: 8.5,
+    taxFreeNote: ['越南同日同店滿 ₫2,000,000 可退 10% VAT（實退 8.5%）', '越南同日同店满 ₫2,000,000 可退 10% VAT（实退 8.5%）', 'VAT refund over ₫2,000,000 (8.5% net refund)'],
   },
   {
     keywords: ['峇里島', '巴厘岛', '雅加達', '雅加达', '印尼', 'bali', 'jakarta', 'indonesia'],
@@ -260,8 +283,10 @@ const PRESETS: DestinationPreset[] = [
     timezoneLabel: 'UTC+8',
     voltagePlug: ['230V · C/F型雙圓孔', '230V · C/F型双圆孔', '230V · Type C / F'],
     emergency: ['緊急救援 112', '紧急救援 112', 'Emergency 112'],
-    taxFreeThreshold: null,
-    taxFreeNote: null,
+    taxFreeThreshold: 500000,
+    taxFreeVatRate: 11,
+    taxFreeRefundRate: 9,
+    taxFreeNote: ['印尼單筆發票滿 Rp 500,000（需離境累計達 500萬）可退 11% VAT（約 9%）', '印尼单笔发票满 Rp 500,000（需离境累计达 500万）可退 11% VAT（约 9%）', 'VAT refund on receipts from Rp 500,000 (~9% net)'],
   },
   {
     keywords: ['馬尼拉', '马尼拉', '宿霧', '宿务', '長灘島', '长滩岛', '菲律賓', '菲律宾', 'manila', 'cebu', 'philippines'],
@@ -275,6 +300,8 @@ const PRESETS: DestinationPreset[] = [
     voltagePlug: ['220V · A/B/C型插座', '220V · A/B/C型插座', '220V · Type A / B / C'],
     emergency: ['緊急救援 911', '紧急救援 911', 'Emergency 911'],
     taxFreeThreshold: null,
+    taxFreeVatRate: null,
+    taxFreeRefundRate: null,
     taxFreeNote: null,
   },
   {
@@ -288,8 +315,10 @@ const PRESETS: DestinationPreset[] = [
     timezoneLabel: 'UTC+8',
     voltagePlug: ['220V · A/I型插座', '220V · A/I型插座', '220V · Type A / I'],
     emergency: ['報警 110 · 救護 120', '报警 110 · 急救 120', 'Police 110 · Ambulance 120'],
-    taxFreeThreshold: 500,
-    taxFreeNote: ['同店同日滿 ¥500 可辦理離境退稅', '同店同日满 ¥500 可办理离境退税', 'Departure tax refund available over ¥500/day'],
+    taxFreeThreshold: 200,
+    taxFreeVatRate: 13,
+    taxFreeRefundRate: 11,
+    taxFreeNote: ['境外旅客同店同日滿 ¥200 可辦理離境退稅（一般貨品約退 11%）', '境外旅客同店同日满 ¥200 可办理离境退税（一般货品约退 11%）', 'Departure tax refund over ¥200/day (~11% standard rate)'],
   },
   {
     keywords: ['倫敦', '伦敦', '愛丁堡', '爱丁堡', '曼徹斯特', '曼彻斯特', '英國', '英国', 'london', 'uk', 'england', 'edinburgh'],
@@ -303,6 +332,8 @@ const PRESETS: DestinationPreset[] = [
     voltagePlug: ['230V · G型英式三方孔', '230V · G型英式三方孔', '230V · Type G (UK)'],
     emergency: ['緊急救援 999 / 112', '紧急救援 999 / 112', 'Emergency 999 / 112'],
     taxFreeThreshold: null,
+    taxFreeVatRate: null,
+    taxFreeRefundRate: null,
     taxFreeNote: null,
   },
   {
@@ -317,7 +348,9 @@ const PRESETS: DestinationPreset[] = [
     voltagePlug: ['230V · E/C型雙圓孔', '230V · E/C型双圆孔', '230V · Type E / C'],
     emergency: ['歐盟緊急 112', '欧盟紧急 112', 'EU Emergency 112'],
     taxFreeThreshold: 100.01,
-    taxFreeNote: ['法國單筆滿 €100.01 可申請 VAT 退稅', '法国单笔满 €100.01 可申请 VAT 退税', 'VAT refund available on receipts over €100.01'],
+    taxFreeVatRate: 20,
+    taxFreeRefundRate: 12,
+    taxFreeNote: ['法國單筆滿 €100.01 可申請 20% VAT 退稅（實退約 12%）', '法国单笔满 €100.01 可申请 20% VAT 退税（实退约 12%）', 'VAT refund over €100.01 (~12% net refund)'],
   },
   {
     keywords: ['羅馬', '罗马', '米蘭', '米兰', '威尼斯', '佛羅倫斯', '佛罗伦萨', '義大利', '意大利', 'rome', 'milan', 'venice', 'italy'],
@@ -331,7 +364,9 @@ const PRESETS: DestinationPreset[] = [
     voltagePlug: ['230V · F/L型插座', '230V · F/L型插座', '230V · Type F / L'],
     emergency: ['歐盟緊急 112', '欧盟紧急 112', 'EU Emergency 112'],
     taxFreeThreshold: 70.01,
-    taxFreeNote: ['義大利滿 €70.01 可申請退稅', '意大利满 €70.01 可申请退税', 'VAT refund available on receipts over €70.01'],
+    taxFreeVatRate: 22,
+    taxFreeRefundRate: 12.5,
+    taxFreeNote: ['義大利單筆滿 €70.01 可申請 22% VAT 退稅（實退約 12.5%）', '意大利单笔满 €70.01 可申请 22% VAT 退税（实退约 12.5%）', 'VAT refund over €70.01 (~12.5% net refund)'],
   },
   {
     keywords: ['柏林', '慕尼黑', '法蘭克福', '法兰克福', '德國', '德国', 'berlin', 'munich', 'frankfurt', 'germany'],
@@ -345,12 +380,14 @@ const PRESETS: DestinationPreset[] = [
     voltagePlug: ['230V · C/F型雙圓孔', '230V · C/F型双圆孔', '230V · Type C / F'],
     emergency: ['歐盟緊急 112', '欧盟紧急 112', 'EU Emergency 112'],
     taxFreeThreshold: 50,
-    taxFreeNote: ['德國單筆滿 €50 可申請退稅', '德国单笔满 €50 可申请退税', 'VAT refund available on receipts over €50'],
+    taxFreeVatRate: 19,
+    taxFreeRefundRate: 11.5,
+    taxFreeNote: ['德國單筆滿 €50 可申請 19% VAT 退稅（實退約 11.5%）', '德国单笔满 €50 可申请 19% VAT 退税（实退约 11.5%）', 'VAT refund over €50 (~11.5% net refund)'],
   },
   {
-    keywords: ['巴塞隆納', '巴塞罗那', '馬德里', '马德里', '西班牙', 'barcelona', 'madrid', 'spain', '阿姆斯特丹', '荷蘭', '荷兰', 'amsterdam', '維也納', '维也纳', '奧地利', '奥地利', 'vienna'],
+    keywords: ['巴塞隆納', '巴塞罗那', '馬德里', '马德里', '西班牙', 'barcelona', 'madrid', 'spain'],
     cityQuery: 'Barcelona',
-    countryLabel: ['歐洲申根區', '欧洲申根区', 'Schengen Europe'],
+    countryLabel: ['西班牙', '西班牙', 'Spain'],
     currency: 'EUR',
     currencyName: ['歐元', '欧元', 'Euro'],
     currencySymbol: '€',
@@ -358,8 +395,106 @@ const PRESETS: DestinationPreset[] = [
     timezoneLabel: 'UTC+1',
     voltagePlug: ['230V · C/F型雙圓孔', '230V · C/F型双圆孔', '230V · Type C / F'],
     emergency: ['歐盟緊急 112', '欧盟紧急 112', 'EU Emergency 112'],
-    taxFreeThreshold: null,
-    taxFreeNote: null,
+    taxFreeThreshold: 0,
+    taxFreeVatRate: 21,
+    taxFreeRefundRate: 12,
+    taxFreeNote: ['西班牙無最低消費門檻，消費即享 21% VAT 退稅（實退約 12%）', '西班牙无最低消费门槛，消费即享 21% VAT 退税（实退约 12%）', 'Spain has no minimum spend for DIVA VAT refund (~12% net)'],
+  },
+  {
+    keywords: ['阿姆斯特丹', '荷蘭', '荷兰', 'amsterdam', 'netherlands'],
+    cityQuery: 'Amsterdam',
+    countryLabel: ['荷蘭', '荷兰', 'Netherlands'],
+    currency: 'EUR',
+    currencyName: ['歐元', '欧元', 'Euro'],
+    currencySymbol: '€',
+    utcOffsetHours: 1,
+    timezoneLabel: 'UTC+1',
+    voltagePlug: ['230V · C/F型雙圓孔', '230V · C/F型双圆孔', '230V · Type C / F'],
+    emergency: ['歐盟緊急 112', '欧盟紧急 112', 'EU Emergency 112'],
+    taxFreeThreshold: 50,
+    taxFreeVatRate: 21,
+    taxFreeRefundRate: 12,
+    taxFreeNote: ['荷蘭單筆滿 €50 可申請 21% VAT 退稅（實退約 12%）', '荷兰单笔满 €50 可申请 21% VAT 退税（实退约 12%）', 'VAT refund over €50 (~12% net refund)'],
+  },
+  {
+    keywords: ['維也納', '维也纳', '奧地利', '奥地利', '薩爾斯堡', '萨尔茨堡', '哈修塔特', '哈尔施塔特', 'vienna', 'austria', 'salzburg', 'hallstatt'],
+    cityQuery: 'Vienna',
+    countryLabel: ['奧地利', '奥地利', 'Austria'],
+    currency: 'EUR',
+    currencyName: ['歐元', '欧元', 'Euro'],
+    currencySymbol: '€',
+    utcOffsetHours: 1,
+    timezoneLabel: 'UTC+1',
+    voltagePlug: ['230V · C/F型雙圓孔', '230V · C/F型双圆孔', '230V · Type C / F'],
+    emergency: ['歐盟緊急 112', '欧盟紧急 112', 'EU Emergency 112'],
+    taxFreeThreshold: 75.01,
+    taxFreeVatRate: 20,
+    taxFreeRefundRate: 12,
+    taxFreeNote: ['奧地利單筆滿 €75.01 可申請 20% VAT 退稅（實退約 12%）', '奥地利单笔满 €75.01 可申请 20% VAT 退税（实退约 12%）', 'VAT refund over €75.01 (~12% net refund)'],
+  },
+  {
+    keywords: ['里斯本', '波圖', '波尔图', '葡萄牙', 'lisbon', 'porto', 'portugal'],
+    cityQuery: 'Lisbon',
+    countryLabel: ['葡萄牙', '葡萄牙', 'Portugal'],
+    currency: 'EUR',
+    currencyName: ['歐元', '欧元', 'Euro'],
+    currencySymbol: '€',
+    utcOffsetHours: 0,
+    timezoneLabel: 'UTC+0',
+    voltagePlug: ['230V · C/F型雙圓孔', '230V · C/F型双圆孔', '230V · Type C / F'],
+    emergency: ['歐盟緊急 112', '欧盟紧急 112', 'EU Emergency 112'],
+    taxFreeThreshold: 61.35,
+    taxFreeVatRate: 23,
+    taxFreeRefundRate: 13,
+    taxFreeNote: ['葡萄牙單筆滿 €61.35 可申請 23% VAT 退稅（實退約 13%）', '葡萄牙单笔满 €61.35 可申请 23% VAT 退税（实退约 13%）', 'VAT refund over €61.35 (~13% net refund)'],
+  },
+  {
+    keywords: ['雅典', '聖托里尼', '圣托里尼', '希臘', '希腊', 'athens', 'santorini', 'greece'],
+    cityQuery: 'Athens',
+    countryLabel: ['希臘', '希腊', 'Greece'],
+    currency: 'EUR',
+    currencyName: ['歐元', '欧元', 'Euro'],
+    currencySymbol: '€',
+    utcOffsetHours: 2,
+    timezoneLabel: 'UTC+2',
+    voltagePlug: ['230V · C/F型雙圓孔', '230V · C/F型双圆孔', '230V · Type C / F'],
+    emergency: ['歐盟緊急 112', '欧盟紧急 112', 'EU Emergency 112'],
+    taxFreeThreshold: 50,
+    taxFreeVatRate: 24,
+    taxFreeRefundRate: 13.5,
+    taxFreeNote: ['希臘單筆滿 €50 可申請 24% VAT 退稅（實退約 13.5%）', '希腊单笔满 €50 可申请 24% VAT 退税（实退约 13.5%）', 'VAT refund over €50 (~13.5% net refund)'],
+  },
+  {
+    keywords: ['布魯塞爾', '布鲁塞尔', '布魯日', '布鲁日', '比利時', '比利时', 'brussels', 'bruges', 'belgium'],
+    cityQuery: 'Brussels',
+    countryLabel: ['比利時', '比利时', 'Belgium'],
+    currency: 'EUR',
+    currencyName: ['歐元', '欧元', 'Euro'],
+    currencySymbol: '€',
+    utcOffsetHours: 1,
+    timezoneLabel: 'UTC+1',
+    voltagePlug: ['230V · E型雙圓孔', '230V · E型双圆孔', '230V · Type E'],
+    emergency: ['歐盟緊急 112', '欧盟紧急 112', 'EU Emergency 112'],
+    taxFreeThreshold: 125.01,
+    taxFreeVatRate: 21,
+    taxFreeRefundRate: 12,
+    taxFreeNote: ['比利時單筆滿 €125.01 可申請 21% VAT 退稅（實退約 12%）', '比利时单笔满 €125.01 可申请 21% VAT 退税（实退约 12%）', 'VAT refund over €125.01 (~12% net refund)'],
+  },
+  {
+    keywords: ['布達佩斯', '布达佩斯', '匈牙利', 'budapest', 'hungary'],
+    cityQuery: 'Budapest',
+    countryLabel: ['匈牙利', '匈牙利', 'Hungary'],
+    currency: 'HUF',
+    currencyName: ['匈牙利福林', '匈牙利福林', 'Hungarian Forint'],
+    currencySymbol: 'Ft',
+    utcOffsetHours: 1,
+    timezoneLabel: 'UTC+1',
+    voltagePlug: ['230V · C/F型雙圓孔', '230V · C/F型双圆孔', '230V · Type C / F'],
+    emergency: ['歐盟緊急 112', '欧盟紧急 112', 'EU Emergency 112'],
+    taxFreeThreshold: 68001,
+    taxFreeVatRate: 27,
+    taxFreeRefundRate: 15,
+    taxFreeNote: ['匈牙利單筆滿 68,001 Ft 可申請 27% VAT 退稅（實退約 15%）', '匈牙利单笔满 68,001 Ft 可申请 27% VAT 退税（实退约 15%）', 'VAT refund over 68,001 Ft (~15% net refund)'],
   },
   {
     keywords: ['布拉格', '捷克', 'prague', 'czech'],
@@ -373,7 +508,9 @@ const PRESETS: DestinationPreset[] = [
     voltagePlug: ['230V · E型雙圓孔', '230V · E型双圆孔', '230V · Type E'],
     emergency: ['歐盟緊急 112', '欧盟紧急 112', 'EU Emergency 112'],
     taxFreeThreshold: 2001,
-    taxFreeNote: ['捷克單筆滿 2,001 Kč 可申請退稅', '捷克单笔满 2,001 Kč 可申请退税', 'VAT refund available on receipts over 2,001 Kč'],
+    taxFreeVatRate: 21,
+    taxFreeRefundRate: 12,
+    taxFreeNote: ['捷克單筆滿 2,001 Kč 可申請 21% VAT 退稅（實退約 12%）', '捷克单笔满 2,001 Kč 可申请 21% VAT 退税（实退约 12%）', 'VAT refund over 2,001 Kč (~12% net refund)'],
   },
   {
     keywords: ['雷克雅維克', '雷克雅未克', '冰島', '冰岛', 'reykjavik', 'iceland'],
@@ -387,7 +524,9 @@ const PRESETS: DestinationPreset[] = [
     voltagePlug: ['230V · C/F型雙圓孔', '230V · C/F型双圆孔', '230V · Type C / F'],
     emergency: ['緊急救援 112', '紧急救援 112', 'Emergency 112'],
     taxFreeThreshold: 6000,
-    taxFreeNote: ['冰島單筆滿 ISK 6,000 可申請退稅', '冰岛单笔满 ISK 6,000 可申请退税', 'Tax refund available on receipts over ISK 6,000'],
+    taxFreeVatRate: 24,
+    taxFreeRefundRate: 14,
+    taxFreeNote: ['冰島單筆滿 ISK 6,000 可申請 24% VAT 退稅（實退約 14%）', '冰岛单笔满 ISK 6,000 可申请 24% VAT 退税（实退约 14%）', 'VAT refund over ISK 6,000 (~14% net refund)'],
   },
   {
     keywords: ['蘇黎世', '苏黎世', '日內瓦', '日内瓦', '策馬特', '采尔马特', '因特拉肯', '瑞士', 'zurich', 'geneva', 'switzerland'],
@@ -401,7 +540,9 @@ const PRESETS: DestinationPreset[] = [
     voltagePlug: ['230V · J型三圓孔', '230V · J型三圆孔', '230V · Type J'],
     emergency: ['緊急救援 112 / 144', '紧急救援 112 / 144', 'Emergency 112 / 144'],
     taxFreeThreshold: 300,
-    taxFreeNote: ['瑞士滿 CHF 300 可辦理退稅', '瑞士满 CHF 300 可办理退税', 'VAT refund available on spend over CHF 300'],
+    taxFreeVatRate: 8.1,
+    taxFreeRefundRate: 5.5,
+    taxFreeNote: ['瑞士同日同店滿 CHF 300 可退 8.1% VAT（實退約 5.5%）', '瑞士同日同店满 CHF 300 可退 8.1% VAT（实退约 5.5%）', 'VAT refund over CHF 300 (~5.5% net refund)'],
   },
   {
     keywords: ['紐約', '纽约', '洛杉磯', '洛杉矶', '舊金山', '旧金山', '西雅圖', '西雅图', '拉斯維加斯', '拉斯维加斯', '芝加哥', '夏威夷', '美國', '美国', 'new york', 'los angeles', 'san francisco', 'usa'],
@@ -415,6 +556,8 @@ const PRESETS: DestinationPreset[] = [
     voltagePlug: ['120V · A/B型扁插', '120V · A/B型扁插', '120V · Type A / B'],
     emergency: ['緊急救援 911', '紧急救援 911', 'Emergency 911'],
     taxFreeThreshold: null,
+    taxFreeVatRate: null,
+    taxFreeRefundRate: null,
     taxFreeNote: null,
   },
   {
@@ -429,7 +572,9 @@ const PRESETS: DestinationPreset[] = [
     voltagePlug: ['230V · I型八字扁插', '230V · I型八字扁插', '230V · Type I'],
     emergency: ['緊急救援 000', '紧急救援 000', 'Emergency 000'],
     taxFreeThreshold: 300,
-    taxFreeNote: ['澳洲同商號滿 A$300 可申請 TRS 退稅', '澳洲同商号满 A$300 可申请 TRS 退税', 'TRS GST refund available on spend over A$300'],
+    taxFreeVatRate: 10,
+    taxFreeRefundRate: 9.09,
+    taxFreeNote: ['澳洲同商號滿 A$300 可申請 10% GST 退稅（實退商品含稅價 1/11 ≈ 9.1%）', '澳洲同商号满 A$300 可申请 10% GST 退税（实退商品含税价 1/11 ≈ 9.1%）', 'TRS 10% GST refund over A$300 (~9.1% of retail price)'],
   },
   {
     keywords: ['奧克蘭', '奥克兰', '皇后鎮', '皇后镇', '紐西蘭', '新西兰', 'auckland', 'queenstown', 'new zealand'],
@@ -443,6 +588,8 @@ const PRESETS: DestinationPreset[] = [
     voltagePlug: ['230V · I型八字扁插', '230V · I型八字扁插', '230V · Type I'],
     emergency: ['緊急救援 111', '紧急救援 111', 'Emergency 111'],
     taxFreeThreshold: null,
+    taxFreeVatRate: null,
+    taxFreeRefundRate: null,
     taxFreeNote: null,
   },
   {
@@ -457,6 +604,8 @@ const PRESETS: DestinationPreset[] = [
     voltagePlug: ['120V · A/B型扁插', '120V · A/B型扁插', '120V · Type A / B'],
     emergency: ['緊急救援 911', '紧急救援 911', 'Emergency 911'],
     taxFreeThreshold: null,
+    taxFreeVatRate: null,
+    taxFreeRefundRate: null,
     taxFreeNote: null,
   },
   {
@@ -471,7 +620,9 @@ const PRESETS: DestinationPreset[] = [
     voltagePlug: ['230V · G型英式三方孔', '230V · G型英式三方孔', '230V · Type G (UK)'],
     emergency: ['報警 999 · 救護 998', '报警 999 · 急救 998', 'Police 999 · Ambulance 998'],
     taxFreeThreshold: 250,
-    taxFreeNote: ['杜拜單筆滿 AED 250 可辦理退稅', '迪拜单笔满 AED 250 可办理退税', 'VAT refund available on receipts over AED 250'],
+    taxFreeVatRate: 5,
+    taxFreeRefundRate: 4.25,
+    taxFreeNote: ['杜拜單筆滿 AED 250 可辦理 5% VAT 退稅（實退約 4.25%）', '迪拜单笔满 AED 250 可办理 5% VAT 退税（实退约 4.25%）', 'VAT refund over AED 250 (~4.25% net refund)'],
   },
   {
     keywords: ['伊斯坦堡', '伊斯坦布尔', '卡帕多奇亞', '卡帕多奇亚', '土耳其', 'istanbul', 'turkey'],
@@ -484,8 +635,10 @@ const PRESETS: DestinationPreset[] = [
     timezoneLabel: 'UTC+3',
     voltagePlug: ['220V · C/F型雙圓孔', '220V · C/F型双圆孔', '220V · Type C / F'],
     emergency: ['緊急救援 112', '紧急救援 112', 'Emergency 112'],
-    taxFreeThreshold: null,
-    taxFreeNote: null,
+    taxFreeThreshold: 1000,
+    taxFreeVatRate: 20,
+    taxFreeRefundRate: 8.5,
+    taxFreeNote: ['土耳其單筆滿 ₺1,000（服飾/精品/3C）可申請退稅（實退約 8.5%）', '土耳其单笔满 ₺1,000（服饰/精品/3C）可申请退税（实退约 8.5%）', 'Tax-free shopping over ₺1,000 (~8.5% net refund)'],
   },
 ];
 
@@ -572,6 +725,14 @@ const CITY_AIRPORTS: Record<string, AirportRaw[]> = {
   ],
   Munich: [{ code: 'MUC', names: ['慕尼黑機場 (MUC)', '慕尼黑机场 (MUC)', 'Munich Airport (MUC)'], query: 'Munich Airport' }],
   Barcelona: [{ code: 'BCN', names: ['巴塞隆納機場 (BCN)', '巴塞罗那机场 (BCN)', 'Barcelona El Prat Airport (BCN)'], query: 'Barcelona El Prat Airport' }],
+  Amsterdam: [{ code: 'AMS', names: ['史基浦機場 (AMS)', '史基浦机场 (AMS)', 'Amsterdam Airport Schiphol (AMS)'], query: 'Amsterdam Airport Schiphol' }],
+  Vienna: [{ code: 'VIE', names: ['維也納國際機場 (VIE)', '维也纳国际机场 (VIE)', 'Vienna International Airport (VIE)'], query: 'Vienna International Airport' }],
+  Lisbon: [{ code: 'LIS', names: ['里斯本機場 (LIS)', '里斯本机场 (LIS)', 'Lisbon Airport (LIS)'], query: 'Lisbon Humberto Delgado Airport' }],
+  Athens: [{ code: 'ATH', names: ['雅典國際機場 (ATH)', '雅典国际机场 (ATH)', 'Athens International Airport (ATH)'], query: 'Athens International Airport' }],
+  Brussels: [{ code: 'BRU', names: ['布魯塞爾機場 (BRU)', '布鲁塞尔机场 (BRU)', 'Brussels Airport (BRU)'], query: 'Brussels Airport' }],
+  Budapest: [{ code: 'BUD', names: ['布達佩斯機場 (BUD)', '布达佩斯机场 (BUD)', 'Budapest Ferenc Liszt Airport (BUD)'], query: 'Budapest Ferenc Liszt International Airport' }],
+  Prague: [{ code: 'PRG', names: ['布拉格瓦茨拉夫·哈維爾機場 (PRG)', '布拉格瓦茨拉夫·哈维尔机场 (PRG)', 'Václav Havel Airport Prague (PRG)'], query: 'Vaclav Havel Airport Prague' }],
+  Reykjavik: [{ code: 'KEF', names: ['凱夫拉維克機場 (KEF)', '凯夫拉维克机场 (KEF)', 'Keflavik International Airport (KEF)'], query: 'Keflavik International Airport' }],
   Zurich: [{ code: 'ZRH', names: ['蘇黎世機場 (ZRH)', '苏黎世机场 (ZRH)', 'Zurich Airport (ZRH)'], query: 'Zurich Airport' }],
   'New York': [
     { code: 'JFK', names: ['甘迺迪國際機場 (JFK)', '肯尼迪国际机场 (JFK)', 'John F. Kennedy International Airport (JFK)'], query: 'John F. Kennedy International Airport New York' },
@@ -753,6 +914,8 @@ export function detectDestinationIntel(rawDestination: string, lang: AppLanguage
         voltagePlug: pickText(preset.voltagePlug, lang),
         emergency: pickText(preset.emergency, lang),
         taxFreeThreshold: preset.taxFreeThreshold,
+        taxFreeVatRate: preset.taxFreeVatRate,
+        taxFreeRefundRate: preset.taxFreeRefundRate,
         taxFreeNote: preset.taxFreeNote ? pickText(preset.taxFreeNote, lang) : null,
         airports: resolveCityAirports(exactCityQuery, displayCity, lang),
       };
@@ -784,6 +947,8 @@ export function detectDestinationIntel(rawDestination: string, lang: AppLanguage
     voltagePlug: tr(lang, '出發前請確認當地轉接頭', '出发前请确认当地转接头', 'Check local power adapter before departure'),
     emergency: tr(lang, '國際緊急 112 / 911', '国际紧急 112 / 911', 'Emergency 112 / 911'),
     taxFreeThreshold: null,
+    taxFreeVatRate: null,
+    taxFreeRefundRate: null,
     taxFreeNote: null,
     airports: resolveCityAirports(fallbackCity, primaryCity ? displayCity : fallbackCity, lang),
   };

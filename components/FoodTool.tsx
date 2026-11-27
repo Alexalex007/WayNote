@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { Trip, Expense, Budget } from '../types';
 import { generateUniqueId } from '../shared/syncMerge';
 import { detectDestinationIntel } from '../shared/destinationIntel';
@@ -32,6 +32,7 @@ import {
   XMarkIcon,
   UsersIcon,
   EditIcon,
+  RefreshIcon,
 } from './Icons';
 
 interface Props {
@@ -52,6 +53,9 @@ const FALLBACK_RATES: Record<string, number> = {
   AUD: 0.197,
   SGD: 0.172,
   THB: 4.45,
+  CZK: 2.95,
+  ISK: 17.6,
+  HUF: 48.2,
 };
 
 function getCurrencySymbol(code: string): string {
@@ -77,12 +81,15 @@ function getCurrencySymbol(code: string): string {
     MOP: 'MOP$',
     TRY: '₺',
     AED: 'AED ',
+    CZK: 'Kč ',
+    ISK: 'ISK ',
+    HUF: 'Ft ',
   };
   return symbols[code] || `${code} `;
 }
 
 function formatMoney(amount: number, code: string): string {
-  const zeroDecimals = ['JPY', 'KRW', 'VND', 'IDR', 'TWD', 'HKD', 'THB'];
+  const zeroDecimals = ['JPY', 'KRW', 'VND', 'IDR', 'TWD', 'HKD', 'THB', 'CZK', 'ISK', 'HUF'];
   const rounded = zeroDecimals.includes(code) ? Math.round(amount) : Math.round(amount * 100) / 100;
   return `${getCurrencySymbol(code)}${rounded.toLocaleString(undefined, {
     maximumFractionDigits: zeroDecimals.includes(code) ? 0 : 2,
@@ -91,6 +98,7 @@ function formatMoney(amount: number, code: string): string {
 
 const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
   const { lang, localeTag, t } = useI18n();
+  const prefersReduced = useReducedMotion();
 
   const preTripCategories = useMemo(
     () => [
@@ -141,6 +149,9 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
       { code: 'MOP', name: t('澳門幣', '澳门元', 'Macanese Pataca') },
       { code: 'TRY', name: t('土耳其里拉', '土耳其里拉', 'Turkish Lira') },
       { code: 'AED', name: t('阿聯酋迪拉姆', '阿联酋迪拉姆', 'UAE Dirham') },
+      { code: 'CZK', name: t('捷克克朗', '捷克克朗', 'Czech Koruna') },
+      { code: 'ISK', name: t('冰島克朗', '冰岛克朗', 'Icelandic Króna') },
+      { code: 'HUF', name: t('匈牙利福林', '匈牙利福林', 'Hungarian Forint') },
     ],
     [t]
   );
@@ -184,13 +195,25 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
       return FALLBACK_RATES;
     }
   });
+  const [fxRefreshing, setFxRefreshing] = useState(false);
+  const [fxUpdatedAt, setFxUpdatedAt] = useState<number | null>(() => {
+    try {
+      const ts = Number(localStorage.getItem('sky_travel_rates_hkd_ts') || '0');
+      return Number.isFinite(ts) && ts > 0 ? ts : null;
+    } catch {
+      return null;
+    }
+  });
 
-  const [calcFrom, setCalcFrom] = useState(() => destinationIntel.currency || 'JPY');
-  const [calcTo, setCalcTo] = useState('HKD');
+  const [calcFrom, setCalcFrom] = useState('HKD');
+  const [calcTo, setCalcTo] = useState(() =>
+    destinationIntel.currency === 'HKD' ? 'JPY' : destinationIntel.currency || 'JPY'
+  );
   const [calcAmount, setCalcAmount] = useState<string>('');
 
   useEffect(() => {
-    setCalcFrom(destinationIntel.currency);
+    setCalcFrom('HKD');
+    setCalcTo(destinationIntel.currency === 'HKD' ? 'JPY' : destinationIntel.currency || 'JPY');
   }, [trip.id, destinationIntel.currency]);
 
   const [newExpense, setNewExpense] = useState<{
@@ -211,16 +234,57 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
     splitCount: 1,
   });
 
-  useEffect(() => {
-    fetch('https://api.exchangerate-api.com/v4/latest/HKD')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data?.rates) {
-          setExchangeRates(data.rates);
-          localStorage.setItem('sky_travel_rates_hkd', JSON.stringify(data.rates));
+  const fetchLiveRates = async (manual = false) => {
+    if (manual && fxRefreshing) return;
+    setFxRefreshing(true);
+    if (manual) tactileAudio.playClick(540, 0.04);
+    try {
+      let data: { rates?: Record<string, number> } | null = null;
+      try {
+        const res = await fetch(
+          `https://api.exchangerate-api.com/v4/latest/HKD${manual ? `?t=${Date.now()}` : ''}`
+        );
+        if (res.ok) data = await res.json();
+      } catch {
+        data = null;
+      }
+      if (!data?.rates) {
+        const res2 = await fetch('https://open.er-api.com/v6/latest/HKD');
+        if (res2.ok) data = await res2.json();
+      }
+      if (data?.rates) {
+        setExchangeRates(data.rates);
+        const now = Date.now();
+        setFxUpdatedAt(now);
+        localStorage.setItem('sky_travel_rates_hkd', JSON.stringify(data.rates));
+        localStorage.setItem('sky_travel_rates_hkd_ts', String(now));
+        if (manual) {
+          tactileAudio.playChime();
+          onShowToast(
+            t('已更新實時匯率（免費公開數據）', '已更新实时汇率（免费公开数据）', 'Live exchange rates updated'),
+            'success'
+          );
         }
-      })
-      .catch(() => {});
+      } else if (manual) {
+        onShowToast(
+          t('目前無法取得最新匯率，暫以快取計算', '当前无法获取最新汇率，暂以缓存计算', 'Could not refresh rates; using cached values'),
+          'info'
+        );
+      }
+    } catch {
+      if (manual) {
+        onShowToast(
+          t('目前無法取得最新匯率，暫以快取計算', '当前无法获取最新汇率，暂以缓存计算', 'Could not refresh rates; using cached values'),
+          'info'
+        );
+      }
+    } finally {
+      setFxRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetchLiveRates(false);
   }, []);
 
   const convert = (amount: number, from: string, to: string) => {
@@ -373,21 +437,60 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
     return convert(amt, calcFrom, calcTo);
   }, [calcAmount, calcFrom, calcTo, exchangeRates]);
 
+  const tripTaxCandidates = useMemo(() => {
+    const list = [destinationIntel];
+    if (trip.type === 'Multi' && trip.stops?.length) {
+      trip.stops.forEach((s) => {
+        if (!s.destination.trim()) return;
+        list.push(detectDestinationIntel(s.destination, lang));
+      });
+    }
+    return list;
+  }, [destinationIntel, trip.type, trip.stops, lang]);
+
   const activeTaxIntel = useMemo(() => {
-    const fromMatches = calcFrom === destinationIntel.currency;
-    const toMatches = calcTo === destinationIntel.currency;
-    if (!destinationIntel.taxFreeThreshold || (!fromMatches && !toMatches)) return null;
     const amt = parseFloat(calcAmount) || 0;
-    if (!amt) return null;
+    if (amt <= 0) return null;
+
+    const matched = tripTaxCandidates.find(
+      (intel) =>
+        intel.taxFreeThreshold !== null &&
+        intel.taxFreeRefundRate !== null &&
+        (intel.currency === calcTo || intel.currency === calcFrom)
+    );
+    if (!matched || matched.taxFreeThreshold === null || matched.taxFreeRefundRate === null) {
+      return null;
+    }
+
+    const fromMatches = calcFrom === matched.currency;
     const localVal = fromMatches ? amt : calcResult;
+    const otherCurrency = fromMatches ? calcTo : calcFrom;
+    const threshold = matched.taxFreeThreshold;
+    const isEligible = threshold === 0 ? localVal > 0 : localVal >= threshold;
+    const progressPct = threshold > 0 ? Math.min(100, (localVal / threshold) * 100) : 100;
+    const remainingLocal = Math.max(0, threshold - localVal);
+    const remainingOther = convert(remainingLocal, matched.currency, otherCurrency);
+    const estimatedRefundLocal = isEligible ? localVal * (matched.taxFreeRefundRate / 100) : 0;
+    const estimatedRefundOther = convert(estimatedRefundLocal, matched.currency, otherCurrency);
+
     return {
-      threshold: destinationIntel.taxFreeThreshold,
-      currency: destinationIntel.currency,
-      symbol: destinationIntel.currencySymbol,
-      countryLabel: destinationIntel.countryLabel,
+      threshold,
+      currency: matched.currency,
+      symbol: matched.currencySymbol,
+      countryLabel: matched.countryLabel,
+      vatRate: matched.taxFreeVatRate,
+      refundRate: matched.taxFreeRefundRate,
+      note: matched.taxFreeNote,
       value: localVal,
+      progressPct,
+      isEligible,
+      remainingLocal,
+      remainingOther,
+      otherCurrency,
+      estimatedRefundLocal,
+      estimatedRefundOther,
     };
-  }, [calcFrom, calcTo, calcAmount, calcResult, destinationIntel]);
+  }, [calcFrom, calcTo, calcAmount, calcResult, tripTaxCandidates, exchangeRates]);
 
   const commitExpenses = (nextExpenses: Expense[], deletedId?: string) => {
     const now = Date.now();
@@ -1247,39 +1350,67 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
 
               {/* Currency Converter & Dynamic Tax-Free */}
               <div className="lg:col-span-6 surface-elevated rounded-3xl p-5 sm:p-6 space-y-4">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2 text-zinc-900 dark:text-white">
                     <ArrowsRightLeftIcon className="w-4 h-4 text-[var(--tab-accent)]" />
                     <h3 className="font-display font-bold text-base">
                       {t('匯率換算', '汇率换算', 'Currency Converter')}
                     </h3>
                   </div>
-                  <span className="text-[11px] font-num text-zinc-500 dark:text-zinc-400">
-                    1 {calcFrom} ={' '}
-                    {(exchangeRates[calcTo] && exchangeRates[calcFrom]
-                      ? exchangeRates[calcTo] / exchangeRates[calcFrom]
-                      : 1
-                    ).toFixed(4)}{' '}
-                    {calcTo}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-num text-zinc-500 dark:text-zinc-400">
+                      1 {calcFrom} ={' '}
+                      {(exchangeRates[calcTo] && exchangeRates[calcFrom]
+                        ? exchangeRates[calcTo] / exchangeRates[calcFrom]
+                        : 1
+                      ).toFixed(4)}{' '}
+                      {calcTo}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => void fetchLiveRates(true)}
+                      disabled={fxRefreshing}
+                      title={
+                        fxUpdatedAt
+                          ? `${t('更新實時匯率（免費公開資料，上次更新：', '更新实时汇率（免费公开数据，上次更新：', 'Refresh live FX (free open feed, last: ')}${new Date(fxUpdatedAt).toLocaleTimeString(localeTag, { hour: '2-digit', minute: '2-digit' })}`
+                          : t('更新實時匯率', '更新实时汇率', 'Refresh live exchange rates')
+                      }
+                      className="min-h-[30px] px-2.5 rounded-full bg-zinc-100 dark:bg-white/[0.08] hover:bg-zinc-200/80 dark:hover:bg-white/[0.14] border border-zinc-200/70 dark:border-white/10 text-[11px] font-semibold text-zinc-700 dark:text-zinc-200 inline-flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-60 whitespace-nowrap shrink-0"
+                    >
+                      <RefreshIcon className={`w-3.5 h-3.5 ${fxRefreshing ? 'animate-spin text-[var(--tab-accent)]' : ''}`} />
+                      <span>{fxRefreshing ? t('更新中', '更新中', 'Updating') : t('實時匯率', '实时汇率', 'Refresh FX')}</span>
+                    </button>
+                  </div>
                 </div>
 
                 {multiCityCurrencies.length > 1 && (
                   <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
-                    {multiCityCurrencies.map((item) => (
-                      <button
-                        key={item.currency}
-                        type="button"
-                        onClick={() => setCalcFrom(item.currency)}
-                        className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                          calcFrom === item.currency
-                            ? 'bg-indigo-600 text-white'
-                            : 'bg-zinc-100 dark:bg-white/[0.06] text-zinc-600 dark:text-zinc-300'
-                        }`}
-                      >
-                        {item.city} · {item.currency}
-                      </button>
-                    ))}
+                    {multiCityCurrencies.map((item) => {
+                      const isActive = calcTo === item.currency || (calcFrom !== 'HKD' && calcFrom === item.currency);
+                      return (
+                        <button
+                          key={item.currency}
+                          type="button"
+                          onClick={() => {
+                            tactileAudio.playClick(500, 0.035);
+                            if (calcFrom === 'HKD' && item.currency !== 'HKD') {
+                              setCalcTo(item.currency);
+                            } else if (calcTo === 'HKD' && item.currency !== 'HKD') {
+                              setCalcFrom(item.currency);
+                            } else {
+                              setCalcTo(item.currency);
+                            }
+                          }}
+                          className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                            isActive
+                              ? 'bg-indigo-600 text-white'
+                              : 'bg-zinc-100 dark:bg-white/[0.06] text-zinc-600 dark:text-zinc-300'
+                          }`}
+                        >
+                          {item.city} · {item.currency}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
 
@@ -1320,6 +1451,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                     <button
                       type="button"
                       onClick={() => {
+                        tactileAudio.playClick(520, 0.035);
                         setCalcFrom(calcTo);
                         setCalcTo(calcFrom);
                       }}
@@ -1363,45 +1495,128 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                   <motion.div
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className={`rounded-2xl p-4 border flex items-center justify-between gap-3 ${
-                      activeTaxIntel.value >= activeTaxIntel.threshold
-                        ? 'bg-indigo-600/10 border-indigo-600/30'
+                    transition={{ duration: 0.25 }}
+                    className={`relative overflow-hidden rounded-2xl p-4 border flex items-center justify-between gap-3.5 transition-colors duration-300 ${
+                      activeTaxIntel.isEligible
+                        ? 'bg-amber-400/12 dark:bg-amber-500/14 border-amber-400/55 shadow-[0_10px_24px_-14px_rgba(245,158,11,0.55)]'
                         : 'bg-zinc-100/80 dark:bg-white/[0.04] border-zinc-200/70 dark:border-white/[0.06]'
                     }`}
                   >
-                    <div>
-                      <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300 block mb-0.5">
-                        {t(
-                          `${activeTaxIntel.countryLabel}退稅門檻 (${activeTaxIntel.symbol}${activeTaxIntel.threshold.toLocaleString()})`,
-                          `${activeTaxIntel.countryLabel}退税门槛 (${activeTaxIntel.symbol}${activeTaxIntel.threshold.toLocaleString()})`,
-                          `${activeTaxIntel.countryLabel} Tax-Free Threshold (${activeTaxIntel.symbol}${activeTaxIntel.threshold.toLocaleString()})`
-                        )}
+                    {/* Subtle low-opacity mini firework celebration when tax-free threshold is reached */}
+                    {activeTaxIntel.isEligible && (
+                      <div
+                        aria-hidden="true"
+                        className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-20 h-20 flex items-center justify-center opacity-35"
+                      >
+                        <motion.svg
+                          viewBox="0 0 80 80"
+                          className="w-full h-full text-amber-500 dark:text-amber-300"
+                          initial={prefersReduced ? undefined : { scale: 0.55, opacity: 0 }}
+                          animate={
+                            prefersReduced
+                              ? { scale: 1, opacity: 0.85 }
+                              : { scale: [0.6, 1.06, 1], opacity: [0, 1, 0.78] }
+                          }
+                          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+                        >
+                          <g stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                            <line x1="40" y1="6" x2="40" y2="15" />
+                            <line x1="40" y1="65" x2="40" y2="74" />
+                            <line x1="6" y1="40" x2="15" y2="40" />
+                            <line x1="65" y1="40" x2="74" y2="40" />
+                            <line x1="16" y1="16" x2="22" y2="22" />
+                            <line x1="58" y1="58" x2="64" y2="64" />
+                            <line x1="64" y1="16" x2="58" y2="22" />
+                            <line x1="22" y1="58" x2="16" y2="64" />
+                          </g>
+                          <circle cx="28" cy="11" r="1.4" fill="currentColor" />
+                          <circle cx="57" cy="14" r="1.2" fill="currentColor" />
+                          <circle cx="67" cy="52" r="1.5" fill="currentColor" />
+                          <circle cx="13" cy="54" r="1.2" fill="currentColor" />
+                        </motion.svg>
+                      </div>
+                    )}
+
+                    <div className="min-w-0 relative z-10 space-y-0.5">
+                      <span className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-300 block">
+                        {activeTaxIntel.threshold === 0
+                          ? t(
+                              `${activeTaxIntel.countryLabel}免稅額度（消費即享退稅）`,
+                              `${activeTaxIntel.countryLabel}免税额度（消费即享退税）`,
+                              `${activeTaxIntel.countryLabel} Tax-Free (No Min Spend)`
+                            )
+                          : t(
+                              `${activeTaxIntel.countryLabel}免稅額度（起退 ${formatMoney(activeTaxIntel.threshold, activeTaxIntel.currency)}）`,
+                              `${activeTaxIntel.countryLabel}免税额度（起退 ${formatMoney(activeTaxIntel.threshold, activeTaxIntel.currency)}）`,
+                              `${activeTaxIntel.countryLabel} Tax-Free (Min ${formatMoney(activeTaxIntel.threshold, activeTaxIntel.currency)})`
+                            )}
                       </span>
-                      {activeTaxIntel.value >= activeTaxIntel.threshold ? (
-                        <span className="font-semibold text-sm text-indigo-700 dark:text-indigo-400">
-                          {t('已達門檻 · 結帳出示護照', '已达门槛 · 结账出示护照', 'Eligible · Show passport at checkout')}
-                        </span>
+
+                      {activeTaxIntel.isEligible ? (
+                        <>
+                          <div className="font-display font-bold text-sm text-amber-700 dark:text-amber-300">
+                            {t('已達免稅額度 · 可申請退稅', '已达免税额度 · 可申请退税', 'Tax-Free Eligible')}
+                          </div>
+                          <div className="text-xs font-num font-semibold text-zinc-900 dark:text-white">
+                            {t('預計可退稅約 ', '预计可退税约 ', 'Est. refund ~')}
+                            <span className="text-amber-700 dark:text-amber-300 font-bold">
+                              {formatMoney(activeTaxIntel.estimatedRefundLocal, activeTaxIntel.currency)}
+                            </span>
+                            {activeTaxIntel.otherCurrency !== activeTaxIntel.currency && (
+                              <span className="text-zinc-500 dark:text-zinc-400">
+                                {' '}
+                                ({t('約 ', '约 ', '≈ ')}
+                                {formatMoney(activeTaxIntel.estimatedRefundOther, activeTaxIntel.otherCurrency)})
+                              </span>
+                            )}
+                          </div>
+                        </>
                       ) : (
-                        <span className="font-num font-bold text-sm text-zinc-900 dark:text-white">
-                          {t('還差 ', '还差 ', 'Add ')}
-                          {activeTaxIntel.symbol}
-                          {Math.ceil(activeTaxIntel.threshold - activeTaxIntel.value).toLocaleString()}
-                          {t('', '', ' more')}
-                        </span>
+                        <>
+                          <div className="font-num font-bold text-sm text-zinc-900 dark:text-white">
+                            {t('尚未達標 · 還差 ', '尚未达标 · 还差 ', 'Add ')}
+                            {formatMoney(activeTaxIntel.remainingLocal, activeTaxIntel.currency)}
+                            {activeTaxIntel.otherCurrency !== activeTaxIntel.currency && (
+                              <span className="text-xs font-normal text-zinc-500 dark:text-zinc-400">
+                                {' '}
+                                ({t('約 ', '约 ', '≈ ')}
+                                {formatMoney(activeTaxIntel.remainingOther, activeTaxIntel.otherCurrency)})
+                              </span>
+                            )}
+                          </div>
+                          {activeTaxIntel.note && (
+                            <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
+                              {activeTaxIntel.note}
+                            </p>
+                          )}
+                        </>
+                      )}
+
+                      {activeTaxIntel.isEligible && activeTaxIntel.note && (
+                        <p className="text-[11px] text-amber-800/75 dark:text-amber-200/75 truncate">
+                          {activeTaxIntel.note}
+                        </p>
                       )}
                     </div>
-                    {activeTaxIntel.value >= activeTaxIntel.threshold ? (
-                      <div className="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0">
-                        <CheckIcon className="w-5 h-5" />
-                      </div>
-                    ) : (
+
+                    {/* Circular Tax-Free Gauge (turns Golden Yellow at 100%) */}
+                    <div className="relative z-10 flex items-center justify-center shrink-0">
                       <CircularProgress
-                        percentage={(activeTaxIntel.value / activeTaxIntel.threshold) * 100}
-                        color="#4F46E5"
-                        size={46}
-                        stroke={4}
+                        percentage={activeTaxIntel.progressPct}
+                        color={activeTaxIntel.isEligible ? '#F59E0B' : '#4F46E5'}
+                        size={52}
+                        stroke={4.5}
                       />
-                    )}
+                      <span
+                        className={`absolute font-num font-bold text-[10px] ${
+                          activeTaxIntel.isEligible
+                            ? 'text-amber-600 dark:text-amber-300'
+                            : 'text-zinc-700 dark:text-zinc-200'
+                        }`}
+                      >
+                        {Math.round(activeTaxIntel.progressPct)}%
+                      </span>
+                    </div>
                   </motion.div>
                 )}
             </div>

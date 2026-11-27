@@ -19,7 +19,7 @@ import {
   tr,
 } from './shared/i18n';
 import ItineraryTool from './components/ItineraryTool';
-import ExploreTool, { ExploreSection } from './components/ExploreTool';
+import ExploreTool from './components/ExploreTool';
 import ExpensesTool from './components/FoodTool';
 import PrepToolboxTool from './components/PrepToolboxTool';
 import { GlobeBackdrop } from './components/GlobeBackdrop';
@@ -37,7 +37,8 @@ import {
   useAnyModalOpen,
 } from './components/LiquidPrimitives';
 import { DestinationCover } from './components/DestinationCover';
-import { StretchToggle, CopyMorphButton, DownloadProgressButton } from './components/TactileButtons';
+import { StretchToggle, CopyMorphButton, DownloadProgressButton, ShareAppButton } from './components/TactileButtons';
+import { buildTripIcs, buildGoogleCalendarEventUrl, downloadTripIcs } from './shared/calendarExport';
 import {
   WaynoteLogoIcon,
   WalletIcon,
@@ -70,6 +71,8 @@ import {
   UserCircleIcon,
   SpeakerWaveIcon,
   SpeakerXMarkIcon,
+  CalendarIcon,
+  ArrowUpRightIcon,
 } from './components/Icons';
 
 const APP_VERSION = 'v6.0.0';
@@ -781,7 +784,6 @@ function App() {
   const [isHomeJoining, setIsHomeJoining] = useState(false);
   const [isHomeWeatherOpen, setIsHomeWeatherOpen] = useState(false);
   const [focusDateSignal, setFocusDateSignal] = useState<{ date: string; nonce: number } | null>(null);
-  const [exploreSectionSignal, setExploreSectionSignal] = useState<{ section: ExploreSection; nonce: number } | null>(null);
   const homeCarouselRafRef = useRef<number | null>(null);
 
   // Modals State
@@ -792,6 +794,8 @@ function App() {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isArchiveConfirmOpen, setIsArchiveConfirmOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
+  const [calendarDayDate, setCalendarDayDate] = useState<string>('');
 
   // Toast & Top Sync Bubble State
   const [toast, setToast] = useState<{ id: number; text: string; tone?: 'info' | 'success' | 'error' } | null>(null);
@@ -1489,38 +1493,31 @@ function App() {
     );
   };
 
-  // --- Share & Export ---
-  const handleShare = async () => {
-    const shareUrl = tripData?.syncId
-      ? `${window.location.origin}${window.location.pathname}?sync=${encodeURIComponent(tripData.syncId)}`
-      : window.location.href;
+  // --- Calendar & Export ---
+  const calendarBundle = useMemo(() => (tripData ? buildTripIcs(tripData, lang) : { icsContent: '', filename: 'waynote.ics', eventCount: 0 }), [tripData, lang]);
 
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: tripData ? `${tripData.name} · Waynote` : 'Waynote',
-          text: tripData?.syncId
-            ? t(
-                `加入我的旅程「${tripData.name}」（同步碼：${tripData.syncId}）`,
-                `加入我的旅程「${tripData.name}」（同步码：${tripData.syncId}）`,
-                `Join my trip "${tripData.name}" (Sync Code: ${tripData.syncId})`
-              )
-            : t('Waynote 旅程規劃', 'Waynote 旅程规划', 'Waynote Travel Planner'),
-          url: shareUrl,
-        });
-        return;
-      } catch {
-        // User cancelled
+  const calendarDates = useMemo(() => {
+    if (!tripData) return [] as string[];
+    const startMs = Date.parse(`${tripData.startDate}T00:00:00Z`);
+    const endMs = Date.parse(`${tripData.endDate}T00:00:00Z`);
+    const list: string[] = [];
+    if (!Number.isNaN(startMs) && !Number.isNaN(endMs) && endMs >= startMs) {
+      const cur = new Date(startMs);
+      let guard = 0;
+      while (cur.getTime() <= endMs && guard < 90) {
+        list.push(cur.toISOString().slice(0, 10));
+        cur.setUTCDate(cur.getUTCDate() + 1);
+        guard += 1;
       }
     }
+    return list;
+  }, [tripData?.startDate, tripData?.endDate]);
 
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      showToast(t('已複製同步連結', '已复制同步链接', 'Sync link copied'), 'success');
-    } catch {
-      showToast(t('請至同步中心複製代碼', '请至同步中心复制代码', 'Copy the code in Sync Hub'), 'info');
+  useEffect(() => {
+    if (calendarDates.length > 0 && !calendarDates.includes(calendarDayDate)) {
+      setCalendarDayDate(calendarDates[0]);
     }
-  };
+  }, [calendarDates, calendarDayDate]);
 
   const exportContent = useMemo(() => {
     if (!tripData) return '';
@@ -2117,11 +2114,6 @@ function App() {
   const handleOpenItineraryDate = useCallback((date: string) => {
     setFocusDateSignal((prev) => ({ date, nonce: (prev?.nonce || 0) + 1 }));
     setActiveTab(Tab.ITINERARY);
-  }, []);
-
-  const handleOpenExplorePlanner = useCallback(() => {
-    setExploreSectionSignal((prev) => ({ section: 'PLANNER', nonce: (prev?.nonce || 0) + 1 }));
-    setActiveTab(Tab.EXPLORE);
   }, []);
 
   const handleHomeCarouselScroll = useCallback(
@@ -3043,9 +3035,9 @@ function App() {
                               {createPreviewIntel
                                 ? `${createPreviewIntel.countryLabel} · ${createPreviewIntel.currency} · ${createPreviewIntel.timezoneLabel}`
                                 : t(
-                                    `精選靈感 · ${localizeDestinationLabel(rotatingShowcaseCity, lang)}（輸入全球城市自動配對背景）`,
-                                    `精选灵感 · ${localizeDestinationLabel(rotatingShowcaseCity, lang)}（输入全球城市自动匹配背景）`,
-                                    `Featured · ${localizeDestinationLabel(rotatingShowcaseCity, lang)} (Enter any city to match)`
+                                    `精選靈感 · ${localizeDestinationLabel(rotatingShowcaseCity, lang)}`,
+                                    `精选灵感 · ${localizeDestinationLabel(rotatingShowcaseCity, lang)}`,
+                                    `Featured · ${localizeDestinationLabel(rotatingShowcaseCity, lang)}`
                                   )}
                             </span>
                           </div>
@@ -3461,7 +3453,6 @@ function App() {
                         onUpdateTrip={handleLocalUpdateTrip}
                         onShowToast={showToast}
                         focusDateSignal={focusDateSignal}
-                        onOpenExplorePlanner={handleOpenExplorePlanner}
                       />
                     )}
                     {activeTab === Tab.EXPLORE && (
@@ -3470,7 +3461,6 @@ function App() {
                         onUpdateTrip={handleLocalUpdateTrip}
                         onShowToast={showToast}
                         onOpenItineraryDate={handleOpenItineraryDate}
-                        focusSectionSignal={exploreSectionSignal}
                       />
                     )}
                     {activeTab === Tab.EXPENSES && (
@@ -3709,6 +3699,50 @@ function App() {
                                     className="shrink-0"
                                   />
                                 </div>
+
+                                <div className="pt-4 border-t border-zinc-200/70 dark:border-white/[0.08] flex items-center justify-between gap-3">
+                                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                                    <div className="w-9 h-9 rounded-xl bg-[var(--tab-accent-soft)] text-[var(--tab-accent)] flex items-center justify-center shrink-0">
+                                      <ShareIcon className="w-4 h-4" />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <div className="font-display font-bold text-sm text-zinc-900 dark:text-white truncate">
+                                        {t('分享本 App 給朋友', '分享本 App 给朋友', 'Share Waynote App')}
+                                      </div>
+                                      <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                                        {t(
+                                          '推薦 Waynote 給旅伴，不含私人行程碼',
+                                          '推荐 Waynote 给旅伴，不含私人行程码',
+                                          'Share cleanly without private trip codes'
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <ShareAppButton
+                                    shareUrl={
+                                      typeof window !== 'undefined'
+                                        ? `${window.location.origin}${window.location.pathname}`
+                                        : 'https://waynote.app'
+                                    }
+                                    shareTitle="Waynote"
+                                    shareText={t(
+                                      '推薦你用 Waynote 規劃旅行：即時跨裝置同步、智慧行程時間軸與旅遊開支分帳！',
+                                      '推荐你用 Waynote 规划旅行：实时跨设备同步、智能行程时间轴与旅行开支分账！',
+                                      'Plan trips together with Waynote — live sync, timeline itinerary, and smart travel splitting!'
+                                    )}
+                                    label={t('分享', '分享', 'Share')}
+                                    sharedLabel={t('已分享', '已分享', 'Shared')}
+                                    copiedLabel={t('已複製', '已复制', 'Copied')}
+                                    className="!min-h-[38px] !px-3.5 text-xs shrink-0"
+                                    onResult={(outcome) => {
+                                      if (outcome === 'copied') {
+                                        showToast(t('已複製 Waynote App 連結', '已复制 Waynote App 链接', 'Waynote app link copied'), 'success');
+                                      } else if (outcome === 'shared') {
+                                        showToast(t('感謝推薦 Waynote！', '感谢推荐 Waynote！', 'Thanks for sharing Waynote!'), 'success');
+                                      }
+                                    }}
+                                  />
+                                </div>
                               </div>
                             </section>
                           </div>
@@ -3744,19 +3778,22 @@ function App() {
 
                                 <button
                                   type="button"
-                                  onClick={handleShare}
+                                  onClick={() => {
+                                    setCalendarDayDate(calendarDates[0] || tripData.startDate);
+                                    setIsCalendarModalOpen(true);
+                                  }}
                                   className="w-full px-4 sm:px-5 py-3.5 flex items-center justify-between gap-3 text-left hover:bg-zinc-50/80 dark:hover:bg-white/[0.04] transition-colors cursor-pointer group"
                                 >
                                   <div className="flex items-center gap-3.5 min-w-0">
-                                    <div className="w-9 h-9 rounded-xl bg-indigo-500/12 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
-                                      <ShareIcon className="w-4 h-4" />
+                                    <div className="w-9 h-9 rounded-xl bg-emerald-500/12 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                                      <CalendarIcon className="w-4 h-4" />
                                     </div>
                                     <div className="min-w-0">
                                       <div className="font-semibold text-sm text-zinc-900 dark:text-white">
-                                        {t('分享旅程與協作', '分享旅程与协作', 'Share & Collaborate')}
+                                        {t('加入系統／Google 日曆', '加入系统／Google 日历', 'Add to System / Google Calendar')}
                                       </div>
                                       <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
-                                        {t('複製同步連結邀請旅伴即時編輯', '复制同步链接邀请旅伴实时编辑', 'Copy sync link to invite companions to edit live')}
+                                        {t('下載 .ics 行事曆檔或單筆加至 Google 日曆', '下载 .ics 日历文件或单条加至 Google 日历', 'Download .ics file or quick-add stops to Google Calendar')}
                                       </div>
                                     </div>
                                   </div>
@@ -3919,6 +3956,7 @@ function App() {
             onShowToast={showToast}
             cloudUser={cloudAuth.user}
             onOpenAuthModal={() => setIsAuthModalOpen(true)}
+            currentClientId={clientId}
           />
         )}
 
@@ -4156,6 +4194,151 @@ function App() {
             </div>
           </div>
         </LiquidModal>
+
+        {/* Calendar Export Modal (in Settings) */}
+        {tripData && (
+          <LiquidModal
+            open={isCalendarModalOpen}
+            onClose={() => setIsCalendarModalOpen(false)}
+            bottomSheetOnMobile
+            maxWidthClass="max-w-lg"
+            title={
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/12 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                  <CalendarIcon className="w-4 h-4" />
+                </div>
+                <span>{t('加入系統／Google 日曆', '加入系统／Google 日历', 'Add to System / Google Calendar')}</span>
+              </div>
+            }
+          >
+            <div className="overflow-y-auto no-scrollbar space-y-4 pr-0.5">
+              {calendarBundle.eventCount === 0 ? (
+                <div className="p-6 rounded-2xl bg-zinc-50 dark:bg-white/[0.04] border border-zinc-200/70 dark:border-white/10 text-center space-y-2">
+                  <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+                    {t('目前尚無可匯出的行程或航班', '当前暂无可导出的行程或航班', 'No scheduled activities or flights yet')}
+                  </p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                    {t('先新增每日行程或航班，即可一鍵匯出至日曆。', '先添加每日行程或航班，即可一键导出至日历。', 'Add an activity or flight first to export to your calendar.')}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Whole-Trip One-Click .ics Download with Gallery Download Ring 0->100% animation */}
+                  <div className="p-4 rounded-2xl bg-zinc-50/90 dark:bg-white/[0.04] border border-zinc-200/70 dark:border-white/10 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-sm font-display font-bold text-zinc-900 dark:text-white">
+                          {t('整趟旅程一鍵匯入 (.ics)', '整趟旅程一键导入 (.ics)', 'Full-Trip Calendar File (.ics)')}
+                        </div>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed">
+                          {t(
+                            '適用 Apple 日曆（iPhone / Mac）、Samsung 日曆及 Google 日曆匯入，自動換算目的地與航班時區。',
+                            '适用 Apple 日历（iPhone / Mac）、Samsung 日历及 Google 日历导入，自动换算目的地与航班时区。',
+                            'Works with Apple Calendar, Samsung Calendar, and Google Calendar import with exact timezone conversion.'
+                          )}
+                        </p>
+                      </div>
+                      <span className="text-xs font-num font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
+                        {t(`共 ${calendarBundle.eventCount} 筆`, `共 ${calendarBundle.eventCount} 条`, `${calendarBundle.eventCount} events`)}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-center pt-0.5">
+                      <DownloadProgressButton
+                        variant="accent"
+                        label={t('下載行事曆檔 (.ics)', '下载日历文件 (.ics)', 'Download .ics File')}
+                        doneLabel={t('已下載', '已下载', 'Downloaded')}
+                        icon={<ArrowDownTrayIcon className="w-4 h-4" />}
+                        onDownload={() => {
+                          downloadTripIcs(calendarBundle.icsContent, calendarBundle.filename);
+                          showToast(
+                            t('已下載整趟旅程 .ics 檔案，開啟即可全部加入日曆', '已下载整趟旅程 .ics 文件，打开即可全部加入日历', 'Downloaded .ics — open it to add all events'),
+                            'success'
+                          );
+                        }}
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Direct 1-Tap Google Calendar Links by Day */}
+                  <div className="p-4 rounded-2xl bg-zinc-50/90 dark:bg-white/[0.04] border border-zinc-200/70 dark:border-white/10 space-y-3">
+                    <div className="text-sm font-display font-bold text-zinc-900 dark:text-white">
+                      {t('快速單筆加入 Google 日曆', '快速单条加入 Google 日历', 'Quick Add to Google Calendar')}
+                    </div>
+
+                    {calendarDates.length > 0 && (
+                      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+                        {calendarDates.map((d, idx) => {
+                          const active = d === calendarDayDate;
+                          return (
+                            <button
+                              key={d}
+                              type="button"
+                              onClick={() => setCalendarDayDate(d)}
+                              className={`h-8 px-3 rounded-full text-xs font-num font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                                active
+                                  ? 'bg-[var(--tab-accent)] text-white shadow-sm'
+                                  : 'bg-white dark:bg-zinc-900/70 border border-zinc-200/70 dark:border-white/10 text-zinc-600 dark:text-zinc-300'
+                              }`}
+                            >
+                              D{idx + 1} · {d.slice(5)}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                      {t(
+                        'Google 日曆網頁版僅支援單筆連結預填；若要一次匯入全部天數，請下載上方 .ics 並在 Google 日曆匯入。',
+                        'Google 日历网页版仅支持单条链接预填；若要一次导入全部天数，请下载上方 .ics 并在 Google 日历导入。',
+                        'Google Calendar links add one stop per tap. To import all days at once, download the .ics file above.'
+                      )}
+                    </p>
+
+                    {(tripData.activities[calendarDayDate] || []).length === 0 ? (
+                      <p className="text-xs text-zinc-400 py-2">
+                        {t('此日暫無行程項目', '此日暂无行程项目', 'No activities on this day')}
+                      </p>
+                    ) : (
+                      <div className="space-y-1.5 max-h-52 overflow-y-auto no-scrollbar pt-0.5">
+                        {(tripData.activities[calendarDayDate] || []).map((act) => {
+                          const timeText =
+                            act.type === 'flight' && act.flightInfo
+                              ? act.flightInfo.departureTime
+                              : act.time;
+                          return (
+                            <a
+                              key={act.id}
+                              href={buildGoogleCalendarEventUrl(tripData, calendarDayDate, act, lang)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl bg-white dark:bg-zinc-900/70 border border-zinc-200/70 dark:border-white/10 hover:border-[var(--tab-accent)]/40 transition-colors"
+                            >
+                              <div className="min-w-0 flex items-center gap-2.5">
+                                <span className="text-xs font-num font-bold text-[#F26B3A] shrink-0">
+                                  {timeText}
+                                </span>
+                                <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-100 truncate">
+                                  {act.title}
+                                </span>
+                              </div>
+                              <span className="text-[11px] font-semibold text-blue-600 dark:text-sky-400 inline-flex items-center gap-1 shrink-0 whitespace-nowrap">
+                                <span>Google +</span>
+                                <ArrowUpRightIcon className="w-3 h-3" />
+                              </span>
+                            </a>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </LiquidModal>
+        )}
       </div>
     </MotionConfig>
   );

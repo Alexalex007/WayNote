@@ -215,24 +215,26 @@ const ExploreTool: React.FC<Props> = ({
   const [plannerRouteStops, setPlannerRouteStops] = useState<Activity[]>([]);
   const [showPlannerRouteModal, setShowPlannerRouteModal] = useState(false);
 
-  // Inline AI Spot Discovery State + Anti-Duplicate Session History
+  // Inline AI Spot Discovery State (strictly manual trigger + per-category cache + anti-duplicate history)
   const [aiFocusCategory, setAiFocusCategory] = useState<AiFocusCategory>('sightseeing');
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
-  const [aiSuggestions, setAiSuggestions] = useState<AiExploreSuggestion[]>([]);
-  const [aiBatchNum, setAiBatchNum] = useState(0);
+  const [aiSuggestionsByCategory, setAiSuggestionsByCategory] = useState<
+    Partial<Record<AiFocusCategory, { spots: AiExploreSuggestion[]; batchNum: number }>>
+  >({});
   const seenAiNamesRef = useRef<Set<string>>(new Set());
   const seenAiKeysRef = useRef<Set<string>>(new Set());
   const aiBatchSeedRef = useRef<number>(0);
-  const initialDiscoverAttemptedRef = useRef<string | null>(null);
+
+  const currentDiscovery = aiSuggestionsByCategory[aiFocusCategory];
+  const aiSuggestions = currentDiscovery?.spots || [];
+  const aiBatchNum = currentDiscovery?.batchNum || 0;
 
   useEffect(() => {
     seenAiNamesRef.current.clear();
     seenAiKeysRef.current.clear();
     aiBatchSeedRef.current = 0;
-    initialDiscoverAttemptedRef.current = null;
-    setAiBatchNum(0);
-    setAiSuggestions([]);
+    setAiSuggestionsByCategory({});
     setAiError(null);
   }, [trip.id, trip.destination, lang]);
 
@@ -462,14 +464,19 @@ const ExploreTool: React.FC<Props> = ({
     );
   };
 
-  const handleFetchAiSpots = async (overrideCategory: AiFocusCategory = aiFocusCategory, resetHistory = false) => {
-    if (resetHistory) {
-      seenAiNamesRef.current.clear();
-      seenAiKeysRef.current.clear();
-      aiBatchSeedRef.current = 0;
-      setAiBatchNum(0);
-    }
+  const handleResetAiHistory = () => {
+    seenAiNamesRef.current.clear();
+    seenAiKeysRef.current.clear();
+    aiBatchSeedRef.current = 0;
+    setAiSuggestionsByCategory({});
+    setAiError(null);
+    onShowToast(
+      t('已清除已看過紀錄，需要時再點按開始探索', '已清除已看过记录，需要时再点击开始探索', 'Cleared discovery history'),
+      'info'
+    );
+  };
 
+  const handleFetchAiSpots = async (overrideCategory: AiFocusCategory = aiFocusCategory) => {
     setAiLoading(true);
     setAiError(null);
     const nextBatch = aiBatchSeedRef.current + 1;
@@ -541,8 +548,10 @@ const ExploreTool: React.FC<Props> = ({
         if (key) seenAiKeysRef.current.add(key);
       });
 
-      setAiSuggestions(finalSpots);
-      setAiBatchNum(nextBatch);
+      setAiSuggestionsByCategory((prev) => ({
+        ...prev,
+        [overrideCategory]: { spots: finalSpots, batchNum: nextBatch },
+      }));
     } catch (err) {
       setAiError(
         err instanceof Error
@@ -553,21 +562,6 @@ const ExploreTool: React.FC<Props> = ({
       setAiLoading(false);
     }
   };
-
-  // Auto-load initial AI discovery batch once when visiting DISCOVER view
-  useEffect(() => {
-    const attemptKey = `${trip.id}::${trip.destination}::${lang}`;
-    if (
-      activeSection === 'DISCOVER' &&
-      aiSuggestions.length === 0 &&
-      !aiLoading &&
-      !aiError &&
-      initialDiscoverAttemptedRef.current !== attemptKey
-    ) {
-      initialDiscoverAttemptedRef.current = attemptKey;
-      void handleFetchAiSpots(aiFocusCategory);
-    }
-  }, [activeSection, trip.id, trip.destination, lang, aiSuggestions.length, aiLoading, aiError]);
 
   const handleCollectAiSpot = (spot: AiExploreSuggestion): SavedPlace | null => {
     const existing = savedPlaces.find(
@@ -797,7 +791,7 @@ const ExploreTool: React.FC<Props> = ({
                     type="button"
                     onClick={() => {
                       setAiFocusCategory(tab.id);
-                      void handleFetchAiSpots(tab.id);
+                      setAiError(null);
                     }}
                     className={`h-9 px-3.5 rounded-full text-xs font-semibold shrink-0 cursor-pointer transition-all ${
                       aiFocusCategory === tab.id
@@ -811,10 +805,10 @@ const ExploreTool: React.FC<Props> = ({
               </div>
 
               <div className="flex items-center gap-1.5 shrink-0">
-                {aiBatchNum > 1 && (
+                {(Object.keys(aiSuggestionsByCategory).length > 0 || seenAiNamesRef.current.size > 0) && (
                   <button
                     type="button"
-                    onClick={() => void handleFetchAiSpots(aiFocusCategory, true)}
+                    onClick={handleResetAiHistory}
                     className="h-9 px-3 rounded-full bg-zinc-100/90 dark:bg-white/[0.08] text-zinc-600 dark:text-zinc-300 text-xs font-medium hover:text-zinc-900 dark:hover:text-white cursor-pointer whitespace-nowrap"
                   >
                     {t('重置紀錄', '重置记录', 'Reset')}
@@ -826,8 +820,18 @@ const ExploreTool: React.FC<Props> = ({
                   onClick={() => void handleFetchAiSpots(aiFocusCategory)}
                   className="h-9 px-4 rounded-full bg-zinc-900 dark:bg-white/14 text-white text-xs font-semibold disabled:opacity-50 cursor-pointer shrink-0 flex items-center gap-1.5 whitespace-nowrap active:scale-[0.98] transition-all"
                 >
-                  <RefreshIcon className={`w-3.5 h-3.5 ${aiLoading ? 'animate-spin' : ''}`} />
-                  <span>{aiLoading ? t('搜尋中...', '搜索中...', 'Searching...') : t('換一批', '换一批', 'Refresh')}</span>
+                  {aiSuggestions.length > 0 ? (
+                    <RefreshIcon className={`w-3.5 h-3.5 ${aiLoading ? 'animate-spin' : ''}`} />
+                  ) : (
+                    <SparklesIcon className={`w-3.5 h-3.5 ${aiLoading ? 'animate-pulse' : ''}`} />
+                  )}
+                  <span>
+                    {aiLoading
+                      ? t('搜尋中...', '搜索中...', 'Searching...')
+                      : aiSuggestions.length > 0
+                        ? t('換一批', '换一批', 'Refresh')
+                        : t('開始探索', '开始探索', 'Discover')}
+                  </span>
                 </button>
               </div>
             </div>
@@ -970,18 +974,42 @@ const ExploreTool: React.FC<Props> = ({
               )}
 
               {!aiLoading && !aiError && aiSuggestions.length === 0 && (
-                <div className="surface-elevated rounded-3xl p-8 text-center space-y-3">
-                  <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-                    {t(`探索 ${intel.displayCity} 的精選去處`, `探索 ${intel.displayCity} 的精选去处`, `Explore ${intel.displayCity}`)}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => void handleFetchAiSpots(aiFocusCategory)}
-                    className="h-10 px-5 rounded-full bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <SparklesIcon className="w-4 h-4" />
-                    <span>{t('開始探索推薦', '开始探索推荐', 'Discover Spots')}</span>
-                  </button>
+                <div className="surface-elevated rounded-3xl p-7 sm:p-9 text-center space-y-4">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#E11D48]/15 to-[#F97316]/15 text-[#E11D48] dark:text-amber-300 flex items-center justify-center mx-auto">
+                    <SparklesIcon className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-1.5 max-w-md mx-auto">
+                    <h3 className="text-base font-display font-bold text-zinc-900 dark:text-white">
+                      {t(
+                        `按需探索 ${intel.displayCity} 的${categoryMeta[aiFocusCategory].label}`,
+                        `按需探索 ${intel.displayCity} 的${categoryMeta[aiFocusCategory].label}`,
+                        `Discover ${categoryMeta[aiFocusCategory].label} in ${intel.displayCity}`
+                      )}
+                    </h3>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                      {t(
+                        '為節省費用，切換分類或進入此頁不會自動呼叫 AI；需要時再點按下方按鈕一次生成約 10 個精選推薦。',
+                        '为节省费用，切换分类或进入此页不会自动调用 AI；需要时再点击下方按钮一次生成约 10 个精选推荐。',
+                        'AI runs only when you tap Discover so switching categories never wastes credits.'
+                      )}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => void handleFetchAiSpots(aiFocusCategory)}
+                      className="min-h-[44px] px-5 rounded-full bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white text-xs sm:text-sm font-semibold inline-flex items-center gap-1.5 cursor-pointer shadow-[0_10px_22px_-8px_rgba(225,29,72,0.5)] active:scale-[0.98] transition-all"
+                    >
+                      <SparklesIcon className="w-4 h-4" />
+                      <span>
+                        {t(
+                          `開始 AI 探索「${categoryMeta[aiFocusCategory].label}」`,
+                          `开始 AI 探索「${categoryMeta[aiFocusCategory].label}」`,
+                          `Explore ${categoryMeta[aiFocusCategory].label} with AI`
+                        )}
+                      </span>
+                    </button>
+                  </div>
                 </div>
               )}
 
