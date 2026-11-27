@@ -118,8 +118,8 @@ export const SyncHubModal: React.FC<SyncHubModalProps> = ({
                 </div>
                 <div className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
                   {cloudUser
-                    ? t('所有旅程已私人同步，他人無法檢視', '所有旅程已私人同步，他人无法查看', 'All trips synced privately across your devices')
-                    : t('登入後無須代碼，自動跨裝置同步全部旅程', '登录后无需代码，自动跨设备同步全部旅程', 'Sync all trips automatically without codes')}
+                    ? t('個人私人雲端同步中', '个人私人云端同步中', 'Private cloud sync active')
+                    : t('登入自動跨裝置同步全部旅程', '登录自动跨设备同步全部旅程', 'Sync all trips automatically')}
                 </div>
               </div>
             </div>
@@ -195,7 +195,7 @@ export const SyncHubModal: React.FC<SyncHubModalProps> = ({
 
           <div className="w-full space-y-1.5">
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              {t('掃描 QR Code 或輸入代碼即可雙向同步', '扫描二维码或输入代码即可双向同步', 'Scan QR code or enter code for live sync')}
+              {t('掃碼或輸入代碼即時同步', '扫码或输入代码实时同步', 'Scan QR or enter code to sync')}
             </p>
             <div className="flex items-center justify-center gap-2">
               <span className="font-num font-bold text-lg tracking-wide text-zinc-900 dark:text-white select-all">

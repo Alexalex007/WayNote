@@ -911,12 +911,12 @@ const ExploreTool: React.FC<Props> = ({
             >
               {aiBatchNum > 0 && !aiLoading && !aiError && (
                 <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400 px-1.5 font-num">
-                  <span>{t(`第 ${aiBatchNum} 批精選結果`, `第 ${aiBatchNum} 批精选结果`, `Batch #${aiBatchNum}`)}</span>
+                  <span>{t(`第 ${aiBatchNum} 批推薦`, `第 ${aiBatchNum} 批推荐`, `Batch #${aiBatchNum}`)}</span>
                   <span>
                     {t(
-                      `已排除 ${seenAiNamesRef.current.size} 個已看過／已收錄地點`,
-                      `已排除 ${seenAiNamesRef.current.size} 个已看过／已收藏地点`,
-                      `${seenAiNamesRef.current.size} seen/saved excluded`
+                      `已排除 ${seenAiNamesRef.current.size} 處`,
+                      `已排除 ${seenAiNamesRef.current.size} 处`,
+                      `${seenAiNamesRef.current.size} excluded`
                     )}
                   </span>
                 </div>
@@ -988,9 +988,9 @@ const ExploreTool: React.FC<Props> = ({
                     </h3>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
                       {t(
-                        '為節省費用，切換分類或進入此頁不會自動呼叫 AI；需要時再點按下方按鈕一次生成約 10 個精選推薦。',
-                        '为节省费用，切换分类或进入此页不会自动调用 AI；需要时再点击下方按钮一次生成约 10 个精选推荐。',
-                        'AI runs only when you tap Discover so switching categories never wastes credits.'
+                        '點擊下方按鈕即時探索約 10 個推薦地點',
+                        '点击下方按钮实时探索约 10 个推荐地点',
+                        'Tap below to discover ~10 curated spots on demand.'
                       )}
                     </p>
                   </div>

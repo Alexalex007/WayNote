@@ -1355,7 +1355,7 @@ const ItineraryTool: React.FC<Props> = ({
           <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar pb-6 lg:pb-10 pr-0.5">
             {!isLocked && canSort && (
               <div className="mb-3 px-4 py-2 rounded-2xl bg-[#F26B3A]/10 text-[#F26B3A] text-xs font-semibold flex items-center justify-between">
-                <span>{t('長按或拖曳行程卡片即可自由調整順序', '长按或拖拽行程卡片即可自由调整顺序', 'Drag activity cards to reorder')}</span>
+                <span>{t('拖曳卡片調整順序', '拖拽卡片调整顺序', 'Drag cards to reorder')}</span>
                 <button
                   type="button"
                   onClick={() => setIsLocked(true)}
@@ -2528,7 +2528,7 @@ const ItineraryTool: React.FC<Props> = ({
 
               <div>
                 <label className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 block mb-1">
-                  {t('酒店名稱（系統將自動配對地圖位置）', '酒店名称（系统将自动匹配地图位置）', 'Hotel name (auto-matched on route map)')}
+                  {t('酒店名稱', '酒店名称', 'Hotel Name')}
                 </label>
                 <input
                   required
@@ -2543,7 +2543,7 @@ const ItineraryTool: React.FC<Props> = ({
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
-                    {t('點選或滑動選擇入住與退房日期', '点选或滑动选择入住与退房日期', 'Tap or drag check-in and check-out dates')}
+                    {t('入住與退房日期', '入住与退房日期', 'Check-in & Check-out')}
                   </span>
                   {getDaySpanUtc(hotelDraft.checkIn, hotelDraft.checkOut) && (
                     <span className="text-[11px] font-num font-bold text-indigo-600 dark:text-indigo-400">

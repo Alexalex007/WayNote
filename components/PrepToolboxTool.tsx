@@ -23,13 +23,54 @@ import {
   PhotoIcon,
   PaperClipIcon,
   ArrowUpRightIcon,
+  ChevronRightIcon,
   ClockIcon,
+  GlobeIcon,
   ArrowDownTrayIcon,
   PlaneIcon,
   HomeIcon,
   TicketIcon,
   ShieldCheckIcon,
+  TagIcon,
+  TranslateIcon,
 } from './Icons';
+
+function resolveTranslateTarget(
+  cityQuery: string,
+  currency: string,
+  t: (tw: string, cn: string, en: string) => string
+): { tl: string; label: string } {
+  const q = cityQuery.toLowerCase();
+  if (currency === 'JPY') return { tl: 'ja', label: t('日文翻譯', '日文翻译', 'Japanese') };
+  if (currency === 'KRW') return { tl: 'ko', label: t('韓文翻譯', '韩文翻译', 'Korean') };
+  if (currency === 'THB') return { tl: 'th', label: t('泰文翻譯', '泰文翻译', 'Thai') };
+  if (currency === 'VND') return { tl: 'vi', label: t('越文翻譯', '越文翻译', 'Vietnamese') };
+  if (currency === 'IDR') return { tl: 'id', label: t('印尼文翻譯', '印尼文翻译', 'Indonesian') };
+  if (currency === 'MYR') return { tl: 'ms', label: t('馬來文翻譯', '马来文翻译', 'Malay') };
+  if (currency === 'CHF' || /(berlin|munich|frankfurt|vienna|zurich)/.test(q)) {
+    return { tl: 'de', label: t('德文翻譯', '德文翻译', 'German') };
+  }
+  if (/(paris|nice|lyon|marseille|brussels)/.test(q)) {
+    return { tl: 'fr', label: t('法文翻譯', '法文翻译', 'French') };
+  }
+  if (/(rome|milan|venice|florence|naples)/.test(q)) {
+    return { tl: 'it', label: t('義大利文翻譯', '意大利文翻译', 'Italian') };
+  }
+  if (/(madrid|barcelona|seville)/.test(q)) {
+    return { tl: 'es', label: t('西班牙文翻譯', '西班牙文翻译', 'Spanish') };
+  }
+  if (/(lisbon|porto)/.test(q)) return { tl: 'pt', label: t('葡文翻譯', '葡文翻译', 'Portuguese') };
+  if (/(amsterdam|rotterdam)/.test(q)) return { tl: 'nl', label: t('荷文翻譯', '荷文翻译', 'Dutch') };
+  if (currency === 'CZK') return { tl: 'cs', label: t('捷克文翻譯', '捷克文翻译', 'Czech') };
+  if (currency === 'HUF') return { tl: 'hu', label: t('匈牙利文翻譯', '匈牙利文翻译', 'Hungarian') };
+  if (currency === 'ISK') return { tl: 'is', label: t('冰島文翻譯', '冰岛文翻译', 'Icelandic') };
+  if (currency === 'TRY') return { tl: 'tr', label: t('土耳其文翻譯', '土耳其文翻译', 'Turkish') };
+  if (currency === 'AED') return { tl: 'ar', label: t('阿拉伯文翻譯', '阿拉伯文翻译', 'Arabic') };
+  if (['TWD', 'HKD', 'MOP', 'CNY'].includes(currency)) {
+    return { tl: 'en', label: t('英文翻譯', '英文翻译', 'English') };
+  }
+  return { tl: 'en', label: t('英文翻譯', '英文翻译', 'English') };
+}
 
 interface Props {
   trip: Trip;
@@ -194,6 +235,8 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [deleteDocTarget, setDeleteDocTarget] = useState<DocumentItem | null>(null);
   const [showWeatherModal, setShowWeatherModal] = useState(false);
+  const [showDestDetailModal, setShowDestDetailModal] = useState(false);
+  const [detailCityIndex, setDetailCityIndex] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -320,6 +363,46 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
   const searchCity = encodeURIComponent(primaryCity);
   const encodedDest = encodeURIComponent(trip.destination);
   const primaryPhone = intel.emergency.match(/\d{3,4}/)?.[0] || '112';
+  const translateSpec = useMemo(
+    () => resolveTranslateTarget(intel.cityQuery, intel.currency, t),
+    [intel.cityQuery, intel.currency, t]
+  );
+
+  const detailCities = useMemo(() => {
+    const raw =
+      trip.type === 'Multi' && trip.stops && trip.stops.length > 0
+        ? trip.stops.map((s) => s.destination.trim()).filter(Boolean)
+        : [primaryCity];
+    return Array.from(new Set(raw));
+  }, [trip.type, trip.stops, primaryCity]);
+
+  const activeDetailCity = detailCities[detailCityIndex] || primaryCity;
+  const activeDetailIntel = useMemo(
+    () => detectDestinationIntel(activeDetailCity, lang),
+    [activeDetailCity, lang]
+  );
+  const activeDetailClock = getDestinationLocalTime(
+    detailCityIndex === 0 && liveWeather.data?.utcOffsetHours !== undefined
+      ? liveWeather.data.utcOffsetHours
+      : activeDetailIntel.utcOffsetHours,
+    lang
+  );
+
+  const formatTimeDiffLabel = (offsetHours: number) => {
+    const localDeviceOffset = -new Date().getTimezoneOffset() / 60;
+    const diff = Math.round((offsetHours - localDeviceOffset) * 10) / 10;
+    if (Math.abs(diff) < 0.05) return t('與本機同時區', '与本机同时区', 'Same as device');
+    const absStr = Number.isInteger(diff) ? String(Math.abs(diff)) : Math.abs(diff).toFixed(1);
+    return diff > 0
+      ? t(`比本機快 ${absStr} 小時`, `比本机快 ${absStr} 小时`, `+${absStr}h ahead`)
+      : t(`比本機慢 ${absStr} 小時`, `比本机慢 ${absStr} 小时`, `${absStr}h behind`);
+  };
+
+  const openDestDetail = () => {
+    tactileAudio.playClick(520, 0.035);
+    setDetailCityIndex(0);
+    setShowDestDetailModal(true);
+  };
 
   const currentTabItems = useMemo(() => {
     const filtered = items.filter((item) =>
@@ -583,20 +666,41 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
     setDeleteDocTarget(null);
   };
 
-  const renderDestinationCard = () => (
-    <div className="ink-card rounded-3xl p-5 sm:p-6 flex flex-col justify-between gap-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-xs text-zinc-400">
+  const renderDestinationCard = (compact = false) => (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={openDestDetail}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          openDestDetail();
+        }
+      }}
+      className={`ink-card rounded-3xl flex flex-col justify-between text-left cursor-pointer hover:brightness-[1.03] active:scale-[0.99] transition-all focus:outline-none focus:ring-2 focus:ring-sky-400/60 ${
+        compact ? 'p-3.5 sm:p-5 gap-2.5 sm:gap-4 h-full' : 'p-5 sm:p-6 gap-5'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2.5">
+        <div className="min-w-0">
+          <div className="text-[11px] sm:text-xs text-zinc-400 truncate">
             {intel.countryLabel} · {intel.timezoneLabel}
           </div>
-          <h2 className="text-2xl font-display font-bold text-white mt-0.5">{intel.displayCity}</h2>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <h2 className={`${compact ? 'text-lg sm:text-2xl' : 'text-2xl'} font-display font-bold text-white truncate`}>
+              {intel.displayCity}
+            </h2>
+            <ChevronRightIcon className="w-4 h-4 text-zinc-400 shrink-0" />
+          </div>
         </div>
 
         <button
           type="button"
-          onClick={() => setShowWeatherModal(true)}
-          className="min-h-[40px] px-4 rounded-full bg-white/10 hover:bg-white/18 text-white text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer shrink-0"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowWeatherModal(true);
+          }}
+          className={`${compact ? 'min-h-[34px] px-3' : 'min-h-[40px] px-4'} rounded-full bg-white/10 hover:bg-white/18 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0`}
         >
           {liveWeather.data ? (
             <>
@@ -611,35 +715,36 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
           ) : (
             <>
               <SunIcon className="w-4 h-4 text-amber-300" />
-              <span>{t('即時天氣', '实时天气', 'Live Weather')}</span>
+              <span>{t('即時天氣', '实时天气', 'Weather')}</span>
             </>
           )}
         </button>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 pt-4 border-t border-white/10 text-xs">
+      <div className={`grid grid-cols-3 gap-2 sm:gap-3 ${compact ? 'pt-2.5 sm:pt-3.5' : 'pt-4'} border-t border-white/10 text-xs`}>
         <div>
-          <div className="text-zinc-400 flex items-center gap-1 mb-0.5">
-            <ClockIcon className="w-3.5 h-3.5" />
-            <span>{t('當地時間', '当地时间', 'Local Time')}</span>
+          <div className="text-zinc-400 flex items-center gap-1 mb-0.5 text-[11px]">
+            <ClockIcon className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">{t('當地時間', '当地时间', 'Time')}</span>
           </div>
-          <div className="font-num font-semibold text-base text-white">{localClock.timeStr}</div>
+          <div className={`font-num font-semibold ${compact ? 'text-sm sm:text-base' : 'text-base'} text-white`}>
+            {localClock.timeStr}
+          </div>
         </div>
         <div>
-          <div className="text-zinc-400 flex items-center gap-1 mb-0.5">
-            <BoltIcon className="w-3.5 h-3.5 text-emerald-400" />
-            <span>{t('插座電壓', '插座电压', 'Power Plug')}</span>
+          <div className="text-zinc-400 flex items-center gap-1 mb-0.5 text-[11px]">
+            <BoltIcon className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span className="truncate">{t('插座電壓', '插座电压', 'Plug')}</span>
           </div>
-          <div className="font-semibold text-xs sm:text-sm text-white truncate">{intel.voltagePlug}</div>
+          <div className="font-semibold text-[11px] sm:text-sm text-white truncate">{intel.voltagePlug}</div>
         </div>
         <div>
-          <div className="text-zinc-400 mb-0.5">{t('緊急聯絡', '紧急联系', 'Emergency')}</div>
-          <a
-            href={`tel:${primaryPhone}`}
-            className="font-num font-semibold text-xs sm:text-sm text-emerald-300 hover:underline block truncate"
-          >
-            {intel.emergency}
-          </a>
+          <div className="text-zinc-400 mb-0.5 text-[11px] flex items-center justify-between gap-1">
+            <span className="truncate">{t('完整資訊', '完整信息', 'Details')}</span>
+          </div>
+          <div className="font-num font-semibold text-[11px] sm:text-sm text-emerald-300 truncate">
+            {t('查看詳情 ›', '查看详情 ›', 'Inspect ›')}
+          </div>
         </div>
       </div>
     </div>
@@ -647,8 +752,20 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
 
   return (
     <div data-scroll-lock className="h-full min-h-0 flex flex-col relative bg-transparent overflow-clip">
-      <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar px-5 sm:px-8 pt-3 pb-6 lg:pb-10">
-        <div className="max-w-5xl lg:max-w-6xl mx-auto space-y-5">
+      <div
+        className={
+          section === 'TOOLS'
+            ? 'flex-1 min-h-0 overflow-hidden px-4 sm:px-8 pt-2 pb-4 lg:pb-8 flex flex-col'
+            : 'flex-1 min-h-0 overflow-y-auto no-scrollbar px-5 sm:px-8 pt-3 pb-6 lg:pb-10'
+        }
+      >
+        <div
+          className={
+            section === 'TOOLS'
+              ? 'max-w-5xl lg:max-w-6xl mx-auto w-full flex-1 min-h-0 flex flex-col gap-2.5 sm:gap-4'
+              : 'max-w-5xl lg:max-w-6xl mx-auto space-y-5'
+          }
+        >
           {/* Header Sub-row */}
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
@@ -760,7 +877,7 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
                         : t('尚未建立購物項目', '尚未创建购物项目', 'No shopping items yet')}
                     </p>
                     <p className="text-xs text-zinc-400 dark:text-zinc-500">
-                      {t('請於上方輸入框自由新增清單項目', '请在上方输入框自由添加清单项目', 'Use the field above to add items anytime')}
+                      {t('上方輸入框可自由新增', '上方输入框可自由添加', 'Add items above anytime')}
                     </p>
                   </div>
                 ) : (
@@ -832,88 +949,200 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
             </div>
           )}
 
-          {/* SECTION 2: TOOLS FOLDER */}
+          {/* SECTION 2: TOOLS BENTO WIDGETS (Zero-scroll full-viewport layout) */}
           {section === 'TOOLS' && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
-              <div className="lg:col-span-5">
-                {renderDestinationCard()}
+            <div className="flex-1 min-h-0 grid grid-cols-4 lg:grid-cols-12 lg:grid-rows-3 gap-2.5 sm:gap-3.5 content-start lg:content-stretch">
+              {/* 1. Large Hero Bento (4 cols mobile / 6x2 desktop): Destination Time, Weather & Plug */}
+              <div className="col-span-4 lg:col-span-6 lg:row-span-2 min-h-0">
+                {renderDestinationCard(true)}
               </div>
 
-              <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${encodedDest}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="surface-pastel-sky rounded-3xl p-4 sm:p-5 flex sm:flex-col items-center sm:items-stretch justify-between gap-3 hover:brightness-[0.98] transition-all"
-                >
-                  <div className="flex items-center justify-between w-auto sm:w-full">
-                    <div className="w-10 h-10 rounded-2xl bg-sky-500/15 flex items-center justify-center">
-                      <MapIcon className="w-5 h-5 text-sky-600 dark:text-sky-400" />
-                    </div>
-                    <ArrowUpRightIcon className="w-4 h-4 text-zinc-400 hidden sm:block" />
+              {/* 2. Medium Bento: 7-Day Weather */}
+              <button
+                type="button"
+                onClick={() => setShowWeatherModal(true)}
+                className="col-span-2 lg:col-span-3 surface-pastel-mint rounded-[22px] sm:rounded-3xl p-3 sm:p-4 flex flex-col justify-between text-left hover:brightness-[0.98] active:scale-[0.98] transition-all cursor-pointer min-h-[76px] sm:min-h-[96px]"
+              >
+                <div className="flex items-center justify-between w-full">
+                  <div className="w-8 h-8 rounded-xl bg-[var(--tab-accent-soft)] flex items-center justify-center shrink-0">
+                    {liveWeather.data ? (
+                      <WeatherGlyph
+                        kind={liveWeather.data.current.kind}
+                        isDay={liveWeather.data.current.isDay}
+                        className="w-4 h-4"
+                      />
+                    ) : (
+                      <SunIcon className="w-4 h-4 text-[var(--tab-accent)]" />
+                    )}
                   </div>
-                  <div className="flex-1 sm:flex-none">
-                    <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                      {t('Google 地圖', 'Google 地图', 'Google Maps')}
-                    </div>
-                    <div className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
-                      {t(`探索 ${intel.displayCity} 周邊`, `探索 ${intel.displayCity} 周边`, `Explore ${intel.displayCity}`)}
-                    </div>
+                  <ArrowUpRightIcon className="w-3.5 h-3.5 text-zinc-400" />
+                </div>
+                <div className="mt-1.5">
+                  <div className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">
+                    {t('7 日天氣', '7 日天气', '7-Day Weather')}
                   </div>
-                  <ArrowUpRightIcon className="w-4 h-4 text-zinc-400 sm:hidden shrink-0" />
-                </a>
+                  <div className="text-[11px] font-num text-zinc-500 dark:text-zinc-400 truncate">
+                    {liveWeather.data?.daily?.[0]
+                      ? `${liveWeather.data.daily[0].tempMax}° / ${liveWeather.data.daily[0].tempMin}°`
+                      : t('即時預報', '实时预报', 'Forecast')}
+                  </div>
+                </div>
+              </button>
 
-                <a
-                  href={`https://news.google.com/search?q=${searchCity}&${
-                    lang === 'en'
-                      ? 'hl=en-US&gl=US&ceid=US:en'
-                      : lang === 'zh-CN'
-                        ? 'hl=zh-CN&gl=CN&ceid=CN:zh-Hans'
-                        : 'hl=zh-TW&gl=TW&ceid=TW:zh-Hant'
-                  }`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="surface-pastel-rose rounded-3xl p-4 sm:p-5 flex sm:flex-col items-center sm:items-stretch justify-between gap-3 hover:brightness-[0.98] transition-all"
-                >
-                  <div className="flex items-center justify-between w-auto sm:w-full">
-                    <div className="w-10 h-10 rounded-2xl bg-rose-500/15 flex items-center justify-center">
-                      <NewspaperIcon className="w-5 h-5 text-rose-600 dark:text-rose-400" />
-                    </div>
-                    <ArrowUpRightIcon className="w-4 h-4 text-zinc-400 hidden sm:block" />
+              {/* 3. Medium Bento: Google Maps */}
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodedDest}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="col-span-2 lg:col-span-3 surface-pastel-sky rounded-[22px] sm:rounded-3xl p-3 sm:p-4 flex flex-col justify-between hover:brightness-[0.98] active:scale-[0.98] transition-all min-h-[76px] sm:min-h-[96px]"
+              >
+                <div className="flex items-center justify-between w-full">
+                  <div className="w-8 h-8 rounded-xl bg-sky-500/15 flex items-center justify-center shrink-0">
+                    <MapIcon className="w-4 h-4 text-sky-600 dark:text-sky-400" />
                   </div>
-                  <div className="flex-1 sm:flex-none">
-                    <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                      {t('當地資訊', '当地资讯', 'Local News')}
-                    </div>
-                    <div className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
-                      {t('即時新聞與交通動態', '实时新闻与交通动态', 'News & transit updates')}
-                    </div>
+                  <ArrowUpRightIcon className="w-3.5 h-3.5 text-zinc-400" />
+                </div>
+                <div className="mt-1.5">
+                  <div className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">
+                    {t('Google 地圖', 'Google 地图', 'Google Maps')}
                   </div>
-                  <ArrowUpRightIcon className="w-4 h-4 text-zinc-400 sm:hidden shrink-0" />
-                </a>
+                  <div className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
+                    {intel.displayCity}
+                  </div>
+                </div>
+              </a>
 
-                <button
-                  type="button"
-                  onClick={() => setShowWeatherModal(true)}
-                  className="surface-pastel-mint rounded-3xl p-4 sm:p-5 flex sm:flex-col items-center sm:items-stretch justify-between gap-3 text-left hover:brightness-[0.98] transition-all cursor-pointer"
-                >
-                  <div className="flex items-center justify-between w-auto sm:w-full">
-                    <div className="w-10 h-10 rounded-2xl bg-[var(--tab-accent-soft)] flex items-center justify-center">
-                      <SunIcon className="w-5 h-5 text-[var(--tab-accent)]" />
-                    </div>
-                    <ArrowUpRightIcon className="w-4 h-4 text-zinc-400 hidden sm:block" />
+              {/* 4. Medium Bento: Local Translate */}
+              <a
+                href={`https://translate.google.com/?sl=auto&tl=${encodeURIComponent(translateSpec.tl)}&op=translate`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="col-span-2 lg:col-span-3 surface-elevated rounded-[22px] sm:rounded-3xl p-3 sm:p-4 flex flex-col justify-between hover:brightness-[0.98] active:scale-[0.98] transition-all min-h-[76px] sm:min-h-[96px]"
+              >
+                <div className="flex items-center justify-between w-full">
+                  <div className="w-8 h-8 rounded-xl bg-violet-500/12 flex items-center justify-center shrink-0">
+                    <TranslateIcon className="w-4 h-4 text-violet-600 dark:text-violet-400" />
                   </div>
-                  <div className="flex-1 sm:flex-none">
-                    <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                      {t('7 日天氣預報', '7 日天气预报', '7-Day Forecast')}
+                  <ArrowUpRightIcon className="w-3.5 h-3.5 text-zinc-400" />
+                </div>
+                <div className="mt-1.5">
+                  <div className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">
+                    {t('即時翻譯', '实时翻译', 'Translate')}
+                  </div>
+                  <div className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
+                    {translateSpec.label}
+                  </div>
+                </div>
+              </a>
+
+              {/* 5. Medium Bento: Tax-Free & Currency */}
+              <button
+                type="button"
+                onClick={openDestDetail}
+                className="col-span-2 lg:col-span-3 surface-pastel-peach rounded-[22px] sm:rounded-3xl p-3 sm:p-4 flex flex-col justify-between text-left hover:brightness-[0.98] active:scale-[0.98] transition-all cursor-pointer min-h-[76px] sm:min-h-[96px]"
+              >
+                <div className="flex items-center justify-between w-full">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
+                    <TagIcon className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <span className="text-[11px] font-num font-bold text-amber-700 dark:text-amber-300">
+                    {intel.currency}
+                  </span>
+                </div>
+                <div className="mt-1.5">
+                  <div className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">
+                    {t('退稅・幣別', '退税・币别', 'Tax-Free')}
+                  </div>
+                  <div className="text-[11px] font-num text-zinc-500 dark:text-zinc-400 truncate">
+                    {intel.taxFreeThreshold === null
+                      ? t('無退稅制度', '无退税制度', 'No tax refund')
+                      : intel.taxFreeThreshold === 0
+                        ? t('不限金額可退稅', '不限金额可退税', 'No min spend')
+                        : t(
+                            `滿 ${intel.currencySymbol}${intel.taxFreeThreshold.toLocaleString()}`,
+                            `满 ${intel.currencySymbol}${intel.taxFreeThreshold.toLocaleString()}`,
+                            `Min ${intel.currencySymbol}${intel.taxFreeThreshold.toLocaleString()}`
+                          )}
+                  </div>
+                </div>
+              </button>
+
+              {/* 6. Medium-Wide Bottom Bento: Airport Hub */}
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                  intel.airports[0]?.query || `${intel.cityQuery} airport`
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="col-span-2 lg:col-span-5 surface-elevated rounded-[22px] sm:rounded-3xl p-3 sm:p-4 flex items-center justify-between gap-2 hover:brightness-[0.98] active:scale-[0.98] transition-all min-h-[68px]"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-500/12 flex items-center justify-center shrink-0">
+                    <PlaneIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate font-num">
+                      {intel.airports.length > 0
+                        ? intel.airports.map((a) => a.code).slice(0, 2).join(' · ')
+                        : t('機場交通', '机场交通', 'Airport')}
                     </div>
-                    <div className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
-                      {t('檢視逐日氣溫與降雨', '查看逐日气温与降雨', 'Daily temps & rain')}
+                    <div className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
+                      {intel.airports[0]?.name || intel.displayCity}
                     </div>
                   </div>
-                  <ArrowUpRightIcon className="w-4 h-4 text-zinc-400 sm:hidden shrink-0" />
-                </button>
-              </div>
+                </div>
+                <ArrowUpRightIcon className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+              </a>
+
+              {/* 7. Compact Bottom Bento: Direct Emergency SOS Dial */}
+              <a
+                href={`tel:${primaryPhone}`}
+                className="col-span-1 lg:col-span-4 surface-pastel-rose rounded-[22px] sm:rounded-3xl p-3 sm:p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-1 hover:brightness-[0.98] active:scale-[0.98] transition-all min-h-[68px]"
+              >
+                <div className="flex items-center justify-between lg:justify-start lg:gap-2.5">
+                  <span className="text-[10px] sm:text-xs font-extrabold tracking-wide text-rose-600 dark:text-rose-400">
+                    SOS
+                  </span>
+                  <ArrowUpRightIcon className="w-3 h-3 text-rose-400 lg:hidden" />
+                </div>
+                <div className="lg:flex-1 lg:min-w-0">
+                  <div className="font-num font-bold text-sm sm:text-base text-rose-700 dark:text-rose-300 leading-tight truncate">
+                    {primaryPhone}
+                  </div>
+                  <div className="text-[10px] sm:text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
+                    {t('緊急撥號', '紧急拨号', 'Emergency')}
+                  </div>
+                </div>
+                <ArrowUpRightIcon className="w-3.5 h-3.5 text-zinc-400 hidden lg:block shrink-0" />
+              </a>
+
+              {/* 8. Compact Bottom Bento: Local News */}
+              <a
+                href={`https://news.google.com/search?q=${searchCity}&${
+                  lang === 'en'
+                    ? 'hl=en-US&gl=US&ceid=US:en'
+                    : lang === 'zh-CN'
+                      ? 'hl=zh-CN&gl=CN&ceid=CN:zh-Hans'
+                      : 'hl=zh-TW&gl=TW&ceid=TW:zh-Hant'
+                }`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="col-span-1 lg:col-span-3 surface-pastel-sky rounded-[22px] sm:rounded-3xl p-3 sm:p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-1 hover:brightness-[0.98] active:scale-[0.98] transition-all min-h-[68px]"
+              >
+                <div className="flex items-center justify-between lg:justify-start">
+                  <NewspaperIcon className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                  <ArrowUpRightIcon className="w-3 h-3 text-zinc-400 lg:hidden" />
+                </div>
+                <div className="lg:flex-1 lg:min-w-0 lg:px-2">
+                  <div className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 leading-tight truncate">
+                    {t('資訊', '资讯', 'News')}
+                  </div>
+                  <div className="text-[10px] sm:text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
+                    {t('當地快訊', '当地快讯', 'Local')}
+                  </div>
+                </div>
+                <ArrowUpRightIcon className="w-3.5 h-3.5 text-zinc-400 hidden lg:block shrink-0" />
+              </a>
             </div>
           )}
 
@@ -955,11 +1184,7 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
                   >
                     <DocumentTextIcon className="w-7 h-7 text-zinc-400" />
                     <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                      {t(
-                        '上傳航班、酒店、門票或保險文件（單檔上限 20MB）',
-                        '上传航班、酒店、门票或保险文件（单文件上限 20MB）',
-                        'Upload flight, hotel, ticket, or insurance files (max 20MB)'
-                      )}
+                      {t('上傳圖片或 PDF（上限 20MB）', '上传图片或 PDF（上限 20MB）', 'Upload image or PDF (max 20MB)')}
                     </span>
                   </button>
                 ) : (
@@ -1177,7 +1402,7 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
                   <DocumentTextIcon className="w-12 h-12 text-zinc-400 mx-auto" />
                   <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{previewDoc.title}</p>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                    {t('文件已安全保存，可點擊下方下載檢視', '文件已安全保存，可点击下方下载查看', 'File saved securely. Download below to view.')}
+                    {t('可點擊下方下載檢視', '可点击下方下载查看', 'Download below to view.')}
                   </p>
                 </div>
               )}
@@ -1263,6 +1488,172 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
             </div>
           </div>
         )}
+      </LiquidModal>
+
+      {/* Complete Destination Intel Modal (Opened from Tools Hero Widget) */}
+      <LiquidModal
+        open={showDestDetailModal}
+        onClose={() => setShowDestDetailModal(false)}
+        bottomSheetOnMobile
+        maxWidthClass="max-w-lg"
+        title={
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-[var(--tab-accent-soft)] text-[var(--tab-accent)] flex items-center justify-center shrink-0">
+              <GlobeIcon className="w-4 h-4" />
+            </div>
+            <span>
+              {activeDetailIntel.displayCity} · {activeDetailIntel.countryLabel}
+            </span>
+          </div>
+        }
+      >
+        <div className="overflow-y-auto no-scrollbar space-y-3.5 pr-0.5 max-h-[75vh]">
+          {detailCities.length > 1 && (
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+              {detailCities.map((c, idx) => {
+                const subIntel = detectDestinationIntel(c, lang);
+                const active = idx === detailCityIndex;
+                return (
+                  <button
+                    key={`${c}-${idx}`}
+                    type="button"
+                    onClick={() => setDetailCityIndex(idx)}
+                    className={`h-8 px-3 rounded-full text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                      active
+                        ? 'bg-[var(--tab-accent)] text-white'
+                        : 'bg-zinc-100 dark:bg-white/[0.06] text-zinc-600 dark:text-zinc-300'
+                    }`}
+                  >
+                    {subIntel.displayCity}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Local Clock & Weather */}
+          <div className="ink-card rounded-2xl p-4 flex items-center justify-between gap-3">
+            <div>
+              <div className="text-[11px] text-zinc-400">
+                {activeDetailIntel.timezoneLabel} ·{' '}
+                {formatTimeDiffLabel(
+                  detailCityIndex === 0 && liveWeather.data?.utcOffsetHours !== undefined
+                    ? liveWeather.data.utcOffsetHours
+                    : activeDetailIntel.utcOffsetHours
+                )}
+              </div>
+              <div className="font-num font-bold text-2xl text-white mt-0.5">
+                {activeDetailClock.timeStr}
+              </div>
+              <div className="text-[11px] text-zinc-400 font-num">{activeDetailClock.dateStr}</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setShowDestDetailModal(false);
+                setShowWeatherModal(true);
+              }}
+              className="px-3.5 py-2 rounded-2xl bg-white/12 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer shrink-0"
+            >
+              {detailCityIndex === 0 && liveWeather.data ? (
+                <>
+                  <WeatherGlyph
+                    kind={liveWeather.data.current.kind}
+                    isDay={liveWeather.data.current.isDay}
+                    className="w-4 h-4"
+                  />
+                  <span className="font-num font-bold">{liveWeather.data.current.temp}°</span>
+                  <span className="text-zinc-300">{liveWeather.data.current.label}</span>
+                </>
+              ) : (
+                <>
+                  <SunIcon className="w-4 h-4 text-amber-300" />
+                  <span>{t('7 日天氣', '7 日天气', '7-Day Weather')}</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Power & Voltage */}
+          <div className="rounded-2xl bg-zinc-100/80 dark:bg-white/[0.04] border border-zinc-200/70 dark:border-white/10 p-3.5 space-y-1">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+              <BoltIcon className="w-4 h-4 text-emerald-500" />
+              <span>{t('插座與電壓規格', '插座与电压规格', 'Power & Plug')}</span>
+            </div>
+            <div className="font-semibold text-sm text-zinc-900 dark:text-white">
+              {activeDetailIntel.voltagePlug}
+            </div>
+          </div>
+
+          {/* Currency & Tax-Free Policy */}
+          <div className="rounded-2xl bg-zinc-100/80 dark:bg-white/[0.04] border border-zinc-200/70 dark:border-white/10 p-3.5 space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                <TagIcon className="w-4 h-4 text-amber-500" />
+                <span>{t('當地貨幣與退稅', '当地货币与退税', 'Currency & Tax-Free')}</span>
+              </div>
+              <span className="text-xs font-num font-bold text-zinc-900 dark:text-white">
+                {activeDetailIntel.currency} · {activeDetailIntel.currencyName}
+              </span>
+            </div>
+            <p className="text-xs text-zinc-700 dark:text-zinc-200 leading-relaxed">
+              {activeDetailIntel.taxFreeNote ||
+                t('此地區無常設旅客退稅門檻', '此地区无常设旅客退税门槛', 'No standard visitor tax-refund threshold')}
+            </p>
+          </div>
+
+          {/* Emergency Contacts */}
+          <div className="rounded-2xl bg-rose-500/8 dark:bg-rose-500/12 border border-rose-500/20 p-3.5 space-y-2">
+            <div className="text-xs font-semibold text-rose-700 dark:text-rose-300">
+              {t('緊急聯絡電話（點擊撥號）', '紧急联系电话（点击拨号）', 'Emergency Contacts (Tap to Dial)')}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {activeDetailIntel.emergency.split('·').map((chunk, i) => {
+                const phoneNum = chunk.match(/\d{3,4}/)?.[0] || primaryPhone;
+                return (
+                  <a
+                    key={i}
+                    href={`tel:${phoneNum}`}
+                    className="px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-900/80 border border-rose-500/25 text-xs font-num font-bold text-rose-700 dark:text-rose-300 hover:bg-rose-500/10 transition-colors"
+                  >
+                    {chunk.trim()}
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Airports */}
+          {activeDetailIntel.airports.length > 0 && (
+            <div className="rounded-2xl bg-zinc-100/80 dark:bg-white/[0.04] border border-zinc-200/70 dark:border-white/10 p-3.5 space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                <PlaneIcon className="w-4 h-4 text-indigo-500" />
+                <span>{t('主要機場', '主要机场', 'Major Airports')}</span>
+              </div>
+              <div className="space-y-1.5">
+                {activeDetailIntel.airports.map((ap) => (
+                  <a
+                    key={ap.code}
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ap.query)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white dark:bg-zinc-900/70 border border-zinc-200/70 dark:border-white/10 hover:border-indigo-400/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-num font-bold text-xs text-indigo-600 dark:text-indigo-400 shrink-0">
+                        {ap.code}
+                      </span>
+                      <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-100 truncate">
+                        {ap.name}
+                      </span>
+                    </div>
+                    <ArrowUpRightIcon className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </LiquidModal>
 
       <WeatherModal

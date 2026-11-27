@@ -299,9 +299,20 @@ html.dark .ink-card {
   animation: marquee-scroll 12s linear infinite;
 }
 
+@keyframes fx-pop {
+  0% { transform: scale(1); }
+  35% { transform: scale(0.84); }
+  70% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+.animate-fx-pop {
+  animation: fx-pop 0.42s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-marquee-scroll,
-  .animate-star-twinkle {
+  .animate-star-twinkle,
+  .animate-fx-pop {
     animation: none !important;
   }
 }

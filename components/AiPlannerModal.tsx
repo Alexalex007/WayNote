@@ -349,9 +349,9 @@ export const AiPlannerWorkspace: React.FC<AiPlannerWorkspaceProps> = ({
                   </h3>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400">
                     {t(
-                      '自動依地理動線排序、搭配在地美食與交通節奏，一鍵套用進每日時間軸。',
-                      '自动按地理动线排序、搭配地道美食与交通节奏，一键应用进每日时间轴。',
-                      'Automatically orders sights by proximity, pairs local dining, and drops straight onto your timeline.'
+                      '自動規劃每日動線與景點，一鍵套用行程。',
+                      '自动规划每日动线与景点，一键应用行程。',
+                      'Plans daily routes and drops straight onto your timeline.'
                     )}
                   </p>
                 </div>
@@ -457,11 +457,11 @@ export const AiPlannerWorkspace: React.FC<AiPlannerWorkspaceProps> = ({
             </div>
 
             {willExtendTripEnd && (
-              <div className="px-3.5 py-2.5 rounded-2xl bg-[var(--tab-accent-soft)] text-[var(--tab-accent)] text-xs font-medium">
+              <div className="px-3.5 py-2 rounded-2xl bg-[var(--tab-accent-soft)] text-[var(--tab-accent)] text-xs font-medium">
                 {t(
-                  `套用此多日規劃時，將自動把旅程結束日延展至 ${effectiveEndDate} 以容納全部天數。`,
-                  `应用此多日规划时，将自动把旅程结束日延展至 ${effectiveEndDate} 以容纳全部天数。`,
-                  `Applying this plan will automatically extend your trip end date to ${effectiveEndDate}.`
+                  `套用後結束日將順延至 ${effectiveEndDate}`,
+                  `应用后结束日将顺延至 ${effectiveEndDate}`,
+                  `End date extends to ${effectiveEndDate} when applied.`
                 )}
               </div>
             )}

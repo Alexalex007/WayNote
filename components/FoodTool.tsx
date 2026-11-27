@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { Trip, Expense, Budget } from '../types';
 import { generateUniqueId } from '../shared/syncMerge';
@@ -205,16 +205,35 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
     }
   });
 
-  const [calcFrom, setCalcFrom] = useState('HKD');
-  const [calcTo, setCalcTo] = useState(() =>
-    destinationIntel.currency === 'HKD' ? 'JPY' : destinationIntel.currency || 'JPY'
-  );
-  const [calcAmount, setCalcAmount] = useState<string>('');
+  const defaultTopCurrency = destinationIntel.currency || 'JPY';
+  const defaultBottomCurrency = defaultTopCurrency === 'HKD' ? 'JPY' : 'HKD';
+
+  const [calcFrom, setCalcFrom] = useState(defaultTopCurrency);
+  const [calcTo, setCalcTo] = useState(defaultBottomCurrency);
+  const [calcFromAmount, setCalcFromAmount] = useState<string>('');
+  const [calcToAmount, setCalcToAmount] = useState<string>('');
+  const [calcLastEdited, setCalcLastEdited] = useState<'from' | 'to'>('from');
+  const skipFxSyncRef = useRef(false);
+  const calcFromInputRef = useRef<HTMLInputElement | null>(null);
+  const calcToInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [taxPopKey, setTaxPopKey] = useState(0);
+  const [isTaxPopping, setIsTaxPopping] = useState(false);
+  const prevTaxEligibleRef = useRef(false);
+  const taxPopTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    setCalcFrom('HKD');
-    setCalcTo(destinationIntel.currency === 'HKD' ? 'JPY' : destinationIntel.currency || 'JPY');
+    const nextTop = destinationIntel.currency || 'JPY';
+    const nextBottom = nextTop === 'HKD' ? 'JPY' : 'HKD';
+    setCalcFrom(nextTop);
+    setCalcTo(nextBottom);
   }, [trip.id, destinationIntel.currency]);
+
+  useEffect(() => {
+    return () => {
+      if (taxPopTimerRef.current !== null) window.clearTimeout(taxPopTimerRef.current);
+    };
+  }, []);
 
   const [newExpense, setNewExpense] = useState<{
     amount: string;
@@ -432,10 +451,55 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
     return { categories, methods: methodStats, days, maxDailyTotal, total: onTripTotalBase };
   }, [onTripExpenses, globalCurrency, exchangeRates, onTripTotalBase]);
 
-  const calcResult = useMemo(() => {
-    const amt = parseFloat(calcAmount) || 0;
-    return convert(amt, calcFrom, calcTo);
-  }, [calcAmount, calcFrom, calcTo, exchangeRates]);
+  const sanitizeDecimalInput = (raw: string): string =>
+    raw.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+
+  const formatFxInputValue = (val: number, code: string): string => {
+    if (!Number.isFinite(val) || val <= 0) return '';
+    const integerCurrencies = ['JPY', 'KRW', 'VND', 'IDR', 'ISK', 'HUF'];
+    if (integerCurrencies.includes(code) && val >= 10) {
+      return String(Math.round(val));
+    }
+    const rounded = Math.round(val * 100) / 100;
+    return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2);
+  };
+
+  const handleFxAmountChange = (side: 'from' | 'to', rawValue: string) => {
+    const cleaned = sanitizeDecimalInput(rawValue);
+    setCalcLastEdited(side);
+    const parsed = parseFloat(cleaned);
+    const isValid = cleaned !== '' && !Number.isNaN(parsed);
+
+    if (side === 'from') {
+      setCalcFromAmount(cleaned);
+      setCalcToAmount(isValid ? formatFxInputValue(convert(parsed, calcFrom, calcTo), calcTo) : '');
+    } else {
+      setCalcToAmount(cleaned);
+      setCalcFromAmount(isValid ? formatFxInputValue(convert(parsed, calcTo, calcFrom), calcFrom) : '');
+    }
+  };
+
+  useEffect(() => {
+    if (skipFxSyncRef.current) {
+      skipFxSyncRef.current = false;
+      return;
+    }
+    if (calcLastEdited === 'from') {
+      const parsed = parseFloat(calcFromAmount);
+      if (calcFromAmount === '' || Number.isNaN(parsed)) {
+        setCalcToAmount('');
+      } else {
+        setCalcToAmount(formatFxInputValue(convert(parsed, calcFrom, calcTo), calcTo));
+      }
+    } else {
+      const parsed = parseFloat(calcToAmount);
+      if (calcToAmount === '' || Number.isNaN(parsed)) {
+        setCalcFromAmount('');
+      } else {
+        setCalcFromAmount(formatFxInputValue(convert(parsed, calcTo, calcFrom), calcFrom));
+      }
+    }
+  }, [calcFrom, calcTo, exchangeRates]);
 
   const tripTaxCandidates = useMemo(() => {
     const list = [destinationIntel];
@@ -449,21 +513,23 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
   }, [destinationIntel, trip.type, trip.stops, lang]);
 
   const activeTaxIntel = useMemo(() => {
-    const amt = parseFloat(calcAmount) || 0;
-    if (amt <= 0) return null;
+    const fromAmt = parseFloat(calcFromAmount) || 0;
+    const toAmt = parseFloat(calcToAmount) || 0;
+    if (fromAmt <= 0 && toAmt <= 0) return null;
 
     const matched = tripTaxCandidates.find(
       (intel) =>
         intel.taxFreeThreshold !== null &&
         intel.taxFreeRefundRate !== null &&
-        (intel.currency === calcTo || intel.currency === calcFrom)
+        (intel.currency === calcFrom || intel.currency === calcTo)
     );
     if (!matched || matched.taxFreeThreshold === null || matched.taxFreeRefundRate === null) {
       return null;
     }
 
     const fromMatches = calcFrom === matched.currency;
-    const localVal = fromMatches ? amt : calcResult;
+    const localVal = fromMatches ? fromAmt : toAmt;
+    if (localVal <= 0) return null;
     const otherCurrency = fromMatches ? calcTo : calcFrom;
     const threshold = matched.taxFreeThreshold;
     const isEligible = threshold === 0 ? localVal > 0 : localVal >= threshold;
@@ -490,7 +556,24 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
       estimatedRefundLocal,
       estimatedRefundOther,
     };
-  }, [calcFrom, calcTo, calcAmount, calcResult, tripTaxCandidates, exchangeRates]);
+  }, [calcFrom, calcTo, calcFromAmount, calcToAmount, tripTaxCandidates, exchangeRates]);
+
+  const triggerTaxPopCelebration = () => {
+    setTaxPopKey((k) => k + 1);
+    setIsTaxPopping(false);
+    window.requestAnimationFrame(() => setIsTaxPopping(true));
+    if (taxPopTimerRef.current !== null) window.clearTimeout(taxPopTimerRef.current);
+    taxPopTimerRef.current = window.setTimeout(() => setIsTaxPopping(false), 480);
+    tactileAudio.playPop(1.18);
+  };
+
+  useEffect(() => {
+    const nowEligible = Boolean(activeTaxIntel?.isEligible);
+    if (nowEligible && !prevTaxEligibleRef.current) {
+      triggerTaxPopCelebration();
+    }
+    prevTaxEligibleRef.current = nowEligible;
+  }, [activeTaxIntel?.isEligible]);
 
   const commitExpenses = (nextExpenses: Expense[], deletedId?: string) => {
     const now = Date.now();
@@ -593,11 +676,13 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
     color,
     size = 96,
     stroke = 8,
+    textClassName,
   }: {
     percentage: number;
     color: string;
     size?: number;
     stroke?: number;
+    textClassName?: string;
   }) => {
     const radius = (size - stroke) / 2;
     const circumference = 2 * Math.PI * radius;
@@ -629,11 +714,14 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
             className="transition-all duration-700 ease-out"
           />
         </svg>
-        <div className="absolute flex flex-col items-center">
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
           <span
-            className={`text-base font-display font-bold font-num ${
-              isOverBudget ? 'text-red-500' : 'text-zinc-900 dark:text-white'
-            }`}
+            className={
+              textClassName ||
+              `text-base font-display font-bold font-num ${
+                isOverBudget ? 'text-red-500' : 'text-zinc-900 dark:text-white'
+              }`
+            }
           >
             {Math.round(percentage)}%
           </span>
@@ -1386,19 +1474,22 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                 {multiCityCurrencies.length > 1 && (
                   <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
                     {multiCityCurrencies.map((item) => {
-                      const isActive = calcTo === item.currency || (calcFrom !== 'HKD' && calcFrom === item.currency);
+                      const isActive = calcFrom === item.currency || (calcTo !== 'HKD' && calcTo === item.currency);
                       return (
                         <button
                           key={item.currency}
                           type="button"
                           onClick={() => {
                             tactileAudio.playClick(500, 0.035);
-                            if (calcFrom === 'HKD' && item.currency !== 'HKD') {
-                              setCalcTo(item.currency);
-                            } else if (calcTo === 'HKD' && item.currency !== 'HKD') {
-                              setCalcFrom(item.currency);
+                            if (item.currency === calcTo) {
+                              skipFxSyncRef.current = true;
+                              setCalcFrom(calcTo);
+                              setCalcTo(calcFrom);
+                              setCalcFromAmount(calcToAmount);
+                              setCalcToAmount(calcFromAmount);
+                              setCalcLastEdited((s) => (s === 'from' ? 'to' : 'from'));
                             } else {
-                              setCalcTo(item.currency);
+                              setCalcFrom(item.currency);
                             }
                           }}
                           className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
@@ -1414,151 +1505,39 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                   </div>
                 )}
 
-                <div className="space-y-1">
-                  <div className="bg-zinc-100/80 dark:bg-white/[0.04] rounded-2xl p-4 flex justify-between items-center border border-zinc-200/60 dark:border-white/[0.06]">
-                    <div className="min-w-0 flex-1 pr-2">
-                      <span className="text-[11px] font-medium text-zinc-500 block mb-1">
-                        {getCurrencyLabel(calcFrom)}
-                      </span>
-                      <input
-                        type="number"
-                        value={calcAmount}
-                        onChange={(e) => setCalcAmount(e.target.value)}
-                        placeholder="1000"
-                        className="bg-transparent text-zinc-900 dark:text-white font-display font-bold font-num text-2xl w-full focus:outline-none placeholder-zinc-300 dark:placeholder-zinc-700"
-                      />
-                    </div>
-                    <div className="relative shrink-0">
-                      <select
-                        value={calcFrom}
-                        onChange={(e) => setCalcFrom(e.target.value)}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                      >
-                        {allCurrencies.map((c) => (
-                          <option key={c.code} value={c.code} className="text-zinc-900">
-                            {c.code} {c.name}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-800 py-1.5 px-3 rounded-full border border-zinc-200/80 dark:border-white/10">
-                        <span className="font-num font-bold text-xs text-zinc-900 dark:text-white">{calcFrom}</span>
-                        <ChevronDownIcon className="w-3.5 h-3.5 text-zinc-400" />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-center -my-3 relative z-10">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        tactileAudio.playClick(520, 0.035);
-                        setCalcFrom(calcTo);
-                        setCalcTo(calcFrom);
-                      }}
-                      aria-label={t('交換幣別', '交换币种', 'Swap currencies')}
-                      className="w-9 h-9 rounded-full bg-indigo-600 text-white shadow-md flex items-center justify-center hover:scale-105 active:scale-95 transition-transform cursor-pointer"
-                    >
-                      <ArrowsRightLeftIcon className="w-4 h-4 rotate-90" />
-                    </button>
-                  </div>
-
-                  <div className="bg-zinc-100/80 dark:bg-white/[0.04] rounded-2xl p-4 flex justify-between items-center border border-zinc-200/60 dark:border-white/[0.06]">
-                    <div className="min-w-0 flex-1 pr-2">
-                      <span className="text-[11px] font-medium text-zinc-500 block mb-1">
-                        {getCurrencyLabel(calcTo)}
-                      </span>
-                      <div className="text-zinc-900 dark:text-white font-display font-bold font-num text-2xl truncate">
-                        {calcAmount ? calcResult.toFixed(2) : <span className="text-zinc-300 dark:text-zinc-700">0.00</span>}
-                      </div>
-                    </div>
-                    <div className="relative shrink-0">
-                      <select
-                        value={calcTo}
-                        onChange={(e) => setCalcTo(e.target.value)}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                      >
-                        {allCurrencies.map((c) => (
-                          <option key={c.code} value={c.code} className="text-zinc-900">
-                            {c.code} {c.name}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-800 py-1.5 px-3 rounded-full border border-zinc-200/80 dark:border-white/10">
-                        <span className="font-num font-bold text-xs text-zinc-900 dark:text-white">{calcTo}</span>
-                        <ChevronDownIcon className="w-3.5 h-3.5 text-zinc-400" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
                 {activeTaxIntel && (
                   <motion.div
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.25 }}
-                    className={`relative overflow-hidden rounded-2xl p-4 border flex items-center justify-between gap-3.5 transition-colors duration-300 ${
+                    className={`relative overflow-visible rounded-2xl p-3.5 sm:p-4 border flex items-center justify-between gap-3.5 transition-colors duration-300 ${
                       activeTaxIntel.isEligible
                         ? 'bg-amber-400/12 dark:bg-amber-500/14 border-amber-400/55 shadow-[0_10px_24px_-14px_rgba(245,158,11,0.55)]'
                         : 'bg-zinc-100/80 dark:bg-white/[0.04] border-zinc-200/70 dark:border-white/[0.06]'
                     }`}
                   >
-                    {/* Subtle low-opacity mini firework celebration when tax-free threshold is reached */}
-                    {activeTaxIntel.isEligible && (
-                      <div
-                        aria-hidden="true"
-                        className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-20 h-20 flex items-center justify-center opacity-35"
-                      >
-                        <motion.svg
-                          viewBox="0 0 80 80"
-                          className="w-full h-full text-amber-500 dark:text-amber-300"
-                          initial={prefersReduced ? undefined : { scale: 0.55, opacity: 0 }}
-                          animate={
-                            prefersReduced
-                              ? { scale: 1, opacity: 0.85 }
-                              : { scale: [0.6, 1.06, 1], opacity: [0, 1, 0.78] }
-                          }
-                          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-                        >
-                          <g stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-                            <line x1="40" y1="6" x2="40" y2="15" />
-                            <line x1="40" y1="65" x2="40" y2="74" />
-                            <line x1="6" y1="40" x2="15" y2="40" />
-                            <line x1="65" y1="40" x2="74" y2="40" />
-                            <line x1="16" y1="16" x2="22" y2="22" />
-                            <line x1="58" y1="58" x2="64" y2="64" />
-                            <line x1="64" y1="16" x2="58" y2="22" />
-                            <line x1="22" y1="58" x2="16" y2="64" />
-                          </g>
-                          <circle cx="28" cy="11" r="1.4" fill="currentColor" />
-                          <circle cx="57" cy="14" r="1.2" fill="currentColor" />
-                          <circle cx="67" cy="52" r="1.5" fill="currentColor" />
-                          <circle cx="13" cy="54" r="1.2" fill="currentColor" />
-                        </motion.svg>
-                      </div>
-                    )}
-
                     <div className="min-w-0 relative z-10 space-y-0.5">
                       <span className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-300 block">
                         {activeTaxIntel.threshold === 0
                           ? t(
                               `${activeTaxIntel.countryLabel}免稅額度（消費即享退稅）`,
                               `${activeTaxIntel.countryLabel}免税额度（消费即享退税）`,
-                              `${activeTaxIntel.countryLabel} Tax-Free (No Min Spend)`
+                              `${activeTaxIntel.countryLabel} Tax-Free (No Min)`
                             )
                           : t(
-                              `${activeTaxIntel.countryLabel}免稅額度（起退 ${formatMoney(activeTaxIntel.threshold, activeTaxIntel.currency)}）`,
-                              `${activeTaxIntel.countryLabel}免税额度（起退 ${formatMoney(activeTaxIntel.threshold, activeTaxIntel.currency)}）`,
-                              `${activeTaxIntel.countryLabel} Tax-Free (Min ${formatMoney(activeTaxIntel.threshold, activeTaxIntel.currency)})`
+                              `${activeTaxIntel.countryLabel}免稅 · 滿 ${formatMoney(activeTaxIntel.threshold, activeTaxIntel.currency)}`,
+                              `${activeTaxIntel.countryLabel}免税 · 满 ${formatMoney(activeTaxIntel.threshold, activeTaxIntel.currency)}`,
+                              `${activeTaxIntel.countryLabel} Tax-Free · Min ${formatMoney(activeTaxIntel.threshold, activeTaxIntel.currency)}`
                             )}
                       </span>
 
                       {activeTaxIntel.isEligible ? (
                         <>
                           <div className="font-display font-bold text-sm text-amber-700 dark:text-amber-300">
-                            {t('已達免稅額度 · 可申請退稅', '已达免税额度 · 可申请退税', 'Tax-Free Eligible')}
+                            {t('已達免稅額度', '已达免税额度', 'Tax-Free Eligible')}
                           </div>
                           <div className="text-xs font-num font-semibold text-zinc-900 dark:text-white">
-                            {t('預計可退稅約 ', '预计可退税约 ', 'Est. refund ~')}
+                            {t('預計可退約 ', '预计可退约 ', 'Est. refund ~')}
                             <span className="text-amber-700 dark:text-amber-300 font-bold">
                               {formatMoney(activeTaxIntel.estimatedRefundLocal, activeTaxIntel.currency)}
                             </span>
@@ -1574,7 +1553,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                       ) : (
                         <>
                           <div className="font-num font-bold text-sm text-zinc-900 dark:text-white">
-                            {t('尚未達標 · 還差 ', '尚未达标 · 还差 ', 'Add ')}
+                            {t('還差 ', '还差 ', 'Add ')}
                             {formatMoney(activeTaxIntel.remainingLocal, activeTaxIntel.currency)}
                             {activeTaxIntel.otherCurrency !== activeTaxIntel.currency && (
                               <span className="text-xs font-normal text-zinc-500 dark:text-zinc-400">
@@ -1591,34 +1570,222 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                           )}
                         </>
                       )}
-
-                      {activeTaxIntel.isEligible && activeTaxIntel.note && (
-                        <p className="text-[11px] text-amber-800/75 dark:text-amber-200/75 truncate">
-                          {activeTaxIntel.note}
-                        </p>
-                      )}
                     </div>
 
-                    {/* Circular Tax-Free Gauge (turns Golden Yellow at 100%) */}
-                    <div className="relative z-10 flex items-center justify-center shrink-0">
+                    {/* Gallery Pop-styled Circular Tax-Free Gauge + radial Pop firework particles */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (activeTaxIntel.isEligible) {
+                          triggerTaxPopCelebration();
+                        } else {
+                          tactileAudio.playTick(0.9);
+                        }
+                      }}
+                      aria-label={t('免稅進度', '免税进度', 'Tax-free progress')}
+                      className={`relative z-10 w-[62px] h-[62px] rounded-2xl flex items-center justify-center shrink-0 transition-colors cursor-pointer select-none ${
+                        activeTaxIntel.isEligible
+                          ? 'bg-amber-400/15 dark:bg-amber-400/12 border border-amber-400/45 shadow-xs'
+                          : 'bg-white/80 dark:bg-white/[0.06] border border-zinc-200/75 dark:border-white/10'
+                      } ${isTaxPopping ? 'animate-fx-pop' : ''}`}
+                    >
+                      {/* Persistent low-opacity perimeter firework rays when eligible (strictly outside r=31) */}
+                      {activeTaxIntel.isEligible && (
+                        <div
+                          aria-hidden="true"
+                          className="pointer-events-none absolute -inset-3.5 flex items-center justify-center opacity-30"
+                        >
+                          <motion.svg
+                            viewBox="0 0 88 88"
+                            className="w-full h-full text-amber-500 dark:text-amber-300"
+                            initial={prefersReduced ? undefined : { scale: 0.72, opacity: 0 }}
+                            animate={
+                              prefersReduced
+                                ? { scale: 1, opacity: 0.9 }
+                                : { scale: [0.72, 1.06, 1], opacity: [0, 1, 0.85] }
+                            }
+                            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+                          >
+                            <g stroke="currentColor" strokeWidth="1.75" strokeLinecap="round">
+                              <line x1="44" y1="3" x2="44" y2="10" />
+                              <line x1="44" y1="78" x2="44" y2="85" />
+                              <line x1="3" y1="44" x2="10" y2="44" />
+                              <line x1="78" y1="44" x2="85" y2="44" />
+                              <line x1="15" y1="15" x2="20" y2="20" />
+                              <line x1="68" y1="68" x2="73" y2="73" />
+                              <line x1="73" y1="15" x2="68" y2="20" />
+                              <line x1="20" y1="68" x2="15" y2="73" />
+                            </g>
+                            <circle cx="29" cy="8" r="1.4" fill="currentColor" />
+                            <circle cx="62" cy="10" r="1.2" fill="currentColor" />
+                            <circle cx="78" cy="59" r="1.4" fill="currentColor" />
+                            <circle cx="10" cy="58" r="1.2" fill="currentColor" />
+                          </motion.svg>
+                        </div>
+                      )}
+
+                      {/* Gallery Pop burst sparks flying outward from outer perimeter when threshold reached */}
+                      {taxPopKey > 0 && activeTaxIntel.isEligible && !prefersReduced && (
+                        <span
+                          key={taxPopKey}
+                          aria-hidden="true"
+                          className="pointer-events-none absolute inset-0 flex items-center justify-center"
+                        >
+                          {[
+                            { sym: '✦', angle: -Math.PI / 2, dist: 42 },
+                            { sym: '★', angle: -Math.PI / 4, dist: 44 },
+                            { sym: '●', angle: 0, dist: 41 },
+                            { sym: '✦', angle: Math.PI / 4, dist: 44 },
+                            { sym: '★', angle: Math.PI / 2, dist: 42 },
+                            { sym: '●', angle: (3 * Math.PI) / 4, dist: 44 },
+                            { sym: '✦', angle: Math.PI, dist: 41 },
+                            { sym: '★', angle: (-3 * Math.PI) / 4, dist: 44 },
+                          ].map((p, idx) => {
+                            const startR = 25;
+                            const startX = Math.cos(p.angle) * startR;
+                            const startY = Math.sin(p.angle) * startR;
+                            const endX = Math.cos(p.angle) * p.dist;
+                            const endY = Math.sin(p.angle) * p.dist;
+                            return (
+                              <motion.span
+                                key={idx}
+                                initial={{ x: startX, y: startY, scale: 0.45, opacity: 0.85 }}
+                                animate={{ x: endX, y: endY, scale: 1.15, opacity: 0 }}
+                                transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
+                                className="absolute text-[10px] leading-none text-amber-500 dark:text-amber-300"
+                              >
+                                {p.sym}
+                              </motion.span>
+                            );
+                          })}
+                        </span>
+                      )}
+
                       <CircularProgress
                         percentage={activeTaxIntel.progressPct}
                         color={activeTaxIntel.isEligible ? '#F59E0B' : '#4F46E5'}
-                        size={52}
+                        size={48}
                         stroke={4.5}
-                      />
-                      <span
-                        className={`absolute font-num font-bold text-[10px] ${
+                        textClassName={`text-[11px] font-num font-bold leading-none ${
                           activeTaxIntel.isEligible
-                            ? 'text-amber-600 dark:text-amber-300'
-                            : 'text-zinc-700 dark:text-zinc-200'
+                            ? 'text-amber-700 dark:text-amber-300'
+                            : 'text-zinc-800 dark:text-zinc-100'
                         }`}
-                      >
-                        {Math.round(activeTaxIntel.progressPct)}%
-                      </span>
-                    </div>
+                      />
+                    </button>
                   </motion.div>
                 )}
+
+                <div className="space-y-1">
+                  {/* Top Currency Box (defaults to local destination currency) */}
+                  <div className="bg-zinc-100/80 dark:bg-white/[0.04] hover:bg-zinc-100 dark:hover:bg-white/[0.06] focus-within:ring-2 focus-within:ring-[var(--tab-accent)]/35 rounded-2xl flex items-stretch justify-between border border-zinc-200/60 dark:border-white/[0.06] transition-all">
+                    <label
+                      htmlFor="fx-from-input"
+                      className="min-w-0 flex-1 p-4 pr-2 cursor-text flex flex-col justify-center"
+                    >
+                      <span className="text-[11px] font-medium text-zinc-500 block mb-1">
+                        {getCurrencyLabel(calcFrom)}
+                      </span>
+                      <input
+                        id="fx-from-input"
+                        ref={calcFromInputRef}
+                        type="text"
+                        inputMode="decimal"
+                        pattern="[0-9.]*"
+                        enterKeyHint="done"
+                        autoComplete="off"
+                        value={calcFromAmount}
+                        onChange={(e) => handleFxAmountChange('from', e.target.value)}
+                        placeholder={calcFrom === 'JPY' || calcFrom === 'KRW' ? '5000' : '1000'}
+                        className="bg-transparent text-zinc-900 dark:text-white font-display font-bold font-num text-2xl w-full min-h-[40px] py-0.5 focus:outline-none placeholder-zinc-300 dark:placeholder-zinc-700"
+                      />
+                    </label>
+                    <div className="p-4 pl-2 flex items-center shrink-0">
+                      <div className="relative">
+                        <select
+                          aria-label={t('選擇上方幣別', '选择上方币种', 'Select top currency')}
+                          value={calcFrom}
+                          onChange={(e) => setCalcFrom(e.target.value)}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                        >
+                          {allCurrencies.map((c) => (
+                            <option key={c.code} value={c.code} className="text-zinc-900">
+                              {c.code} {c.name}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-800 py-1.5 px-3 rounded-full border border-zinc-200/80 dark:border-white/10">
+                          <span className="font-num font-bold text-xs text-zinc-900 dark:text-white">{calcFrom}</span>
+                          <ChevronDownIcon className="w-3.5 h-3.5 text-zinc-400" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-center -my-3 relative z-10 pointer-events-none">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        tactileAudio.playClick(520, 0.035);
+                        skipFxSyncRef.current = true;
+                        setCalcFrom(calcTo);
+                        setCalcTo(calcFrom);
+                        setCalcFromAmount(calcToAmount);
+                        setCalcToAmount(calcFromAmount);
+                        setCalcLastEdited((s) => (s === 'from' ? 'to' : 'from'));
+                      }}
+                      aria-label={t('交換幣別', '交换币种', 'Swap currencies')}
+                      className="pointer-events-auto w-9 h-9 rounded-full bg-indigo-600 text-white shadow-md flex items-center justify-center hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+                    >
+                      <ArrowsRightLeftIcon className="w-4 h-4 rotate-90" />
+                    </button>
+                  </div>
+
+                  {/* Bottom Currency Box (defaults to HKD, also natively editable) */}
+                  <div className="bg-zinc-100/80 dark:bg-white/[0.04] hover:bg-zinc-100 dark:hover:bg-white/[0.06] focus-within:ring-2 focus-within:ring-[var(--tab-accent)]/35 rounded-2xl flex items-stretch justify-between border border-zinc-200/60 dark:border-white/[0.06] transition-all">
+                    <label
+                      htmlFor="fx-to-input"
+                      className="min-w-0 flex-1 p-4 pr-2 cursor-text flex flex-col justify-center"
+                    >
+                      <span className="text-[11px] font-medium text-zinc-500 block mb-1">
+                        {getCurrencyLabel(calcTo)}
+                      </span>
+                      <input
+                        id="fx-to-input"
+                        ref={calcToInputRef}
+                        type="text"
+                        inputMode="decimal"
+                        pattern="[0-9.]*"
+                        enterKeyHint="done"
+                        autoComplete="off"
+                        value={calcToAmount}
+                        onChange={(e) => handleFxAmountChange('to', e.target.value)}
+                        placeholder="0.00"
+                        className="bg-transparent text-zinc-900 dark:text-white font-display font-bold font-num text-2xl w-full min-h-[40px] py-0.5 focus:outline-none placeholder-zinc-300 dark:placeholder-zinc-700"
+                      />
+                    </label>
+                    <div className="p-4 pl-2 flex items-center shrink-0">
+                      <div className="relative">
+                        <select
+                          aria-label={t('選擇下方幣別', '选择下方币种', 'Select bottom currency')}
+                          value={calcTo}
+                          onChange={(e) => setCalcTo(e.target.value)}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                        >
+                          {allCurrencies.map((c) => (
+                            <option key={c.code} value={c.code} className="text-zinc-900">
+                              {c.code} {c.name}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-800 py-1.5 px-3 rounded-full border border-zinc-200/80 dark:border-white/10">
+                          <span className="font-num font-bold text-xs text-zinc-900 dark:text-white">{calcTo}</span>
+                          <ChevronDownIcon className="w-3.5 h-3.5 text-zinc-400" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
             </div>
             </div>
           </div>

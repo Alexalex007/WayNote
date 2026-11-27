@@ -38,7 +38,14 @@ import {
 } from './components/LiquidPrimitives';
 import { DestinationCover } from './components/DestinationCover';
 import { StretchToggle, CopyMorphButton, DownloadProgressButton, ShareAppButton } from './components/TactileButtons';
-import { buildTripIcs, buildGoogleCalendarEventUrl, downloadTripIcs } from './shared/calendarExport';
+import {
+  buildTripIcs,
+  buildDayIcs,
+  buildGoogleCalendarEventUrl,
+  buildGoogleCalendarDayBatchUrl,
+  buildGoogleCalendarTripBatchUrl,
+  downloadTripIcs,
+} from './shared/calendarExport';
 import {
   WaynoteLogoIcon,
   WalletIcon,
@@ -1494,7 +1501,25 @@ function App() {
   };
 
   // --- Calendar & Export ---
-  const calendarBundle = useMemo(() => (tripData ? buildTripIcs(tripData, lang) : { icsContent: '', filename: 'waynote.ics', eventCount: 0 }), [tripData, lang]);
+  const calendarBundle = useMemo(
+    () => (tripData ? buildTripIcs(tripData, lang) : { icsContent: '', filename: 'waynote.ics', eventCount: 0 }),
+    [tripData, lang]
+  );
+  const tripBatchGoogleUrl = useMemo(
+    () => (tripData ? buildGoogleCalendarTripBatchUrl(tripData, lang) : null),
+    [tripData, lang]
+  );
+  const dayIcsBundle = useMemo(
+    () =>
+      tripData && calendarDayDate
+        ? buildDayIcs(tripData, calendarDayDate, lang)
+        : { icsContent: '', filename: 'day.ics', eventCount: 0 },
+    [tripData, calendarDayDate, lang]
+  );
+  const dayBatchGoogleUrl = useMemo(
+    () => (tripData && calendarDayDate ? buildGoogleCalendarDayBatchUrl(tripData, calendarDayDate, lang) : null),
+    [tripData, calendarDayDate, lang]
+  );
 
   const calendarDates = useMemo(() => {
     if (!tripData) return [] as string[];
@@ -2835,13 +2860,13 @@ function App() {
                           <div className="space-y-4">
                             <div className="hidden lg:block space-y-1">
                               <div className="text-xs font-semibold text-[#2563EB] dark:text-sky-400">
-                                {t('探索全球 40 座精選城市', '探索全球 40 座精选城市', 'Explore 40 Featured Cities')}
+                                {t('精選 40 座旅遊城市', '精选 40 座旅游城市', '40 Featured Cities')}
                               </div>
                               <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
                                 {t(
-                                  '點選城市搶先預覽實景與地圖定位，或直接建立行程並啟用 AI 智慧路線規劃。',
-                                  '点选城市抢先预览实景与地图定位，或直接创建行程并启用 AI 智能路线规划。',
-                                  'Tap a city to preview scenery & map focus, or create a trip with AI itinerary planning.'
+                                  '選擇城市預覽實景，或建立專屬行程。',
+                                  '选择城市预览实景，或创建专属行程。',
+                                  'Pick a city to preview or start a new trip.'
                                 )}
                               </p>
                             </div>
@@ -3584,10 +3609,7 @@ function App() {
                                       </div>
                                       <div className="min-w-0">
                                         <div className="font-display font-bold text-sm text-zinc-900 dark:text-white">
-                                          {t('外觀主題', '外观主题', 'Appearance Theme')}
-                                        </div>
-                                        <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
-                                          {t('切換柔和日光或靜謐夜間模式', '切换柔和日光或静谧夜间模式', 'Switch between Light, Dark, or System appearance')}
+                                          {t('外觀主題', '外观主题', 'Appearance')}
                                         </div>
                                       </div>
                                     </div>
@@ -3632,14 +3654,7 @@ function App() {
                                       </div>
                                       <div className="min-w-0">
                                         <div className="font-display font-bold text-sm text-zinc-900 dark:text-white">
-                                          {t('介面語言', '界面语言', 'App Language')}
-                                        </div>
-                                        <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
-                                          {t(
-                                            '選擇繁體中文、簡體中文或英文顯示',
-                                            '选择繁体中文、简体中文或英文显示',
-                                            'Choose Traditional Chinese, Simplified Chinese, or English'
-                                          )}
+                                          {t('介面語言', '界面语言', 'Language')}
                                         </div>
                                       </div>
                                     </div>
@@ -3684,11 +3699,7 @@ function App() {
                                         {t('觸感互動音效', '触感互动音效', 'Tactile Sound FX')}
                                       </div>
                                       <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
-                                        {t(
-                                          '點擊按鈕、切換開關與蓋章時播放合成音效',
-                                          '点击按钮、切换开关与盖章时播放合成音效',
-                                          'Play subtle synthesized audio for buttons, toggles, and stamps'
-                                        )}
+                                        {t('按鍵與開關回饋音效', '按键与开关反馈音效', 'Audio feedback for taps')}
                                       </div>
                                     </div>
                                   </div>
@@ -3707,14 +3718,10 @@ function App() {
                                     </div>
                                     <div className="min-w-0 flex-1">
                                       <div className="font-display font-bold text-sm text-zinc-900 dark:text-white truncate">
-                                        {t('分享本 App 給朋友', '分享本 App 给朋友', 'Share Waynote App')}
+                                        {t('分享本 App', '分享本 App', 'Share App')}
                                       </div>
                                       <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
-                                        {t(
-                                          '推薦 Waynote 給旅伴，不含私人行程碼',
-                                          '推荐 Waynote 给旅伴，不含私人行程码',
-                                          'Share cleanly without private trip codes'
-                                        )}
+                                        {t('推薦給朋友', '推荐给朋友', 'Invite friends to Waynote')}
                                       </div>
                                     </div>
                                   </div>
@@ -3769,7 +3776,7 @@ function App() {
                                         {t('修改旅程資訊', '修改旅程信息', 'Edit Trip Details')}
                                       </div>
                                       <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
-                                        {t('編輯名稱、目的地與起迄日期', '编辑名称、目的地与起止日期', 'Update trip name, destination, and travel dates')}
+                                        {t('名稱、目的地與日期', '名称、目的地与日期', 'Name, destination & dates')}
                                       </div>
                                     </div>
                                   </div>
@@ -3790,10 +3797,10 @@ function App() {
                                     </div>
                                     <div className="min-w-0">
                                       <div className="font-semibold text-sm text-zinc-900 dark:text-white">
-                                        {t('加入系統／Google 日曆', '加入系统／Google 日历', 'Add to System / Google Calendar')}
+                                        {t('加入系統／Google 日曆', '加入系统／Google 日历', 'Add to Calendar')}
                                       </div>
                                       <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
-                                        {t('下載 .ics 行事曆檔或單筆加至 Google 日曆', '下载 .ics 日历文件或单条加至 Google 日历', 'Download .ics file or quick-add stops to Google Calendar')}
+                                        {t('.ics 行事曆檔與 Google 批量加入', '.ics 日历文件与 Google 批量加入', '.ics export & Google batch add')}
                                       </div>
                                     </div>
                                   </div>
@@ -3816,7 +3823,7 @@ function App() {
                                         {t('匯出與備份', '导出与备份', 'Export & Backup')}
                                       </div>
                                       <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
-                                        {t('下載 .TXT 行程文字檔或 .JSON 完整備份', '下载 .TXT 行程文本或 .JSON 完整备份', 'Download .TXT itinerary summary or full .JSON backup')}
+                                        {t('.TXT 摘要或 .JSON 備份', '.TXT 摘要或 .JSON 备份', '.TXT summary or .JSON backup')}
                                       </div>
                                     </div>
                                   </div>
@@ -3837,7 +3844,7 @@ function App() {
                                         {t('版本紀錄', '版本记录', 'Release Notes')}
                                       </div>
                                       <div className="text-xs font-num text-[var(--tab-accent)] font-semibold truncate">
-                                        {t(`目前版本 ${APP_VERSION}`, `当前版本 ${APP_VERSION}`, `Version ${APP_VERSION}`)}
+                                        {APP_VERSION}
                                       </div>
                                     </div>
                                   </div>
@@ -3866,7 +3873,7 @@ function App() {
                                         {t('封存旅程', '归档旅程', 'Archive Trip')}
                                       </div>
                                       <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
-                                        {t('移至首頁歷史封存清單，可隨時還原', '移至首页历史归档列表，可随时恢复', 'Move to archived list on home; restore anytime')}
+                                        {t('移至歷史封存，可隨時還原', '移至历史归档，可随时恢复', 'Move to archive; restore anytime')}
                                       </div>
                                     </div>
                                   </div>
@@ -3887,7 +3894,7 @@ function App() {
                                         {t('移除本機旅程', '移除本地旅程', 'Remove Local Trip')}
                                       </div>
                                       <div className="text-xs text-red-500/75 truncate">
-                                        {t('離開工作區並清除本機列表紀錄', '离开工作区并清除本地列表记录', 'Exit workspace and clear this local trip entry')}
+                                        {t('清除本機紀錄', '清除本地记录', 'Clear from this device')}
                                       </div>
                                     </div>
                                   </div>
@@ -3972,14 +3979,14 @@ function App() {
           description={
             cloudAuth.user
               ? t(
-                  '這趟旅程將會從您的本機與私人雲端帳號中移除（若先前分享過同步代碼，房間紀錄仍會保留）。',
-                  '这趟旅程将会从您的本地与私人云端账号中移除（若先前分享过同步代码，房间记录仍会保留）。',
-                  'This trip will be removed from this device and your cloud account (shared sync rooms remain available).'
+                  '將從本機與私人雲端帳號移除此旅程。',
+                  '将从本地与私人云端账号移除此旅程。',
+                  'Removes this trip from your device and cloud account.'
                 )
               : t(
-                  '本機列表將移除這趟旅程（若其他裝置保有同步代碼，雲端房間仍會保留）。',
-                  '本地列表将移除这趟旅程（若其他设备保有同步代码，云端房间仍会保留）。',
-                  'This trip will be removed from this device (shared sync rooms remain intact).'
+                  '將從本機列表移除此旅程。',
+                  '将从本地列表移除此旅程。',
+                  'Removes this trip from this device.'
                 )
           }
           confirmLabel={t('確認移除', '确认移除', 'Remove')}
@@ -3995,9 +4002,9 @@ function App() {
           onConfirm={handleArchiveTrip}
           title={t('封存目前旅程？', '归档当前旅程？', 'Archive This Trip?')}
           description={t(
-            '旅程將會移至首頁的封存清單，可隨時還原。',
-            '旅程将会移至首页的归档列表，可随时恢复。',
-            'The trip will be moved to your archived list on home and can be restored anytime.'
+            '將移至封存清單，可隨時還原。',
+            '将移至归档列表，可随时恢复。',
+            'Moves trip to archive; restore anytime.'
           )}
           confirmLabel={t('確認封存', '确认归档', 'Archive')}
           cancelLabel={t('取消', '取消', 'Cancel')}
@@ -4213,58 +4220,75 @@ function App() {
           >
             <div className="overflow-y-auto no-scrollbar space-y-4 pr-0.5">
               {calendarBundle.eventCount === 0 ? (
-                <div className="p-6 rounded-2xl bg-zinc-50 dark:bg-white/[0.04] border border-zinc-200/70 dark:border-white/10 text-center space-y-2">
+                <div className="p-6 rounded-2xl bg-zinc-50 dark:bg-white/[0.04] border border-zinc-200/70 dark:border-white/10 text-center space-y-1.5">
                   <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-                    {t('目前尚無可匯出的行程或航班', '当前暂无可导出的行程或航班', 'No scheduled activities or flights yet')}
+                    {t('目前尚無行程項目', '当前暂无行程项目', 'No scheduled activities yet')}
                   </p>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                    {t('先新增每日行程或航班，即可一鍵匯出至日曆。', '先添加每日行程或航班，即可一键导出至日历。', 'Add an activity or flight first to export to your calendar.')}
+                    {t('新增行程或航班後即可匯出', '添加行程或航班后即可导出', 'Add activities or flights to export')}
                   </p>
                 </div>
               ) : (
                 <>
-                  {/* Whole-Trip One-Click .ics Download with Gallery Download Ring 0->100% animation */}
+                  {/* Whole-Trip Batch Export (.ics Ring + Whole-Trip Google Calendar) */}
                   <div className="p-4 rounded-2xl bg-zinc-50/90 dark:bg-white/[0.04] border border-zinc-200/70 dark:border-white/10 space-y-3">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="text-sm font-display font-bold text-zinc-900 dark:text-white">
-                          {t('整趟旅程一鍵匯入 (.ics)', '整趟旅程一键导入 (.ics)', 'Full-Trip Calendar File (.ics)')}
-                        </div>
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed">
-                          {t(
-                            '適用 Apple 日曆（iPhone / Mac）、Samsung 日曆及 Google 日曆匯入，自動換算目的地與航班時區。',
-                            '适用 Apple 日历（iPhone / Mac）、Samsung 日历及 Google 日历导入，自动换算目的地与航班时区。',
-                            'Works with Apple Calendar, Samsung Calendar, and Google Calendar import with exact timezone conversion.'
-                          )}
-                        </p>
-                      </div>
+                      <span className="text-sm font-display font-bold text-zinc-900 dark:text-white">
+                        {t('整趟旅程', '整趟旅程', 'Full Trip')}
+                      </span>
                       <span className="text-xs font-num font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
                         {t(`共 ${calendarBundle.eventCount} 筆`, `共 ${calendarBundle.eventCount} 条`, `${calendarBundle.eventCount} events`)}
                       </span>
                     </div>
 
-                    <div className="flex justify-center pt-0.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       <DownloadProgressButton
                         variant="accent"
-                        label={t('下載行事曆檔 (.ics)', '下载日历文件 (.ics)', 'Download .ics File')}
+                        label={t('下載 .ics 檔', '下载 .ics 文件', 'Download .ics')}
                         doneLabel={t('已下載', '已下载', 'Downloaded')}
                         icon={<ArrowDownTrayIcon className="w-4 h-4" />}
                         onDownload={() => {
                           downloadTripIcs(calendarBundle.icsContent, calendarBundle.filename);
                           showToast(
-                            t('已下載整趟旅程 .ics 檔案，開啟即可全部加入日曆', '已下载整趟旅程 .ics 文件，打开即可全部加入日历', 'Downloaded .ics — open it to add all events'),
+                            t('已下載整趟旅程 .ics', '已下载整趟旅程 .ics', 'Downloaded full trip .ics'),
                             'success'
                           );
                         }}
                         className="w-full"
                       />
+
+                      {tripBatchGoogleUrl && (
+                        <a
+                          href={tripBatchGoogleUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => tactileAudio.playClick(520, 0.04)}
+                          className="min-h-[44px] px-4 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold inline-flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98] transition-all whitespace-nowrap"
+                        >
+                          <CalendarIcon className="w-4 h-4 shrink-0" />
+                          <span>{t('整趟加至 Google', '整趟加至 Google', 'Add Trip to Google')}</span>
+                          <ArrowUpRightIcon className="w-3.5 h-3.5 shrink-0" />
+                        </a>
+                      )}
+                    </div>
+
+                    <div className="flex justify-end">
+                      <a
+                        href="https://calendar.google.com/calendar/r/settings/export"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] font-medium text-blue-600 dark:text-sky-400 hover:underline inline-flex items-center gap-1"
+                      >
+                        <span>{t('前往 Google 匯入 .ics', '前往 Google 导入 .ics', 'Import .ics in Google Calendar')}</span>
+                        <ArrowUpRightIcon className="w-3 h-3" />
+                      </a>
                     </div>
                   </div>
 
-                  {/* Direct 1-Tap Google Calendar Links by Day */}
+                  {/* Google Calendar Day Batch + Per-Item Quick Add */}
                   <div className="p-4 rounded-2xl bg-zinc-50/90 dark:bg-white/[0.04] border border-zinc-200/70 dark:border-white/10 space-y-3">
                     <div className="text-sm font-display font-bold text-zinc-900 dark:text-white">
-                      {t('快速單筆加入 Google 日曆', '快速单条加入 Google 日历', 'Quick Add to Google Calendar')}
+                      {t('加入 Google 日曆', '加入 Google 日历', 'Add to Google Calendar')}
                     </div>
 
                     {calendarDates.length > 0 && (
@@ -4289,20 +4313,43 @@ function App() {
                       </div>
                     )}
 
-                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                      {t(
-                        'Google 日曆網頁版僅支援單筆連結預填；若要一次匯入全部天數，請下載上方 .ics 並在 Google 日曆匯入。',
-                        'Google 日历网页版仅支持单条链接预填；若要一次导入全部天数，请下载上方 .ics 并在 Google 日历导入。',
-                        'Google Calendar links add one stop per tap. To import all days at once, download the .ics file above.'
-                      )}
-                    </p>
+                    {dayBatchGoogleUrl && (
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                        <a
+                          href={dayBatchGoogleUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => tactileAudio.playClick(520, 0.04)}
+                          className="sm:col-span-8 min-h-[40px] px-4 rounded-xl bg-blue-600/12 hover:bg-blue-600/18 text-blue-700 dark:text-sky-300 border border-blue-500/25 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap"
+                        >
+                          <CalendarIcon className="w-3.5 h-3.5 shrink-0" />
+                          <span>{t('當日整天加至 Google', '当日整天加至 Google', 'Add Whole Day to Google')}</span>
+                          <ArrowUpRightIcon className="w-3 h-3 shrink-0" />
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            tactileAudio.playClick(500, 0.035);
+                            downloadTripIcs(dayIcsBundle.icsContent, dayIcsBundle.filename);
+                            showToast(
+                              t('已下載本日 .ics', '已下载本日 .ics', 'Downloaded day .ics'),
+                              'success'
+                            );
+                          }}
+                          className="sm:col-span-4 min-h-[40px] px-3 rounded-xl bg-white dark:bg-zinc-900/70 border border-zinc-200/70 dark:border-white/10 hover:border-[var(--tab-accent)]/40 text-xs font-semibold text-zinc-700 dark:text-zinc-200 flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+                        >
+                          <ArrowDownTrayIcon className="w-3.5 h-3.5 shrink-0" />
+                          <span>{t('本日 .ics', '本日 .ics', 'Day .ics')}</span>
+                        </button>
+                      </div>
+                    )}
 
                     {(tripData.activities[calendarDayDate] || []).length === 0 ? (
                       <p className="text-xs text-zinc-400 py-2">
                         {t('此日暫無行程項目', '此日暂无行程项目', 'No activities on this day')}
                       </p>
                     ) : (
-                      <div className="space-y-1.5 max-h-52 overflow-y-auto no-scrollbar pt-0.5">
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto no-scrollbar pt-0.5">
                         {(tripData.activities[calendarDayDate] || []).map((act) => {
                           const timeText =
                             act.type === 'flight' && act.flightInfo

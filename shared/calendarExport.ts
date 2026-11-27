@@ -169,6 +169,24 @@ function sanitizeFilename(raw: string): string {
   return cleaned || 'Waynote_Trip';
 }
 
+function formatIcsDateOnly(dateIso: string): string {
+  return dateIso.replace(/-/g, '');
+}
+
+function addDaysToIso(dateIso: string, deltaDays: number): string {
+  const dm = dateIso.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!dm) return dateIso;
+  const d = new Date(Date.UTC(Number(dm[1]), Number(dm[2]) - 1, Number(dm[3]) + deltaDays));
+  return d.toISOString().slice(0, 10);
+}
+
+function formatLocalClockFromUtcMs(ms: number, utcOffsetHours: number): string {
+  const d = new Date(ms + Math.round(utcOffsetHours * 3600000));
+  const hh = String(d.getUTCHours()).padStart(2, '0');
+  const mm = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
 export function buildTripIcs(
   trip: Trip,
   lang: AppLanguage
@@ -219,6 +237,53 @@ export function buildTripIcs(
   };
 }
 
+export function buildDayIcs(
+  trip: Trip,
+  dateIso: string,
+  lang: AppLanguage
+): { icsContent: string; eventCount: number; filename: string } {
+  const dtStamp = formatUtcMsToIcs(Date.now());
+  const lines: string[] = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Waynote//Travel Itinerary//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    `X-WR-CALNAME:${escapeIcsText(`${trip.name} (${dateIso})`)}`,
+  ];
+
+  let eventCount = 0;
+  const dayList = trip.activities?.[dateIso] || [];
+  for (const act of dayList) {
+    const win = resolveActivityWindow(trip, dateIso, act, lang);
+    if (!win) continue;
+
+    const safeUid = `${act.id.replace(/[^a-zA-Z0-9_-]/g, '')}-${dateIso.replace(/-/g, '')}@waynote.app`;
+    lines.push('BEGIN:VEVENT');
+    lines.push(`UID:${safeUid}`);
+    lines.push(`DTSTAMP:${dtStamp}`);
+    lines.push(`DTSTART:${formatUtcMsToIcs(win.startMs)}`);
+    lines.push(`DTEND:${formatUtcMsToIcs(win.endMs)}`);
+    lines.push(`SUMMARY:${escapeIcsText(win.summary)}`);
+    if (win.location) {
+      lines.push(`LOCATION:${escapeIcsText(win.location)}`);
+    }
+    if (win.description) {
+      lines.push(`DESCRIPTION:${escapeIcsText(win.description)}`);
+    }
+    lines.push('END:VEVENT');
+    eventCount += 1;
+  }
+
+  lines.push('END:VCALENDAR');
+  const folded = lines.map(foldIcsLine).join('\r\n') + '\r\n';
+  return {
+    icsContent: folded,
+    eventCount,
+    filename: `${sanitizeFilename(trip.name)}_${dateIso}.ics`,
+  };
+}
+
 export function buildGoogleCalendarEventUrl(
   trip: Trip,
   dateIso: string,
@@ -235,6 +300,102 @@ export function buildGoogleCalendarEventUrl(
   });
   if (win.location) params.set('location', win.location);
   if (win.description) params.set('details', win.description);
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+export function buildGoogleCalendarDayBatchUrl(
+  trip: Trip,
+  dateIso: string,
+  lang: AppLanguage
+): string | null {
+  const dayList = trip.activities?.[dateIso] || [];
+  if (dayList.length === 0) return null;
+
+  const windows = dayList
+    .map((act) => ({
+      act,
+      win: resolveActivityWindow(trip, dateIso, act, lang),
+    }))
+    .filter((entry): entry is { act: Activity; win: NonNullable<ReturnType<typeof resolveActivityWindow>> } =>
+      Boolean(entry.win)
+    )
+    .sort((a, b) => a.win.startMs - b.win.startMs);
+
+  if (windows.length === 0) return null;
+
+  const dest = resolveDestinationForDate(trip, dateIso);
+  const intel = detectDestinationIntel(dest, lang);
+  const dayTheme = trip.themes?.[dateIso]?.trim();
+  const startMs = windows[0].win.startMs;
+  const endMs = Math.max(...windows.map((w) => w.win.endMs));
+
+  const lines = windows.map(({ act, win }) => {
+    const timeStr =
+      act.type === 'flight' && act.flightInfo
+        ? act.flightInfo.departureTime
+        : act.time || formatLocalClockFromUtcMs(win.startMs, intel.utcOffsetHours);
+    const loc = win.location && win.location !== localizeDestinationLabel(dest, lang) ? ` (${win.location})` : '';
+    return `• ${timeStr} ${win.summary}${loc}`;
+  });
+
+  const detailBlocks = [
+    dayTheme ? `${tr(lang, '主題', '主题', 'Theme')}: ${dayTheme}` : '',
+    ...lines,
+    `Waynote · ${trip.name}`,
+  ].filter(Boolean);
+
+  const summaryTitle = dayTheme
+    ? `${trip.name} · ${dayTheme}`
+    : `${trip.name} · ${localizeDestinationLabel(dest, lang)}`;
+
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: summaryTitle,
+    dates: `${formatUtcMsToIcs(startMs)}/${formatUtcMsToIcs(endMs)}`,
+    location: localizeDestinationLabel(dest, lang),
+    details: detailBlocks.join('\n').slice(0, 1500),
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+export function buildGoogleCalendarTripBatchUrl(
+  trip: Trip,
+  lang: AppLanguage
+): string | null {
+  if (!trip.startDate || !trip.endDate) return null;
+
+  const sortedDates = Object.keys(trip.activities || {}).sort();
+  const daySections: string[] = [];
+
+  for (const dateIso of sortedDates) {
+    const dayList = trip.activities?.[dateIso] || [];
+    if (dayList.length === 0) continue;
+    const dest = resolveDestinationForDate(trip, dateIso);
+    const theme = trip.themes?.[dateIso]?.trim();
+    const header = `[${dateIso.slice(5)}] ${localizeDestinationLabel(dest, lang)}${theme ? ` · ${theme}` : ''}`;
+    const items = dayList.map((act) => {
+      const timeText = act.type === 'flight' && act.flightInfo ? act.flightInfo.departureTime : act.time;
+      return `  • ${timeText} ${act.title}`;
+    });
+    daySections.push([header, ...items].join('\n'));
+  }
+
+  const destLabel = localizeDestinationLabel(trip.destination, lang);
+  const startToken = formatIcsDateOnly(trip.startDate);
+  const endExclusiveToken = formatIcsDateOnly(addDaysToIso(trip.endDate, 1));
+
+  const detailsText =
+    daySections.length > 0
+      ? `${daySections.join('\n\n')}\n\nWaynote`.slice(0, 1600)
+      : `${trip.name} (${trip.startDate} ~ ${trip.endDate})\nWaynote`;
+
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: `${trip.name} · ${destLabel}`,
+    dates: `${startToken}/${endExclusiveToken}`,
+    location: destLabel,
+    details: detailsText,
+  });
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 

@@ -207,9 +207,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
               <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
                 {t(
-                  '所有行程與開支均加密隔離儲存於您的帳號下，跨裝置即時同步，他人無法檢視。',
-                  '所有行程与开支均加密隔离存储于您的账号下，跨设备实时同步，他人无法查看。',
-                  'All trips and expenses are privately stored under your account and synced in real time across your devices.'
+                  '行程與開支私人加密同步',
+                  '行程与开支私人加密同步',
+                  'Trips & expenses sync privately across your devices.'
                 )}
               </p>
             </div>
@@ -252,15 +252,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </>
         ) : (
           <>
-            <div className="text-center space-y-1.5 py-1">
+            <div className="text-center space-y-1 py-1">
               <h3 className="font-display font-bold text-lg text-zinc-900 dark:text-white">
-                {t('登入並瞬間同步所有旅程', '登录并即时同步所有旅程', 'Sign in to Sync All Your Trips')}
+                {t('登入雲端同步', '登录云端同步', 'Sign in to Cloud Sync')}
               </h3>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
                 {t(
-                  '支援 Apple 與 Google 帳號，個人資料僅限本人裝置存取',
-                  '支持 Apple 与 Google 账号，个人数据仅限本人设备访问',
-                  'Supports Apple and Google accounts. Your data stays private to your devices.'
+                  'Apple 與 Google 私人帳號儲存',
+                  'Apple 与 Google 私人账号存储',
+                  'Private sync with Apple or Google'
                 )}
               </p>
             </div>
