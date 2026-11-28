@@ -299,8 +299,22 @@ export function getChangelogItems(lang: AppLanguage): Array<{ version: string; d
   if (lang === 'en') {
     return [
       {
-        version: '6.8',
+        version: '7.0',
         date: 'Latest',
+        notes: [
+          'Fixed hold-to-delete & wide border-beam flickering, filtered Bali/city map photos, redesigned cross-country multi-city creator with live map tracking, added Home Settings & AI swipe safeguard.',
+        ],
+      },
+      {
+        version: '6.9',
+        date: 'Update',
+        notes: [
+          'Upgraded to full-bleed borderless 50m canvas map with GPU panning, removed dark-mode stars and seam line, added tablet/desktop Bento layout and AI API usage guard.',
+        ],
+      },
+      {
+        version: '6.8',
+        date: 'Update',
         notes: [
           'Restored local-on-top FX layout with full-box keyboard tap, two-way sync, single % ring, and Pop firework celebration.',
         ],
@@ -366,8 +380,22 @@ export function getChangelogItems(lang: AppLanguage): Array<{ version: string; d
   if (lang === 'zh-CN') {
     return [
       {
-        version: '6.8',
+        version: '7.0',
         date: '最新版本',
+        notes: [
+          '修复长按删程与宽按钮光效闪烁，修正巴厘岛非实景图；重构跨国多城页并随行程自动移图，升级首页设置弹窗、大屏留白排版与 AI 滑动开启保险。',
+        ],
+      },
+      {
+        version: '6.9',
+        date: '更新记录',
+        notes: [
+          '背景地图升级为满版无国界极速画布，移除暗黑模式星星与换日线；大屏适配多栏 Bento 排版与置中新建页，并新增全站 Gemini 用量锁定保护。',
+        ],
+      },
+      {
+        version: '6.8',
+        date: '更新记录',
         notes: [
           '汇率换算改回当地货币在上、港币在下，双框皆支持整格点击弹出键盘并实时双向换算；修正免税进度环百分比重叠，达标触发 Pop 弹跳与小烟花特效。',
         ],
@@ -432,8 +460,22 @@ export function getChangelogItems(lang: AppLanguage): Array<{ version: string; d
   }
   return [
     {
-      version: '6.8',
+      version: '7.0',
       date: '最新版本',
+      notes: [
+        '修復長按刪程與寬按鈕光效閃爍，修正峇里島非實景圖；重構跨國多城頁並隨行程自動移圖，升級首頁設定視窗、大螢幕留白排版與 AI 滑動開啟保險。',
+      ],
+    },
+    {
+      version: '6.9',
+      date: '更新紀錄',
+      notes: [
+        '背景地圖升級為滿版無國界極速畫布，移除暗黑模式星星與換日線；大螢幕適配多欄 Bento 排版與置中新建頁，並新增全站 Gemini 用量鎖定保護。',
+      ],
+    },
+    {
+      version: '6.8',
+      date: '更新紀錄',
       notes: [
         '匯率換算改回當地貨幣在上、港幣在下，雙框皆支援整格點擊彈出鍵盤並即時雙向換算；修正免稅進度環百分比重疊，達標時觸發 Pop 彈跳與小煙花特效。',
       ],

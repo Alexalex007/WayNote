@@ -88,7 +88,7 @@ const ExploreTool: React.FC<Props> = ({
   focusSectionSignal,
 }) => {
   const { lang, t } = useI18n();
-  const { aiEnabled, setAiEnabled } = useAiAccess();
+  const { aiEnabled, requestAiEnable } = useAiAccess();
   const intel = useMemo(() => detectDestinationIntel(trip.destination, lang), [trip.destination, lang]);
   const savedPlaces = trip.savedPlaces || [];
 
@@ -1031,11 +1031,11 @@ const ExploreTool: React.FC<Props> = ({
                     ) : (
                       <button
                         type="button"
-                        onClick={() => setAiEnabled(true)}
+                        onClick={requestAiEnable}
                         className="min-h-[44px] px-5 rounded-full bg-zinc-900 dark:bg-white/15 text-white text-xs sm:text-sm font-semibold inline-flex items-center gap-1.5 cursor-pointer hover:opacity-90 transition-opacity"
                       >
                         <SparklesIcon className="w-4 h-4" />
-                        <span>{t('AI 已鎖定 — 點此暫時啟用', 'AI 已锁定 — 点此暂时启用', 'AI Locked — Tap to Enable')}</span>
+                        <span>{t('AI 已鎖定 — 點此啟用', 'AI 已锁定 — 点此启用', 'AI Locked — Tap to Enable')}</span>
                       </button>
                     )}
                   </div>

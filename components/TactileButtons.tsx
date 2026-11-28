@@ -1,10 +1,11 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import {
   ArrowDownTrayIcon,
   ArrowsRightLeftIcon,
   BookmarkIcon,
   CheckIcon,
+  ChevronRightIcon,
   DocumentDuplicateIcon,
   HeartIcon,
   PaperAirplaneIcon,
@@ -254,7 +255,7 @@ export const HoldConfirmButton: React.FC<HoldConfirmButtonProps> = ({
   onConfirm,
   label,
   holdingLabel,
-  durationMs = 780,
+  durationMs = 680,
   tone = 'danger',
   icon,
   disabled = false,
@@ -264,14 +265,39 @@ export const HoldConfirmButton: React.FC<HoldConfirmButtonProps> = ({
   const prefersReduced = useReducedMotion();
   const [progress, setProgress] = useState(0);
   const [holding, setHolding] = useState(false);
+
+  const btnRef = useRef<HTMLButtonElement | null>(null);
   const rafRef = useRef<number | null>(null);
   const startRef = useRef<number>(0);
   const triggeredRef = useRef(false);
+  const isHoldingRef = useRef(false);
+  const activePointerIdRef = useRef<number | null>(null);
+  const onConfirmRef = useRef(onConfirm);
+  onConfirmRef.current = onConfirm;
 
-  const stopHold = useCallback(() => {
+  const stopHold = useCallback((pointerId?: number) => {
+    if (
+      pointerId !== undefined &&
+      activePointerIdRef.current !== null &&
+      pointerId !== activePointerIdRef.current
+    ) {
+      return;
+    }
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
+    }
+    const capturedId = activePointerIdRef.current;
+    activePointerIdRef.current = null;
+    isHoldingRef.current = false;
+    if (capturedId !== null && btnRef.current) {
+      try {
+        if (btnRef.current.hasPointerCapture(capturedId)) {
+          btnRef.current.releasePointerCapture(capturedId);
+        }
+      } catch {
+        // ignore release error
+      }
     }
     setHolding(false);
     if (!triggeredRef.current) {
@@ -280,34 +306,62 @@ export const HoldConfirmButton: React.FC<HoldConfirmButtonProps> = ({
   }, []);
 
   useEffect(() => {
+    const onWindowUp = (e: PointerEvent) => {
+      if (isHoldingRef.current) stopHold(e.pointerId);
+    };
+    const onWindowBlur = () => {
+      if (isHoldingRef.current) stopHold();
+    };
+    window.addEventListener('pointerup', onWindowUp);
+    window.addEventListener('pointercancel', onWindowUp);
+    window.addEventListener('blur', onWindowBlur);
     return () => {
+      window.removeEventListener('pointerup', onWindowUp);
+      window.removeEventListener('pointercancel', onWindowUp);
+      window.removeEventListener('blur', onWindowBlur);
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     };
-  }, []);
+  }, [stopHold]);
 
-  const startHold = () => {
-    if (disabled || holding) return;
-    triggeredRef.current = false;
-    setHolding(true);
-    tactileAudio.playTick(0.85);
-    const effectiveDuration = prefersReduced ? 350 : durationMs;
-    startRef.current = performance.now();
-
-    const step = (now: number) => {
-      const next = Math.min(1, (now - startRef.current) / effectiveDuration);
-      setProgress(next);
-      if (next < 1) {
-        rafRef.current = requestAnimationFrame(step);
-      } else {
-        triggeredRef.current = true;
-        setHolding(false);
-        setProgress(0);
-        tactileAudio.playWarn();
-        onConfirm();
+  const startHold = useCallback(
+    (pointerId?: number) => {
+      if (disabled || isHoldingRef.current) return;
+      isHoldingRef.current = true;
+      triggeredRef.current = false;
+      if (pointerId !== undefined) {
+        activePointerIdRef.current = pointerId;
+        try {
+          btnRef.current?.setPointerCapture(pointerId);
+        } catch {
+          // ignore if pointer capture is unsupported
+        }
       }
-    };
-    rafRef.current = requestAnimationFrame(step);
-  };
+      setHolding(true);
+      tactileAudio.playTick(0.85);
+      const effectiveDuration = prefersReduced ? 320 : durationMs;
+      startRef.current = performance.now();
+
+      const step = (now: number) => {
+        if (!isHoldingRef.current) return;
+        const next = Math.min(1, (now - startRef.current) / effectiveDuration);
+        setProgress(next);
+        if (next < 1) {
+          rafRef.current = requestAnimationFrame(step);
+        } else {
+          triggeredRef.current = true;
+          isHoldingRef.current = false;
+          activePointerIdRef.current = null;
+          rafRef.current = null;
+          setHolding(false);
+          setProgress(0);
+          tactileAudio.playWarn();
+          onConfirmRef.current();
+        }
+      };
+      rafRef.current = requestAnimationFrame(step);
+    },
+    [disabled, durationMs, prefersReduced]
+  );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
     if (disabled) return;
@@ -332,24 +386,41 @@ export const HoldConfirmButton: React.FC<HoldConfirmButtonProps> = ({
 
   const fillToneClass =
     tone === 'danger'
-      ? 'bg-red-600/85 dark:bg-red-500/80'
-      : 'bg-[var(--tab-accent)]/80';
+      ? 'bg-red-600/90 dark:bg-red-500/85'
+      : 'bg-[var(--tab-accent)]/85';
 
   return (
     <button
+      ref={btnRef}
       type="button"
       disabled={disabled}
+      onContextMenu={(e) => e.preventDefault()}
       onPointerDown={(e) => {
         if (e.button !== 0 && e.pointerType === 'mouse') return;
-        startHold();
+        e.preventDefault();
+        startHold(e.pointerId);
       }}
-      onPointerUp={stopHold}
-      onPointerLeave={stopHold}
-      onPointerCancel={stopHold}
+      onPointerUp={(e) => stopHold(e.pointerId)}
+      onPointerCancel={(e) => stopHold(e.pointerId)}
+      onPointerLeave={(e) => {
+        // Ignore stray pointerleave on touch/pen or while pointer is captured
+        if (e.pointerType !== 'mouse') return;
+        try {
+          if (e.currentTarget.hasPointerCapture(e.pointerId)) return;
+        } catch {
+          // ignore
+        }
+        stopHold(e.pointerId);
+      }}
       onKeyDown={handleKeyDown}
       onKeyUp={handleKeyUp}
+      style={{
+        WebkitTouchCallout: 'none',
+        WebkitUserSelect: 'none',
+        transform: holding ? 'scale(0.985)' : 'scale(1)',
+      }}
       aria-label={`${label} (${resolvedHint})`}
-      className={`relative overflow-hidden min-h-[46px] px-4 rounded-full font-semibold text-sm flex items-center justify-center gap-1.5 select-none touch-none transition-transform active:scale-[0.98] cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed ${baseToneClass} ${className}`}
+      className={`relative overflow-hidden min-h-[46px] px-4 rounded-full font-semibold text-sm flex items-center justify-center gap-1.5 select-none touch-none transition-transform cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed ${baseToneClass} ${className}`}
     >
       <span
         aria-hidden="true"
@@ -362,7 +433,7 @@ export const HoldConfirmButton: React.FC<HoldConfirmButtonProps> = ({
       />
       <span
         className={`relative z-10 inline-flex items-center justify-center gap-1.5 whitespace-nowrap transition-colors duration-150 ${
-          progress > 0.45 ? 'text-white' : ''
+          progress > 0.42 ? 'text-white' : ''
         }`}
       >
         {icon || (tone === 'danger' ? <TrashIcon className="w-4 h-4 shrink-0" /> : null)}
@@ -1269,11 +1340,40 @@ export const MovingBorderBeamButton: React.FC<MovingBorderBeamButtonProps> = ({
   innerClassName = '',
 }) => {
   const prefersReduced = useReducedMotion();
-  const c1 = beamFrom || 'var(--tab-accent, #38BDF8)';
-  const c2 = beamTo || 'var(--accent-indigo, #A855F7)';
+  const c1 = beamFrom || '#2563EB';
+  const c2 = beamTo || '#38BDF8';
+  const gradId = useId();
+  const btnRef = useRef<HTMLButtonElement | null>(null);
+  const [boxSize, setBoxSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+
+  useLayoutEffect(() => {
+    const el = btnRef.current;
+    if (!el) return;
+    const measure = () => {
+      const w = Math.round(el.offsetWidth);
+      const h = Math.round(el.offsetHeight);
+      if (w > 0 && h > 0) {
+        setBoxSize((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+      }
+    };
+    measure();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    ro?.observe(el);
+    window.addEventListener('resize', measure);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, []);
+
+  const strokeInset = 1.25;
+  const rectW = Math.max(8, boxSize.w - strokeInset * 2);
+  const rectH = Math.max(8, boxSize.h - strokeInset * 2);
+  const rx = rectH / 2;
 
   return (
     <motion.button
+      ref={btnRef}
       type={type}
       disabled={disabled}
       onClick={() => {
@@ -1281,22 +1381,14 @@ export const MovingBorderBeamButton: React.FC<MovingBorderBeamButtonProps> = ({
         tactileAudio.playWhoosh(true);
         onClick?.();
       }}
-      whileHover={disabled || prefersReduced ? undefined : { scale: 1.015 }}
-      whileTap={disabled ? undefined : { scale: 0.965 }}
-      className={`relative overflow-hidden p-[1.75px] rounded-full inline-flex items-center justify-center min-h-[46px] cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed shadow-[0_12px_28px_-10px_rgba(37,99,235,0.42)] dark:shadow-[0_14px_32px_-10px_rgba(0,0,0,0.75)] group ${className}`}
+      whileHover={disabled || prefersReduced ? undefined : { scale: 1.012 }}
+      whileTap={disabled ? undefined : { scale: 0.97 }}
+      className={`relative rounded-full inline-flex items-center justify-center min-h-[46px] p-[1.75px] cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed shadow-[0_12px_28px_-10px_rgba(37,99,235,0.42)] dark:shadow-[0_14px_32px_-10px_rgba(0,0,0,0.75)] group ${className}`}
     >
-      {/* Rotating Conic Laser Beam */}
+      {/* Subtle Ambient Rim */}
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute -inset-[120%] beam-spin"
-        style={{
-          background: `conic-gradient(from 0deg, transparent 0deg, transparent 245deg, ${c1} 290deg, ${c2} 332deg, #ffffff 352deg, transparent 360deg)`,
-        }}
-      />
-      {/* Static fallback rim for reduced motion or subtle ambient edge */}
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 rounded-full border border-zinc-300/60 dark:border-white/15"
+        className="pointer-events-none absolute inset-0 rounded-full border border-zinc-300/70 dark:border-white/15"
       />
       {/* Inner Capsule Core */}
       <span
@@ -1304,6 +1396,53 @@ export const MovingBorderBeamButton: React.FC<MovingBorderBeamButtonProps> = ({
       >
         {children}
       </span>
+      {/* Continuous True-Perimeter SVG Beam (Zero Clipping / Flicker at Any Width) */}
+      {boxSize.w > 0 && boxSize.h > 0 && !prefersReduced && (
+        <svg
+          aria-hidden="true"
+          viewBox={`0 0 ${boxSize.w} ${boxSize.h}`}
+          className="pointer-events-none absolute inset-0 w-full h-full overflow-visible z-20"
+        >
+          <defs>
+            <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor={c1} />
+              <stop offset="50%" stopColor={c2} />
+              <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0.95" />
+            </linearGradient>
+          </defs>
+          <rect
+            x={strokeInset}
+            y={strokeInset}
+            width={rectW}
+            height={rectH}
+            rx={rx}
+            ry={rx}
+            fill="none"
+            stroke={c2}
+            strokeWidth={4}
+            strokeLinecap="round"
+            pathLength={100}
+            strokeDasharray="24 76"
+            opacity={0.32}
+            className="beam-perimeter-track"
+          />
+          <rect
+            x={strokeInset}
+            y={strokeInset}
+            width={rectW}
+            height={rectH}
+            rx={rx}
+            ry={rx}
+            fill="none"
+            stroke={`url(#${gradId})`}
+            strokeWidth={2}
+            strokeLinecap="round"
+            pathLength={100}
+            strokeDasharray="24 76"
+            className="beam-perimeter-track"
+          />
+        </svg>
+      )}
     </motion.button>
   );
 };
@@ -1484,4 +1623,185 @@ export const SplitFlapBoard: React.FC<SplitFlapBoardProps> = ({
     </button>
   );
 };
+
+/* -------------------------------------------------------------------------- */
+/* 15. SwipeConfirmButton — Gallery #27 swipe-to-confirm physical safeguard   */
+/* -------------------------------------------------------------------------- */
+interface SwipeConfirmButtonProps {
+  onConfirm: () => void;
+  label: string;
+  confirmedLabel?: string;
+  disabled?: boolean;
+  className?: string;
+}
+
+export const SwipeConfirmButton: React.FC<SwipeConfirmButtonProps> = ({
+  onConfirm,
+  label,
+  confirmedLabel,
+  disabled = false,
+  className = '',
+}) => {
+  const { t } = useI18n();
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const activePointerRef = useRef<number | null>(null);
+  const startXRef = useRef<number>(0);
+  const startProgressRef = useRef<number>(0);
+  const onConfirmRef = useRef(onConfirm);
+  onConfirmRef.current = onConfirm;
+
+  const [progress, setProgress] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
+  const [trackWidth, setTrackWidth] = useState(240);
+
+  const thumbSize = 40;
+  const padding = 4;
+  const maxTravel = Math.max(40, trackWidth - thumbSize - padding * 2);
+
+  useLayoutEffect(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    const measure = () => {
+      if (el.offsetWidth > 0) setTrackWidth(el.offsetWidth);
+    };
+    measure();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    ro?.observe(el);
+    window.addEventListener('resize', measure);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, []);
+
+  const finishDrag = useCallback(
+    (finalProgress: number) => {
+      setDragging(false);
+      activePointerRef.current = null;
+      if (finalProgress >= 0.85) {
+        setProgress(1);
+        setConfirmed(true);
+        tactileAudio.playPing();
+        window.setTimeout(() => {
+          onConfirmRef.current();
+        }, 200);
+      } else {
+        setProgress(0);
+      }
+    },
+    []
+  );
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (disabled || confirmed) return;
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    e.preventDefault();
+    activePointerRef.current = e.pointerId;
+    startXRef.current = e.clientX;
+    startProgressRef.current = progress;
+    setDragging(true);
+    tactileAudio.playTick(0.92);
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragging || activePointerRef.current !== e.pointerId || confirmed) return;
+    const delta = e.clientX - startXRef.current;
+    const next = Math.max(0, Math.min(1, startProgressRef.current + delta / maxTravel));
+    setProgress(next);
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragging || activePointerRef.current !== e.pointerId) return;
+    try {
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      // ignore
+    }
+    finishDrag(progress);
+  };
+
+  const thumbX = padding + progress * maxTravel;
+  const fillWidth = thumbX + thumbSize + padding;
+  const resolvedConfirmed = confirmedLabel || t('已確認開啟', '已确认开启', 'Enabled');
+
+  return (
+    <div
+      ref={trackRef}
+      role="slider"
+      tabIndex={disabled ? -1 : 0}
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(progress * 100)}
+      onContextMenu={(e) => e.preventDefault()}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+      onKeyDown={(e) => {
+        if (disabled || confirmed) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          finishDrag(1);
+        }
+      }}
+      style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none' }}
+      className={`relative h-[48px] w-full rounded-full overflow-hidden select-none touch-none flex items-center justify-center border transition-colors cursor-grab active:cursor-grabbing ${
+        confirmed
+          ? 'bg-emerald-500/18 border-emerald-500/50 text-emerald-700 dark:text-emerald-300'
+          : 'bg-zinc-100/95 dark:bg-zinc-900/90 border-zinc-300/80 dark:border-white/15 text-zinc-600 dark:text-zinc-300'
+      } ${disabled ? 'opacity-45 cursor-not-allowed' : ''} ${className}`}
+    >
+      {/* Progressive Fill Behind Thumb */}
+      <span
+        aria-hidden="true"
+        style={{
+          width: `${Math.min(trackWidth, fillWidth)}px`,
+          transition: dragging ? 'none' : 'width 260ms cubic-bezier(0.34, 1.35, 0.64, 1)',
+        }}
+        className={`absolute left-0 top-0 bottom-0 rounded-full pointer-events-none ${
+          confirmed
+            ? 'bg-emerald-500/20'
+            : 'bg-gradient-to-r from-[#2563EB]/16 to-[#0EA5E9]/26'
+        }`}
+      />
+
+      {/* Label */}
+      <span
+        style={{ opacity: confirmed ? 1 : Math.max(0.18, 1 - progress * 1.25) }}
+        className="relative z-10 text-xs sm:text-sm font-semibold pointer-events-none pl-7 pr-3 transition-opacity truncate"
+      >
+        {confirmed ? resolvedConfirmed : label}
+      </span>
+
+      {/* Draggable Capsule Thumb */}
+      <div
+        style={{
+          transform: `translate3d(${thumbX}px, 0, 0)`,
+          transition: dragging ? 'none' : 'transform 260ms cubic-bezier(0.34, 1.35, 0.64, 1)',
+        }}
+        className={`absolute left-0 top-[3.5px] w-10 h-10 rounded-full flex items-center justify-center shadow-md pointer-events-none z-20 transition-colors ${
+          confirmed
+            ? 'bg-emerald-500 text-white'
+            : 'bg-gradient-to-br from-[#2563EB] to-[#0EA5E9] text-white'
+        }`}
+      >
+        {confirmed ? (
+          <CheckIcon className="w-4 h-4" />
+        ) : (
+          <ChevronRightIcon className="w-4 h-4" />
+        )}
+      </div>
+    </div>
+  );
+};
+
 

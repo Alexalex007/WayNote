@@ -10,7 +10,7 @@ export interface DestinationPhotoData {
 
 const CLIENT_PHOTO_CACHE = new Map<string, DestinationPhotoData>();
 const IN_FLIGHT_LOOKUPS = new Map<string, Promise<DestinationPhotoData>>();
-const STORAGE_PHOTO_CACHE_KEY = 'waynote_photo_cache_v4';
+const STORAGE_PHOTO_CACHE_KEY = 'waynote_photo_cache_v5';
 const PHOTO_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 interface StoredPhotoEntry {
@@ -26,6 +26,7 @@ function ensureHydrated() {
     localStorage.removeItem('waynote_photo_cache_v1');
     localStorage.removeItem('waynote_photo_cache_v2');
     localStorage.removeItem('waynote_photo_cache_v3');
+    localStorage.removeItem('waynote_photo_cache_v4');
     const raw = localStorage.getItem(STORAGE_PHOTO_CACHE_KEY);
     if (!raw) return;
     const parsed = JSON.parse(raw) as Record<string, StoredPhotoEntry>;

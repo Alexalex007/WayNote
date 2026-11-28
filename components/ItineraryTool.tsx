@@ -57,6 +57,7 @@ interface Props {
   onToggleFullScreen?: (isOpen: boolean) => void;
   onShowToast: (text: string, tone?: 'info' | 'success' | 'error') => void;
   focusDateSignal?: { date: string; nonce: number } | null;
+  onSelectedDateChange?: (date: string) => void;
 }
 
 function formatGmtOffset(offset: number): string {
@@ -392,9 +393,10 @@ const ItineraryTool: React.FC<Props> = ({
   onUpdateTrip,
   onShowToast,
   focusDateSignal,
+  onSelectedDateChange,
 }) => {
   const { lang, t } = useI18n();
-  const { aiEnabled, setAiEnabled } = useAiAccess();
+  const { aiEnabled, requestAiEnable } = useAiAccess();
   const [selectedDate, setSelectedDate] = useState<string>(trip.startDate);
   const [dates, setDates] = useState<string[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -542,7 +544,11 @@ const ItineraryTool: React.FC<Props> = ({
     if (dateArray.length > 0 && !dateArray.includes(selectedDate)) {
       setSelectedDate(dateArray[0]);
     }
-  }, [trip.startDate, trip.endDate]);
+  }, [trip.id, trip.startDate, trip.endDate]);
+
+  useEffect(() => {
+    onSelectedDateChange?.(selectedDate);
+  }, [selectedDate, onSelectedDateChange]);
 
   useEffect(() => {
     if (!focusDateSignal?.date) return;
@@ -2079,7 +2085,7 @@ const ItineraryTool: React.FC<Props> = ({
                       ) : (
                         <button
                           type="button"
-                          onClick={() => setAiEnabled(true)}
+                          onClick={requestAiEnable}
                           className="h-7 px-3 rounded-full bg-zinc-200 dark:bg-white/10 text-zinc-800 dark:text-zinc-200 text-[11px] font-semibold shrink-0 cursor-pointer whitespace-nowrap"
                         >
                           {t('啟用 AI', '启用 AI', 'Enable AI')}

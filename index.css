@@ -318,6 +318,18 @@ html.dark .ink-card {
   animation: beam-spin 3.2s linear infinite;
 }
 
+@keyframes beam-perimeter {
+  from {
+    stroke-dashoffset: 100;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.beam-perimeter-track {
+  animation: beam-perimeter 3.2s linear infinite;
+}
+
 .split-flap-stage {
   perspective: 260px;
 }
@@ -356,7 +368,8 @@ html.dark .ink-card {
   .animate-marquee-scroll,
   .animate-star-twinkle,
   .animate-fx-pop,
-  .beam-spin {
+  .beam-spin,
+  .beam-perimeter-track {
     animation: none !important;
   }
   .split-flap-tile {

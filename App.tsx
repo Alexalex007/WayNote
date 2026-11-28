@@ -9,6 +9,7 @@ import { detectDestinationIntel, getDestinationLocalTime } from './shared/destin
 import { useI18n } from './hooks/useI18n';
 import { useTactileSound } from './hooks/useTactileSound';
 import { useAiAccess } from './hooks/useAiAccess';
+import { subscribeAiEnableRequest } from './services/aiGuard';
 import { tactileAudio } from './services/tactileAudio';
 import {
   AppLanguage,
@@ -45,6 +46,7 @@ import {
   ShareAppButton,
   DayNightOrbButton,
   MovingBorderBeamButton,
+  SwipeConfirmButton,
 } from './components/TactileButtons';
 import {
   buildTripIcs,
@@ -68,6 +70,8 @@ import {
   EditIcon,
   ShareIcon,
   ChevronRightIcon,
+  ChevronUpIcon,
+  ChevronDownIcon,
   PlusIcon,
   TagIcon,
   GlobeIcon,
@@ -89,11 +93,20 @@ import {
   CalendarIcon,
   ArrowUpRightIcon,
   SparklesIcon,
+  PlaneIcon,
+  ArrowLongRightIcon,
+  ShieldCheckIcon,
 } from './components/Icons';
 
-const APP_VERSION = 'v6.8';
+const APP_VERSION = 'v7.0';
 
 const QUICK_CITIES = ['東京', '大阪', '首爾', '曼谷', '台北', '香港', '巴黎', '倫敦'];
+const CROSS_COUNTRY_TEMPLATES: Array<{ id: string; cities: string[] }> = [
+  { id: 'tyo-sel', cities: ['東京', '首爾'] },
+  { id: 'par-lon', cities: ['巴黎', '倫敦'] },
+  { id: 'bkk-sin', cities: ['曼谷', '新加坡'] },
+  { id: 'tpe-oka', cities: ['台北', '沖繩'] },
+];
 const SHOWCASE_CITIES = [
   '東京', '大阪', '京都', '札幌', '沖繩', '福岡', '首爾', '釜山',
   '台北', '高雄', '香港', '澳門', '新加坡', '曼谷', '清邁', '峇里島',
@@ -271,6 +284,27 @@ function upsertTripIntoList(list: Trip[], trip: Trip): Trip[] {
   const next = [...list];
   next[idx] = trip;
   return next;
+}
+
+function resolveActiveTripCity(trip: Trip, dateIso?: string): string {
+  if (trip.type !== 'Multi' || !trip.stops || trip.stops.length === 0) {
+    return trip.destination;
+  }
+  const target = dateIso || trip.startDate;
+  for (let i = 0; i < trip.stops.length - 1; i++) {
+    const cur = trip.stops[i];
+    const nxt = trip.stops[i + 1];
+    if (target === cur.endDate && target === nxt.startDate && nxt.destination.trim()) {
+      return nxt.destination.trim();
+    }
+  }
+  const matching = trip.stops.find((s) => target >= s.startDate && target <= s.endDate && s.destination.trim());
+  if (matching) return matching.destination.trim();
+  if (target < trip.stops[0].startDate && trip.stops[0].destination.trim()) {
+    return trip.stops[0].destination.trim();
+  }
+  const lastNonEmpty = [...trip.stops].reverse().find((s) => s.destination.trim());
+  return lastNonEmpty?.destination.trim() || trip.destination;
 }
 
 const HomeTripWeatherPill: React.FC<{
@@ -786,7 +820,7 @@ const WorkspaceDock: React.FC<
 function App() {
   const { lang, setLanguage, t } = useI18n();
   const { soundEnabled, setSoundEnabled } = useTactileSound();
-  const { aiEnabled, setAiEnabled } = useAiAccess();
+  const { aiEnabled, setAiEnabled, requestAiEnable } = useAiAccess();
   const isAnyModalOpen = useAnyModalOpen();
   const [view, setView] = useState<'HOME' | 'CREATE' | 'TRIP'>('HOME');
   const [activeTab, setActiveTab] = useState<Tab>(Tab.ITINERARY);
@@ -795,6 +829,7 @@ function App() {
   const [archivedTrips, setArchivedTrips] = useState<Trip[]>([]);
   const [selectedHomeTripId, setSelectedHomeTripId] = useState<string | null>(null);
   const [homeFilter, setHomeFilter] = useState<'ALL' | 'ACTIVE' | 'UPCOMING' | 'PAST'>('ALL');
+  const [activeTripDate, setActiveTripDate] = useState<string>('');
 
   // UI Control State
   const [showHomeSettings, setShowHomeSettings] = useState(false);
@@ -816,7 +851,18 @@ function App() {
   const [isArchiveConfirmOpen, setIsArchiveConfirmOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
+  const [isAiConfirmOpen, setIsAiConfirmOpen] = useState(false);
   const [calendarDayDate, setCalendarDayDate] = useState<string>('');
+
+  useEffect(() => {
+    return subscribeAiEnableRequest(() => {
+      setIsAiConfirmOpen(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    setActiveTripDate(tripData?.startDate || '');
+  }, [tripData?.id, tripData?.startDate]);
 
   // Toast & Top Sync Bubble State
   const [toast, setToast] = useState<{ id: number; text: string; tone?: 'info' | 'success' | 'error' } | null>(null);
@@ -1937,6 +1983,53 @@ function App() {
     setActiveStopId(filtered[filtered.length - 1]?.id || 1);
   };
 
+  const handleMoveStop = (id: number, direction: -1 | 1) => {
+    const idx = stops.findIndex((s) => s.id === id);
+    const targetIdx = idx + direction;
+    if (idx === -1 || targetIdx < 0 || targetIdx >= stops.length) return;
+
+    const anchorStart = stops[0]?.startDate || getTodayLocalIso();
+    const reordered = [...stops];
+    const [moved] = reordered.splice(idx, 1);
+    reordered.splice(targetIdx, 0, moved);
+
+    let cursorDate = anchorStart;
+    const reindexed = reordered.map((stop, i) => {
+      const spanDays = Math.max(2, getDaySpanUtc(stop.startDate, stop.endDate)?.days || 3);
+      const start = cursorDate;
+      const end = addDaysUtc(start, spanDays - 1);
+      cursorDate = end;
+      return {
+        ...stop,
+        id: i + 1,
+        startDate: start,
+        endDate: end,
+      };
+    });
+
+    setStops(reindexed);
+    setActiveStopId(targetIdx + 1);
+  };
+
+  const handleApplyMultiPreset = (cities: string[]) => {
+    const baseStart = stops[0]?.startDate || getTodayLocalIso();
+    let cursor = baseStart;
+    const presetStops: Stop[] = cities.map((city, idx) => {
+      const days = idx === 0 ? 4 : 4;
+      const start = cursor;
+      const end = addDaysUtc(start, days - 1);
+      cursor = end;
+      return {
+        id: idx + 1,
+        destination: lang === 'en' ? localizeDestinationLabel(city, lang) : city,
+        startDate: start,
+        endDate: end,
+      };
+    });
+    setStops(presetStops);
+    setActiveStopId(1);
+  };
+
   const handleCreateTrip = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -2187,14 +2280,56 @@ function App() {
 
   const globeFocusCity = useMemo(() => {
     if (view === 'TRIP') {
-      return tripData?.destination || selectedHomeTrip?.destination || null;
+      if (tripData) return resolveActiveTripCity(tripData, activeTripDate || todayIso);
+      return selectedHomeTrip?.destination || null;
     }
     if (view === 'CREATE') {
       return createPreviewCity || null;
     }
-    // On HOME, show World Map if user hasn't added a trip or selected an explore city
-    return selectedHomeTrip?.destination || exploreCity || null;
-  }, [view, tripData?.destination, selectedHomeTrip?.destination, createPreviewCity, exploreCity]);
+    // On HOME, follow active stop city for ongoing multi-city trips, or first stop / explore city
+    if (selectedHomeTrip) {
+      if (getTripStatus(selectedHomeTrip, todayIso) === 'ACTIVE') {
+        return resolveActiveTripCity(selectedHomeTrip, todayIso);
+      }
+      return selectedHomeTrip.stops?.[0]?.destination?.trim() || selectedHomeTrip.destination;
+    }
+    return exploreCity || null;
+  }, [view, tripData, activeTripDate, todayIso, selectedHomeTrip, createPreviewCity, exploreCity]);
+
+  const multiRouteIntel = useMemo(() => {
+    const filled = stops
+      .map((stop) => {
+        const clean = stop.destination.trim();
+        return {
+          stop,
+          city: clean,
+          intel: clean ? detectDestinationIntel(clean, lang) : null,
+        };
+      });
+    const activeFilled = filled.filter((x) => x.intel !== null);
+    const countries = Array.from(new Set(activeFilled.map((x) => x.intel!.countryLabel)));
+    const currencies = Array.from(new Set(activeFilled.map((x) => x.intel!.currency)));
+    let crossBorders = 0;
+    for (let i = 0; i < filled.length - 1; i++) {
+      const a = filled[i].intel;
+      const b = filled[i + 1].intel;
+      if (a && b && a.countryLabel !== b.countryLabel) {
+        crossBorders += 1;
+      }
+    }
+    const totalSpan =
+      stops.length > 0 && stops[0].startDate && stops[stops.length - 1].endDate
+        ? getDaySpanUtc(stops[0].startDate, stops[stops.length - 1].endDate)
+        : null;
+    return {
+      filled,
+      countries,
+      currencies,
+      crossBorders,
+      isCrossCountry: countries.length > 1 || crossBorders > 0,
+      totalSpan,
+    };
+  }, [stops, lang]);
 
   const activePageTitle = useMemo(() => {
     switch (activeTab) {
@@ -2311,10 +2446,6 @@ function App() {
                 transition={{ duration: 0.18 }}
                 className="h-full w-full overflow-y-auto no-scrollbar relative flex flex-col"
               >
-                {showHomeSettings && (
-                  <div className="app-shell-fixed z-40" onClick={() => setShowHomeSettings(false)} />
-                )}
-
                 <div className="relative z-10 w-full max-w-xl md:max-w-none lg:max-w-7xl xl:max-w-[1400px] mx-auto pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] sm:px-6 md:px-8 lg:px-10 pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))] flex-1 flex flex-col justify-between gap-6">
                   {/* Top Bar */}
                   <header className="flex items-center justify-between gap-3">
@@ -2382,148 +2513,18 @@ function App() {
                         }
                       />
 
-                      <div className="relative">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowHomeSettings(!showHomeSettings);
-                            setShowArchivedList(false);
-                          }}
-                          aria-label={t('更多選項', '更多选项', 'More options')}
-                          className="surface-elevated w-10 h-10 rounded-full text-zinc-700 dark:text-zinc-200 flex items-center justify-center hover:bg-white dark:hover:bg-zinc-800 transition-colors cursor-pointer"
-                        >
-                          <CogIcon className="w-4 h-4" />
-                        </button>
-
-                        <AnimatePresence>
-                          {showHomeSettings && (
-                            <motion.div
-                              initial={{ opacity: 0, y: -6, scale: 0.97 }}
-                              animate={{ opacity: 1, y: 0, scale: 1 }}
-                              exit={{ opacity: 0, y: -6, scale: 0.97 }}
-                              transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-                              className="absolute right-0 mt-2.5 surface-elevated rounded-2xl w-64 z-50 overflow-hidden p-1.5"
-                            >
-                              <div className="px-2.5 pt-2 pb-2.5 border-b border-zinc-200/70 dark:border-white/[0.08] space-y-1.5">
-                                <div className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 px-0.5">
-                                  {t('語言', '语言', 'Language')}
-                                </div>
-                                <div className="grid grid-cols-3 gap-1">
-                                  {LANGUAGE_OPTIONS.map((opt) => {
-                                    const active = lang === opt.id;
-                                    return (
-                                      <button
-                                        key={opt.id}
-                                        type="button"
-                                        onClick={() => {
-                                          setLanguage(opt.id);
-                                          showToast(
-                                            tr(
-                                              opt.id,
-                                              '已切換語言：繁體中文',
-                                              '已切换语言：简体中文',
-                                              'Language: English'
-                                            ),
-                                            'info'
-                                          );
-                                        }}
-                                        className={`h-7 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
-                                          active
-                                            ? 'bg-gradient-to-r from-[#2563EB] to-[#0EA5E9] text-white shadow-sm'
-                                            : 'bg-zinc-100 dark:bg-white/[0.06] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200/70 dark:hover:bg-white/10'
-                                        }`}
-                                      >
-                                        {opt.shortLabel}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-
-                              <div className="px-3 py-2 border-b border-zinc-200/70 dark:border-white/[0.08] flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2.5 min-w-0">
-                                  {soundEnabled ? (
-                                    <SpeakerWaveIcon className="w-4 h-4 text-[var(--tab-accent)] shrink-0" />
-                                  ) : (
-                                    <SpeakerXMarkIcon className="w-4 h-4 text-zinc-400 shrink-0" />
-                                  )}
-                                  <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate">
-                                    {t('觸感音效', '触感音效', 'Tactile Sound')}
-                                  </span>
-                                </div>
-                                <StretchToggle
-                                  size="sm"
-                                  checked={soundEnabled}
-                                  onChange={setSoundEnabled}
-                                  ariaLabel={t('觸感互動音效', '触感互动音效', 'Tactile Sound FX')}
-                                />
-                              </div>
-
-                              <button
-                                type="button"
-                                onClick={() => importInputRef.current?.click()}
-                                className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-zinc-100 dark:hover:bg-white/[0.06] transition-colors cursor-pointer text-left"
-                              >
-                                <ArrowUpTrayIcon className="w-4 h-4 text-zinc-600 dark:text-zinc-300" />
-                                <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                                  {t('匯入 JSON 備份', '导入 JSON 备份', 'Import JSON Backup')}
-                                </span>
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => setShowArchivedList(!showArchivedList)}
-                                className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-zinc-100 dark:hover:bg-white/[0.06] transition-colors cursor-pointer text-left"
-                              >
-                                <div className="flex items-center gap-3">
-                                  <ArchiveIcon className="w-4 h-4 text-zinc-600 dark:text-zinc-300" />
-                                  <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                                    {t(
-                                      `已封存旅程 (${archivedTrips.length})`,
-                                      `已归档旅程 (${archivedTrips.length})`,
-                                      `Archived Trips (${archivedTrips.length})`
-                                    )}
-                                  </span>
-                                </div>
-                                <ChevronRightIcon
-                                  className={`w-4 h-4 text-zinc-400 transition-transform ${
-                                    showArchivedList ? 'rotate-90' : ''
-                                  }`}
-                                />
-                              </button>
-
-                              {showArchivedList && (
-                                <div className="mt-1 pl-2 pr-1 pb-1 space-y-1 max-h-44 overflow-y-auto no-scrollbar border-t border-zinc-200/70 dark:border-white/10 pt-2">
-                                  {archivedTrips.length === 0 ? (
-                                    <p className="text-xs text-zinc-400 text-center py-2">
-                                      {t('暫無封存紀錄', '暂无归档记录', 'No archived trips')}
-                                    </p>
-                                  ) : (
-                                    archivedTrips.map((arch) => (
-                                      <button
-                                        type="button"
-                                        key={arch.id}
-                                        onClick={() => handleRestoreTrip(arch)}
-                                        className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-zinc-100 dark:hover:bg-white/[0.06] transition-colors text-left group cursor-pointer"
-                                      >
-                                        <div className="flex-1 min-w-0">
-                                          <p className="text-xs font-semibold text-zinc-900 dark:text-white truncate">
-                                            {arch.name}
-                                          </p>
-                                          <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate font-num">
-                                            {localizeDestinationLabel(arch.destination, lang)} · {arch.startDate}
-                                          </p>
-                                        </div>
-                                        <RefreshIcon className="w-4 h-4 text-zinc-400 group-hover:text-[#2563EB] dark:group-hover:text-sky-400 shrink-0" />
-                                      </button>
-                                    ))
-                                  )}
-                                </div>
-                              )}
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowArchivedList(false);
+                          setShowHomeSettings(true);
+                        }}
+                        aria-label={t('全域設定', '全局设置', 'Settings')}
+                        className="surface-elevated h-10 px-3 sm:px-3.5 rounded-full text-zinc-700 dark:text-zinc-200 flex items-center gap-1.5 hover:bg-white dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
+                      >
+                        <CogIcon className="w-4 h-4" />
+                        <span className="hidden sm:inline text-xs font-semibold">{t('設定', '设置', 'Settings')}</span>
+                      </button>
                     </div>
                   </header>
 
@@ -2531,9 +2532,9 @@ function App() {
                   <div className="my-auto space-y-5">
                     {tripsList.length > 0 && selectedHomeTrip && homeStats ? (
                       <>
-                        {/* Planned Journeys Header & Filter Tabs */}
-                        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
-                          <div className="flex items-baseline justify-between md:justify-start gap-3">
+                        {/* Mobile Sequential Header (< md) */}
+                        <div className="flex flex-col gap-3 md:hidden">
+                          <div className="flex items-baseline justify-between gap-3">
                             <h1 className="text-2xl sm:text-3xl font-display font-bold text-zinc-900 dark:text-white tracking-tight">
                               {t('我的旅程', '我的旅程', 'Planned Journeys')}
                             </h1>
@@ -2561,9 +2562,38 @@ function App() {
                         </div>
 
                         {/* Mobile Sequential Stack (< md) | Tablet & Desktop 12-Col Bento Hub (md+) */}
-                        <div className="space-y-5 md:space-y-0 md:grid md:grid-cols-12 md:gap-5 lg:gap-6 md:items-start">
-                          {/* Primary Zone: Scenic Trip Cards (+ Quick Snapshot when 1 Trip on Tablet/Desktop) */}
+                        <div className="space-y-5 md:space-y-0 md:grid md:grid-cols-12 md:gap-6 lg:gap-7 md:items-start">
+                          {/* Primary Zone: Header + Filter + Scenic Trip Cards */}
                           <div className="md:col-span-7 lg:col-span-8 space-y-4 min-w-0">
+                            {/* Desktop/Tablet Left Column Aligned Header + Filter */}
+                            <div className="hidden md:flex items-end justify-between gap-4 min-h-[40px]">
+                              <div className="flex items-baseline gap-3 min-w-0">
+                                <h1 className="text-2xl lg:text-3xl font-display font-bold text-zinc-900 dark:text-white tracking-tight truncate">
+                                  {t('我的旅程', '我的旅程', 'Planned Journeys')}
+                                </h1>
+                                <span className="text-xs font-num font-semibold text-zinc-500 dark:text-zinc-400 shrink-0">
+                                  {t(
+                                    `共 ${tripsList.length} 趟`,
+                                    `共 ${tripsList.length} 趟`,
+                                    tripsList.length === 1 ? '1 trip' : `${tripsList.length} trips`
+                                  )}
+                                </span>
+                              </div>
+
+                              <SlidingSegmentedControl
+                                variant="underline"
+                                size="sm"
+                                value={homeFilter}
+                                onChange={setHomeFilter}
+                                options={[
+                                  { id: 'ALL', label: t('全部', '全部', 'All'), accentFrom: '#2563EB', accentTo: '#0EA5E9' },
+                                  { id: 'ACTIVE', label: t('進行中', '进行中', 'Active'), accentFrom: '#059669', accentTo: '#10B981' },
+                                  { id: 'UPCOMING', label: t('即將出發', '即将出发', 'Upcoming'), accentFrom: '#0D9488', accentTo: '#06B6D4' },
+                                  { id: 'PAST', label: t('已結束', '已结束', 'Past'), accentFrom: '#4F46E5', accentTo: '#818CF8' },
+                                ]}
+                              />
+                            </div>
+
                             {filteredHomeTrips.length === 0 ? (
                               <div className="surface-elevated rounded-3xl p-8 md:py-14 text-center space-y-3">
                                 <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
@@ -2593,8 +2623,8 @@ function App() {
                                     const isSingleDesktop = filteredHomeTrips.length === 1;
                                     const cardWidthClass =
                                       filteredHomeTrips.length > 1
-                                        ? 'w-[86%] sm:w-[340px] md:w-full shrink-0'
-                                        : 'w-full';
+                                        ? 'w-[86%] sm:w-[340px] md:w-full shrink-0 min-w-0'
+                                        : 'w-full min-w-0';
                                     return (
                                       <div
                                         key={item.id}
@@ -2617,9 +2647,9 @@ function App() {
                                           className={isSingleDesktop ? 'h-52 sm:h-56 md:h-64 lg:h-[290px] w-full' : 'h-52 sm:h-56 md:h-52 lg:h-56 w-full'}
                                           scrimClassName="bg-gradient-to-b from-black/58 via-black/14 to-black/18"
                                         >
-                                          <div className="h-full p-5 sm:p-6 flex items-start justify-between gap-3 text-white">
-                                            <div className="min-w-0 space-y-2.5">
-                                              <h2 className="text-[22px] sm:text-[25px] font-display font-bold text-white leading-tight truncate tracking-tight drop-shadow-sm">
+                                          <div className="h-full p-5 sm:p-6 md:p-4 lg:p-5 flex items-start justify-between gap-2.5 text-white overflow-hidden">
+                                            <div className="min-w-0 flex-1 space-y-2.5">
+                                              <h2 className="text-[22px] sm:text-[25px] md:text-[21px] lg:text-[24px] font-display font-bold text-white leading-tight truncate tracking-tight drop-shadow-sm">
                                                 {localizeDestinationLabel(item.destination, lang)}
                                               </h2>
                                               <div className="inline-flex">
@@ -2631,14 +2661,14 @@ function App() {
                                               </div>
                                             </div>
 
-                                            <div className="text-right shrink-0 flex flex-col items-end">
-                                              <span className="text-[36px] sm:text-[42px] font-display font-light leading-none tracking-tight text-white font-num drop-shadow-sm">
+                                            <div className="text-right shrink-0 flex flex-col items-end pl-1">
+                                              <span className="text-[36px] sm:text-[42px] md:text-[32px] lg:text-[40px] font-display font-light leading-none tracking-tight text-white font-num drop-shadow-sm">
                                                 {dateParts.day}
                                               </span>
                                               <span className="text-xs sm:text-[13px] font-display font-medium text-white/95 mt-0.5 drop-shadow-sm">
                                                 {dateParts.monthLabel}
                                               </span>
-                                              <span className="text-[11px] font-num font-medium text-white/80 mt-1.5 drop-shadow-sm">
+                                              <span className="text-[11px] font-num font-medium text-white/80 mt-1.5 drop-shadow-sm whitespace-nowrap">
                                                 {item.startDate.slice(5)} ~ {item.endDate.slice(5)}
                                                 {span ? ` · ${span.days}${t('天', '天', 'd')}` : ''}
                                               </span>
@@ -2720,8 +2750,14 @@ function App() {
                             )}
                           </div>
 
-                          {/* Command & Countdown Column (Below Cards on Mobile, Sticky Right Rail on Tablet/Desktop) */}
+                          {/* Command & Countdown Column (Below Cards on Mobile, Aligned Right Rail on Tablet/Desktop) */}
                           <div className="md:col-span-5 lg:col-span-4 space-y-4 min-w-0">
+                            <div className="hidden md:flex items-end justify-between px-1 min-h-[40px]">
+                              <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                                {t('快速建立與加入', '快速创建与加入', 'Quick Actions & Sync')}
+                              </span>
+                            </div>
+
                             <div className="flex flex-col gap-3 md:surface-elevated md:rounded-3xl md:p-4">
                               <form
                                 onSubmit={handleHomeJoinSubmit}
@@ -2908,7 +2944,7 @@ function App() {
                               </p>
                             </div>
 
-                            <div className="flex md:flex-wrap gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+                              <div className="flex md:flex-wrap gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
                               {QUICK_CITIES.map((city) => {
                                 const active = exploreCity === city;
                                 return (
@@ -2927,6 +2963,70 @@ function App() {
                                 );
                               })}
                             </div>
+
+                            {/* Tablet & Desktop Live Destination Spotlight & Highlights (Fills Wide Empty Gap Cleanly) */}
+                            {(() => {
+                              const spotlightCity = exploreCity || rotatingShowcaseCity;
+                              const spotlightIntel = detectDestinationIntel(spotlightCity, lang);
+                              const spotlightTime = getDestinationLocalTime(spotlightIntel.utcOffsetHours, lang).timeStr;
+                              return (
+                                <div className="hidden md:block space-y-2.5 pt-1">
+                                  <div className="rounded-2xl bg-zinc-50/90 dark:bg-white/[0.04] border border-zinc-200/70 dark:border-white/[0.08] p-3.5 space-y-2.5">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="min-w-0">
+                                        <span className="text-[11px] font-semibold text-zinc-400 dark:text-zinc-500">
+                                          {spotlightIntel.countryLabel}
+                                        </span>
+                                        <div className="text-base font-display font-bold text-zinc-900 dark:text-white truncate">
+                                          {localizeDestinationLabel(spotlightCity, lang)}
+                                        </div>
+                                      </div>
+                                      <span className="text-xs font-num font-bold px-2.5 py-1 rounded-full bg-white dark:bg-zinc-900/70 border border-zinc-200/70 dark:border-white/10 text-[#2563EB] dark:text-sky-400 shrink-0">
+                                        {t('當地', '当地', 'Local')} {spotlightTime}
+                                      </span>
+                                    </div>
+
+                                    <div className="grid grid-cols-3 gap-2">
+                                      <div className="rounded-xl bg-white/85 dark:bg-white/[0.04] px-2.5 py-2 border border-zinc-200/50 dark:border-white/[0.06]">
+                                        <div className="text-[10px] text-zinc-400">{t('貨幣', '货币', 'Currency')}</div>
+                                        <div className="text-xs font-num font-bold text-zinc-900 dark:text-white mt-0.5 truncate">
+                                          {spotlightIntel.currency} {spotlightIntel.currencySymbol}
+                                        </div>
+                                      </div>
+                                      <div className="rounded-xl bg-white/85 dark:bg-white/[0.04] px-2.5 py-2 border border-zinc-200/50 dark:border-white/[0.06]">
+                                        <div className="text-[10px] text-zinc-400">{t('電壓插座', '电压插座', 'Power')}</div>
+                                        <div className="text-xs font-num font-bold text-zinc-900 dark:text-white mt-0.5 truncate">
+                                          {spotlightIntel.voltagePlug}
+                                        </div>
+                                      </div>
+                                      <div className="rounded-xl bg-white/85 dark:bg-white/[0.04] px-2.5 py-2 border border-zinc-200/50 dark:border-white/[0.06]">
+                                        <div className="text-[10px] text-zinc-400">{t('退稅門檻', '退税门槛', 'Tax-Free')}</div>
+                                        <div className="text-xs font-num font-bold text-zinc-900 dark:text-white mt-0.5 truncate">
+                                          {spotlightIntel.taxFreeThreshold != null
+                                            ? `${spotlightIntel.currencySymbol}${spotlightIntel.taxFreeThreshold.toLocaleString()}`
+                                            : '—'}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div className="rounded-xl bg-zinc-50/80 dark:bg-white/[0.03] border border-zinc-200/60 dark:border-white/[0.06] px-3 py-2 flex items-center gap-2">
+                                      <WifiIcon className="w-3.5 h-3.5 text-[#2563EB] dark:text-sky-400 shrink-0" />
+                                      <span className="text-[11px] font-medium text-zinc-600 dark:text-zinc-300 truncate">
+                                        {t('跨裝置即時同步', '跨设备实时同步', 'Live Multi-Device Sync')}
+                                      </span>
+                                    </div>
+                                    <div className="rounded-xl bg-zinc-50/80 dark:bg-white/[0.03] border border-zinc-200/60 dark:border-white/[0.06] px-3 py-2 flex items-center gap-2">
+                                      <GlobeIcon className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                      <span className="text-[11px] font-medium text-zinc-600 dark:text-zinc-300 truncate">
+                                        {t('跨國多城市路線', '跨国多城市路线', 'Cross-Country Routes')}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })()}
                           </div>
 
                           <div className="space-y-4">
@@ -3134,10 +3234,18 @@ function App() {
                         ]}
                       />
 
-                      {/* Quick City Suggestions */}
+                      {/* Quick City Suggestions / Cross-Country Combos */}
                       <div className="space-y-2">
-                        <div className="text-xs font-medium text-zinc-500 dark:text-zinc-400 px-1">
-                          {t('快速選擇城市', '快速选择城市', 'Popular Cities')}
+                        <div className="flex items-center justify-between px-1">
+                          <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                            {tripType === 'Multi'
+                              ? t(
+                                  `填入第 ${activeStop?.id || 1} 站城市`,
+                                  `填入第 ${activeStop?.id || 1} 站城市`,
+                                  `Pick City for Stop ${activeStop?.id || 1}`
+                                )
+                              : t('快速選擇城市', '快速选择城市', 'Popular Cities')}
+                          </span>
                         </div>
                         <div className="flex md:flex-wrap gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
                           {QUICK_CITIES.map((city) => {
@@ -3163,6 +3271,24 @@ function App() {
                             );
                           })}
                         </div>
+
+                        {tripType === 'Multi' && (
+                          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-0.5">
+                            <span className="text-[11px] text-indigo-500 dark:text-indigo-400 font-semibold shrink-0 px-1">
+                              {t('跨國組合：', '跨国组合：', 'Combos:')}
+                            </span>
+                            {CROSS_COUNTRY_TEMPLATES.map((tpl) => (
+                              <button
+                                key={tpl.id}
+                                type="button"
+                                onClick={() => handleApplyMultiPreset(tpl.cities)}
+                                className="h-7 px-2.5 rounded-full bg-indigo-500/10 hover:bg-indigo-500/18 text-indigo-700 dark:text-indigo-300 text-[11px] font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer flex items-center gap-1"
+                              >
+                                <span>{tpl.cities.map((c) => localizeDestinationLabel(c, lang)).join(' → ')}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
 
                       {tripType === 'Single' ? (
@@ -3183,87 +3309,193 @@ function App() {
                           </div>
                         </div>
                       ) : (
-                        <div className="space-y-3">
+                        <div className="space-y-2.5">
+                          {/* Cross-Country Route Summary Banner */}
+                          {multiRouteIntel.filled.some((x) => x.city) && (
+                            <div className="rounded-2xl bg-indigo-500/10 dark:bg-indigo-500/14 border border-indigo-500/20 px-3.5 py-2.5 flex items-center justify-between gap-2 text-xs">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <GlobeIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                                <span className="font-semibold text-zinc-800 dark:text-zinc-100 truncate">
+                                  {multiRouteIntel.isCrossCountry
+                                    ? t(
+                                        `跨國路線 · ${multiRouteIntel.countries.join(' → ')}`,
+                                        `跨国路线 · ${multiRouteIntel.countries.join(' → ')}`,
+                                        `Cross-Country · ${multiRouteIntel.countries.join(' → ')}`
+                                      )
+                                    : t(
+                                        `多城市路線 · ${multiRouteIntel.countries[0] || ''}`,
+                                        `多城市路线 · ${multiRouteIntel.countries[0] || ''}`,
+                                        `Multi-Stop · ${multiRouteIntel.countries[0] || ''}`
+                                      )}
+                                </span>
+                              </div>
+                              <span className="font-num font-bold text-indigo-600 dark:text-indigo-300 shrink-0 whitespace-nowrap">
+                                {multiRouteIntel.currencies.join(' → ')}
+                              </span>
+                            </div>
+                          )}
+
                           {stops.map((stop, index) => {
                             const span = getDaySpanUtc(stop.startDate, stop.endDate);
                             const isActiveStop = activeStopId === stop.id;
-                            return (
-                              <motion.div
-                                key={stop.id}
-                                layout
-                                initial={{ opacity: 0, y: 8 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                onClick={() => setActiveStopId(stop.id)}
-                                className={`surface-elevated p-4 rounded-3xl transition-all cursor-pointer ${
-                                  isActiveStop ? 'ring-2 ring-[#4F5DF5]' : ''
-                                }`}
-                              >
-                                <div className="flex items-center gap-3 mb-2">
-                                  <div
-                                    className={`w-7 h-7 rounded-full flex items-center justify-center font-num font-bold text-xs shrink-0 ${
-                                      isActiveStop
-                                        ? 'bg-[#4F5DF5] text-white'
-                                        : 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900'
-                                    }`}
-                                  >
-                                    {index + 1}
-                                  </div>
-                                  <input
-                                    required
-                                    type="text"
-                                    placeholder={t(
-                                      `第 ${index + 1} 站城市`,
-                                      `第 ${index + 1} 站城市`,
-                                      `Stop ${index + 1} city`
-                                    )}
-                                    value={stop.destination}
-                                    onFocus={() => setActiveStopId(stop.id)}
-                                    onChange={(e) => handleStopChange(stop.id, 'destination', e.target.value)}
-                                    className="flex-1 bg-transparent font-semibold text-base text-zinc-900 dark:text-white focus:outline-none placeholder-zinc-400"
-                                  />
-                                  {span && (
-                                    <span className="text-xs font-num font-semibold text-[#4F5DF5] dark:text-indigo-400 shrink-0">
-                                      {t(
-                                        `${span.days}天 / ${span.nights}晚`,
-                                        `${span.days}天 / ${span.nights}晚`,
-                                        `${span.days}D / ${span.nights}N`
-                                      )}
-                                    </span>
-                                  )}
-                                  {stops.length > 1 && (
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleRemoveStop(stop.id);
-                                      }}
-                                      aria-label={t('移除站點', '移除站点', 'Remove stop')}
-                                      className="w-8 h-8 flex items-center justify-center rounded-full text-zinc-400 hover:text-red-500 transition-colors cursor-pointer"
-                                    >
-                                      <TrashIcon className="w-4 h-4" />
-                                    </button>
-                                  )}
-                                </div>
+                            const stopIntel = stop.destination.trim()
+                              ? detectDestinationIntel(stop.destination.trim(), lang)
+                              : null;
+                            const nextStop = stops[index + 1];
+                            const nextIntel =
+                              nextStop && nextStop.destination.trim()
+                                ? detectDestinationIntel(nextStop.destination.trim(), lang)
+                                : null;
+                            const isCrossBorderNext =
+                              stopIntel && nextIntel && stopIntel.countryLabel !== nextIntel.countryLabel;
+                            const tzDelta =
+                              stopIntel && nextIntel
+                                ? nextIntel.utcOffsetHours - stopIntel.utcOffsetHours
+                                : 0;
 
-                                <div className="grid grid-cols-2 gap-2 text-xs font-num">
-                                  <div className="bg-zinc-100/80 dark:bg-white/[0.04] px-3 py-2 rounded-xl">
-                                    <span className="text-[10px] text-zinc-400 block">
-                                      {t('抵達', '抵达', 'Arrive')}
-                                    </span>
-                                    <span className="font-semibold text-zinc-900 dark:text-white">
-                                      {stop.startDate || t('選擇日期', '选择日期', 'Select date')}
-                                    </span>
+                            return (
+                              <React.Fragment key={stop.id}>
+                                <motion.div
+                                  layout
+                                  initial={{ opacity: 0, y: 8 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  onClick={() => setActiveStopId(stop.id)}
+                                  className={`surface-elevated p-3.5 sm:p-4 rounded-3xl transition-all cursor-pointer ${
+                                    isActiveStop
+                                      ? 'ring-2 ring-[#4F5DF5] shadow-[0_10px_24px_-12px_rgba(79,93,245,0.4)]'
+                                      : 'hover:bg-white/95 dark:hover:bg-white/[0.06]'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2.5 mb-2">
+                                    <div
+                                      className={`w-7 h-7 rounded-full flex items-center justify-center font-num font-bold text-xs shrink-0 ${
+                                        isActiveStop
+                                          ? 'bg-[#4F5DF5] text-white'
+                                          : 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900'
+                                      }`}
+                                    >
+                                      {index + 1}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <input
+                                        required
+                                        type="text"
+                                        placeholder={t(
+                                          `第 ${index + 1} 站城市（例：首爾、倫敦）`,
+                                          `第 ${index + 1} 站城市（例：首尔、伦敦）`,
+                                          `Stop ${index + 1} city (e.g. Seoul, London)`
+                                        )}
+                                        value={stop.destination}
+                                        onFocus={() => setActiveStopId(stop.id)}
+                                        onChange={(e) => handleStopChange(stop.id, 'destination', e.target.value)}
+                                        className="w-full bg-transparent font-semibold text-base text-zinc-900 dark:text-white focus:outline-none placeholder-zinc-400"
+                                      />
+                                      {stopIntel && (
+                                        <div className="text-[11px] text-zinc-500 dark:text-zinc-400 font-num truncate">
+                                          {stopIntel.countryLabel} · {stopIntel.currency} · {stopIntel.timezoneLabel} · {stopIntel.voltagePlug}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {span && (
+                                      <span className="text-xs font-num font-semibold text-[#4F5DF5] dark:text-indigo-400 shrink-0 whitespace-nowrap">
+                                        {t(
+                                          `${span.days}天 / ${span.nights}晚`,
+                                          `${span.days}天 / ${span.nights}晚`,
+                                          `${span.days}D / ${span.nights}N`
+                                        )}
+                                      </span>
+                                    )}
+
+                                    {stops.length > 1 && (
+                                      <div className="flex items-center gap-0.5 shrink-0">
+                                        <button
+                                          type="button"
+                                          disabled={index === 0}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleMoveStop(stop.id, -1);
+                                          }}
+                                          aria-label={t('上移站點', '上移站点', 'Move stop up')}
+                                          className="w-7 h-7 flex items-center justify-center rounded-full text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 disabled:opacity-25 cursor-pointer disabled:cursor-default"
+                                        >
+                                          <ChevronUpIcon className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          disabled={index === stops.length - 1}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleMoveStop(stop.id, 1);
+                                          }}
+                                          aria-label={t('下移站點', '下移站点', 'Move stop down')}
+                                          className="w-7 h-7 flex items-center justify-center rounded-full text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 disabled:opacity-25 cursor-pointer disabled:cursor-default"
+                                        >
+                                          <ChevronDownIcon className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleRemoveStop(stop.id);
+                                          }}
+                                          aria-label={t('移除站點', '移除站点', 'Remove stop')}
+                                          className="w-7 h-7 flex items-center justify-center rounded-full text-zinc-400 hover:text-red-500 transition-colors cursor-pointer"
+                                        >
+                                          <TrashIcon className="w-4 h-4" />
+                                        </button>
+                                      </div>
+                                    )}
                                   </div>
-                                  <div className="bg-zinc-100/80 dark:bg-white/[0.04] px-3 py-2 rounded-xl">
-                                    <span className="text-[10px] text-zinc-400 block">
-                                      {t('離開', '离开', 'Depart')}
-                                    </span>
-                                    <span className="font-semibold text-zinc-900 dark:text-white">
-                                      {stop.endDate || t('選擇日期', '选择日期', 'Select date')}
-                                    </span>
+
+                                  <div className="grid grid-cols-2 gap-2 text-xs font-num">
+                                    <div className="bg-zinc-100/80 dark:bg-white/[0.04] px-3 py-2 rounded-xl">
+                                      <span className="text-[10px] text-zinc-400 block">
+                                        {t('抵達', '抵达', 'Arrive')}
+                                      </span>
+                                      <span className="font-semibold text-zinc-900 dark:text-white">
+                                        {stop.startDate || t('選擇日期', '选择日期', 'Select date')}
+                                      </span>
+                                    </div>
+                                    <div className="bg-zinc-100/80 dark:bg-white/[0.04] px-3 py-2 rounded-xl">
+                                      <span className="text-[10px] text-zinc-400 block">
+                                        {t('離開', '离开', 'Depart')}
+                                      </span>
+                                      <span className="font-semibold text-zinc-900 dark:text-white">
+                                        {stop.endDate || t('選擇日期', '选择日期', 'Select date')}
+                                      </span>
+                                    </div>
                                   </div>
-                                </div>
-                              </motion.div>
+                                </motion.div>
+
+                                {nextStop && (
+                                  <div className="flex items-center justify-center py-0.5">
+                                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/75 dark:bg-white/[0.06] border border-zinc-200/70 dark:border-white/[0.08] text-[11px] font-medium text-zinc-600 dark:text-zinc-300">
+                                      {isCrossBorderNext ? (
+                                        <>
+                                          <PlaneIcon className="w-3 h-3 text-indigo-500 shrink-0" />
+                                          <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+                                            {t('跨國移動', '跨国移动', 'International Leg')}
+                                          </span>
+                                          {stopIntel && nextIntel && (
+                                            <span className="font-num text-zinc-500 dark:text-zinc-400">
+                                              {stopIntel.currency !== nextIntel.currency
+                                                ? `· ${stopIntel.currency}→${nextIntel.currency}`
+                                                : ''}
+                                              {tzDelta !== 0 ? ` · ${tzDelta > 0 ? `+${tzDelta}h` : `${tzDelta}h`}` : ''}
+                                            </span>
+                                          )}
+                                        </>
+                                      ) : (
+                                        <>
+                                          <ArrowLongRightIcon className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                                          <span>{t('移動至下一站', '移动至下一站', 'Transfer to next stop')}</span>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </React.Fragment>
                             );
                           })}
 
@@ -3290,13 +3522,21 @@ function App() {
                           <input
                             type="text"
                             placeholder={
-                              singleDestination.trim()
-                                ? t(
-                                    `預設：${localizeDestinationLabel(singleDestination.trim(), lang)} 旅程`,
-                                    `默认：${localizeDestinationLabel(singleDestination.trim(), lang)} 旅程`,
-                                    `Default: ${localizeDestinationLabel(singleDestination.trim(), lang)} Trip`
-                                  )
-                                : t('自訂名稱...', '自定义名称...', 'Custom trip name...')
+                              tripType === 'Multi'
+                                ? stops.some((s) => s.destination.trim())
+                                  ? t(
+                                      `預設：${localizeDestinationLabel(stops.find((s) => s.destination.trim())!.destination.trim(), lang)} 跨城之旅`,
+                                      `默认：${localizeDestinationLabel(stops.find((s) => s.destination.trim())!.destination.trim(), lang)} 跨城之旅`,
+                                      `Default: ${localizeDestinationLabel(stops.find((s) => s.destination.trim())!.destination.trim(), lang)} Multi-City`
+                                    )
+                                  : t('例：日韓雙國自由行...', '例：日韩双国自由行...', 'e.g. Tokyo & Seoul Escape...')
+                                : singleDestination.trim()
+                                  ? t(
+                                      `預設：${localizeDestinationLabel(singleDestination.trim(), lang)} 旅程`,
+                                      `默认：${localizeDestinationLabel(singleDestination.trim(), lang)} 旅程`,
+                                      `Default: ${localizeDestinationLabel(singleDestination.trim(), lang)} Trip`
+                                    )
+                                  : t('自訂名稱...', '自定义名称...', 'Custom trip name...')
                             }
                             value={tripName}
                             onChange={(e) => setTripName(e.target.value)}
@@ -3305,9 +3545,9 @@ function App() {
                         </div>
                       </div>
 
-                      {/* Quiet Destination Intel Line */}
+                      {/* Quiet Destination Intel Line (Single City) */}
                       <AnimatePresence>
-                        {createPreviewIntel && (
+                        {tripType === 'Single' && createPreviewIntel && (
                           <motion.div
                             initial={{ opacity: 0, y: 4 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -3386,6 +3626,33 @@ function App() {
                         </>
                       ) : (
                         <>
+                          {/* Interactive Multi-Stop Timeline Strip (Tap to jump calendar & globe to stop) */}
+                          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-0.5">
+                            {stops.map((s, idx) => {
+                              const active = s.id === activeStopId;
+                              const sSpan = getDaySpanUtc(s.startDate, s.endDate);
+                              const cityLabel = s.destination.trim()
+                                ? localizeDestinationLabel(s.destination.trim(), lang)
+                                : t(`第${idx + 1}站`, `第${idx + 1}站`, `Stop ${idx + 1}`);
+                              return (
+                                <button
+                                  key={s.id}
+                                  type="button"
+                                  onClick={() => setActiveStopId(s.id)}
+                                  className={`h-9 px-3.5 rounded-full text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-all ${
+                                    active
+                                      ? 'bg-gradient-to-r from-[#4F46E5] to-[#6366F1] text-white shadow-sm'
+                                      : 'surface-elevated text-zinc-700 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-800'
+                                  }`}
+                                >
+                                  <span className="font-num opacity-80">0{idx + 1}</span>
+                                  <span>{cityLabel}</span>
+                                  {sSpan && <span className="font-num opacity-85">· {sSpan.days}{t('天', '天', 'd')}</span>}
+                                </button>
+                              );
+                            })}
+                          </div>
+
                           {/* Quick Day-Count Selector for Active Stop */}
                           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
                             <span className="text-xs text-zinc-500 dark:text-zinc-400 shrink-0">
@@ -3420,6 +3687,25 @@ function App() {
                               endDate={activeStop.endDate}
                               onChangeRange={(s, e) => handleStopRangeChange(activeStop.id, s, e)}
                             />
+                          )}
+
+                          {/* Full Multi-City Schedule Strip */}
+                          {multiRouteIntel.totalSpan && (
+                            <div className="surface-pastel-sky rounded-2xl px-4 py-2.5 flex items-center justify-between gap-3 text-xs">
+                              <span className="font-medium text-zinc-600 dark:text-zinc-300 truncate">
+                                {t('全程日期：', '全程日期：', 'Total Schedule: ')}
+                                <span className="font-num font-bold text-zinc-900 dark:text-white">
+                                  {stops[0].startDate} ~ {stops[stops.length - 1].endDate}
+                                </span>
+                              </span>
+                              <span className="font-num font-bold text-indigo-600 dark:text-indigo-400 shrink-0">
+                                {t(
+                                  `${multiRouteIntel.totalSpan.days} 天 ${multiRouteIntel.totalSpan.nights} 夜`,
+                                  `${multiRouteIntel.totalSpan.days} 天 ${multiRouteIntel.totalSpan.nights} 晚`,
+                                  `${multiRouteIntel.totalSpan.days}D / ${multiRouteIntel.totalSpan.nights}N`
+                                )}
+                              </span>
+                            </div>
                           )}
                         </>
                       )}
@@ -3515,6 +3801,7 @@ function App() {
                         onUpdateTrip={handleLocalUpdateTrip}
                         onShowToast={showToast}
                         focusDateSignal={focusDateSignal}
+                        onSelectedDateChange={setActiveTripDate}
                       />
                     )}
                     {activeTab === Tab.EXPLORE && (
@@ -3771,13 +4058,15 @@ function App() {
                                   <StretchToggle
                                     checked={aiEnabled}
                                     onChange={(next) => {
-                                      setAiEnabled(next);
-                                      showToast(
-                                        next
-                                          ? t('已允許手動觸發 Gemini AI 功能', '已允许手动触发 Gemini AI 功能', 'Manual Gemini AI calls enabled')
-                                          : t('已鎖定所有 Gemini AI 呼叫', '已锁定所有 Gemini AI 调用', 'All Gemini AI calls locked'),
-                                        'info'
-                                      );
+                                      if (next) {
+                                        requestAiEnable();
+                                      } else {
+                                        setAiEnabled(false);
+                                        showToast(
+                                          t('已鎖定所有 Gemini AI 呼叫', '已锁定所有 Gemini AI 调用', 'All Gemini AI calls locked'),
+                                          'info'
+                                        );
+                                      }
                                     }}
                                     ariaLabel={t('Gemini AI 功能授權', 'Gemini AI 功能授权', 'Gemini AI Access')}
                                     className="shrink-0"
@@ -4459,6 +4748,345 @@ function App() {
             </div>
           </LiquidModal>
         )}
+
+        {/* Home Global Settings Modal */}
+        <LiquidModal
+          open={showHomeSettings}
+          onClose={() => setShowHomeSettings(false)}
+          bottomSheetOnMobile
+          maxWidthClass="max-w-lg"
+          title={
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-blue-500/12 text-[#2563EB] dark:text-sky-400 flex items-center justify-center shrink-0">
+                <CogIcon className="w-4 h-4" />
+              </div>
+              <span>{t('全域設定', '全局设置', 'Settings')}</span>
+            </div>
+          }
+        >
+          <div className="overflow-y-auto no-scrollbar space-y-4 pr-0.5 max-h-[75vh]">
+            {/* Cloud Account Status Card */}
+            <button
+              type="button"
+              onClick={() => {
+                setShowHomeSettings(false);
+                setIsAuthModalOpen(true);
+              }}
+              className="w-full p-4 rounded-2xl bg-zinc-50/90 dark:bg-white/[0.04] border border-zinc-200/70 dark:border-white/10 flex items-center justify-between gap-3 text-left hover:bg-white dark:hover:bg-white/[0.08] transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                {cloudAuth.user?.photoURL ? (
+                  <img
+                    src={cloudAuth.user.photoURL}
+                    alt=""
+                    className="w-10 h-10 rounded-full object-cover shrink-0 border border-zinc-200/70 dark:border-white/10"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-blue-500/12 text-[#2563EB] dark:text-sky-400 flex items-center justify-center shrink-0">
+                    <UserCircleIcon className="w-5 h-5" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <div className="font-display font-bold text-sm text-zinc-900 dark:text-white truncate">
+                    {cloudAuth.user
+                      ? cloudAuth.user.displayName || t('雲端帳號', '云端账号', 'Cloud Account')
+                      : t('登入雲端帳號', '登录云端账号', 'Sign In to Cloud')}
+                  </div>
+                  <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                    {cloudAuth.user
+                      ? cloudAuth.user.email || t('雲端同步已連線', '云端同步已连接', 'Cloud Sync Active')
+                      : t('支援 Google 與 Apple 跨裝置備份', '支持 Google 与 Apple 跨设备备份', 'Backup with Google & Apple')}
+                  </div>
+                </div>
+              </div>
+              <ChevronRightIcon className="w-4 h-4 text-zinc-400 shrink-0" />
+            </button>
+
+            {/* Appearance & Language */}
+            <div className="p-4 rounded-2xl bg-zinc-50/90 dark:bg-white/[0.04] border border-zinc-200/70 dark:border-white/10 space-y-4">
+              <div className="space-y-2.5">
+                <div className="flex items-center gap-2 text-xs font-semibold text-zinc-600 dark:text-zinc-300">
+                  <SunIcon className="w-4 h-4 text-[#2563EB] dark:text-sky-400" />
+                  <span>{t('外觀主題', '外观主题', 'Appearance')}</span>
+                </div>
+                <SlidingSegmentedControl
+                  variant="rounded"
+                  fullWidth
+                  value={themeMode}
+                  onChange={setThemeMode}
+                  options={[
+                    { id: 'system', label: t('跟隨系統', '跟随系统', 'System'), icon: <ComputerDesktopIcon className="w-3.5 h-3.5" />, accentFrom: '#4F46E5', accentTo: '#6366F1' },
+                    { id: 'light', label: t('日光模式', '日光模式', 'Light'), icon: <SunIcon className="w-3.5 h-3.5" />, accentFrom: '#2563EB', accentTo: '#0EA5E9' },
+                    { id: 'dark', label: t('夜間模式', '夜间模式', 'Dark'), icon: <MoonIcon className="w-3.5 h-3.5" />, accentFrom: '#7C3AED', accentTo: '#8B5CF6' },
+                  ]}
+                />
+              </div>
+
+              <div className="pt-3 border-t border-zinc-200/70 dark:border-white/[0.08] space-y-2.5">
+                <div className="flex items-center gap-2 text-xs font-semibold text-zinc-600 dark:text-zinc-300">
+                  <GlobeIcon className="w-4 h-4 text-violet-500" />
+                  <span>{t('介面語言', '界面语言', 'Language')}</span>
+                </div>
+                <SlidingSegmentedControl
+                  variant="rounded"
+                  fullWidth
+                  value={lang}
+                  onChange={(nextLang: AppLanguage) => {
+                    setLanguage(nextLang);
+                    showToast(
+                      tr(
+                        nextLang,
+                        '已切換語言：繁體中文',
+                        '已切换语言：简体中文',
+                        'Language switched to English'
+                      ),
+                      'info'
+                    );
+                  }}
+                  options={LANGUAGE_OPTIONS.map((opt) => ({
+                    id: opt.id,
+                    label: opt.label,
+                    accentFrom: '#7C3AED',
+                    accentTo: '#8B5CF6',
+                  }))}
+                />
+              </div>
+            </div>
+
+            {/* Toggles: Tactile Sound + Gemini AI Safeguard */}
+            <div className="rounded-2xl bg-zinc-50/90 dark:bg-white/[0.04] border border-zinc-200/70 dark:border-white/10 divide-y divide-zinc-200/70 dark:divide-white/[0.07]">
+              <div className="p-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-blue-500/12 text-[#2563EB] dark:text-sky-400 flex items-center justify-center shrink-0">
+                    {soundEnabled ? <SpeakerWaveIcon className="w-4 h-4" /> : <SpeakerXMarkIcon className="w-4 h-4" />}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-semibold text-sm text-zinc-900 dark:text-white">
+                      {t('觸感互動音效', '触感互动音效', 'Tactile Sound FX')}
+                    </div>
+                    <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                      {t('按鍵與開關回饋音效', '按键与开关反馈音效', 'Audio feedback for taps')}
+                    </div>
+                  </div>
+                </div>
+                <StretchToggle
+                  checked={soundEnabled}
+                  onChange={setSoundEnabled}
+                  ariaLabel={t('觸感互動音效', '触感互动音效', 'Tactile Sound FX')}
+                  className="shrink-0"
+                />
+              </div>
+
+              <div className="p-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-500/12 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                    <SparklesIcon className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-semibold text-sm text-zinc-900 dark:text-white">
+                      {t('Gemini AI 功能授權', 'Gemini AI 功能授权', 'Gemini AI Access')}
+                    </div>
+                    <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                      {aiEnabled
+                        ? t('僅於手動點擊時呼叫', '仅在手动点击时调用', 'Only called on manual tap')
+                        : t('已鎖定，防止誤觸耗用額度', '已锁定，防止误触消耗额度', 'Locked — prevents accidental usage')}
+                    </div>
+                  </div>
+                </div>
+                <StretchToggle
+                  checked={aiEnabled}
+                  onChange={(next) => {
+                    if (next) {
+                      requestAiEnable();
+                    } else {
+                      setAiEnabled(false);
+                      showToast(
+                        t('已鎖定所有 Gemini AI 呼叫', '已锁定所有 Gemini AI 调用', 'All Gemini AI calls locked'),
+                        'info'
+                      );
+                    }
+                  }}
+                  ariaLabel={t('Gemini AI 功能授權', 'Gemini AI 功能授权', 'Gemini AI Access')}
+                  className="shrink-0"
+                />
+              </div>
+
+              <div className="p-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/12 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                    <ShareIcon className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-semibold text-sm text-zinc-900 dark:text-white truncate">
+                      {t('分享本 App', '分享本 App', 'Share App')}
+                    </div>
+                    <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                      {t('推薦給旅伴好友', '推荐给旅伴好友', 'Invite travel companions')}
+                    </div>
+                  </div>
+                </div>
+                <ShareAppButton
+                  shareUrl={
+                    typeof window !== 'undefined'
+                      ? `${window.location.origin}${window.location.pathname}`
+                      : 'https://waynote.app'
+                  }
+                  shareTitle="Waynote"
+                  shareText={t(
+                    '推薦你用 Waynote 規劃旅行：即時跨裝置同步、智慧行程時間軸與旅遊開支分帳！',
+                    '推荐你用 Waynote 规划旅行：实时跨设备同步、智能行程时间轴与旅行开支分账！',
+                    'Plan trips together with Waynote — live sync, timeline itinerary, and smart travel splitting!'
+                  )}
+                  label={t('分享', '分享', 'Share')}
+                  sharedLabel={t('已分享', '已分享', 'Shared')}
+                  copiedLabel={t('已複製', '已复制', 'Copied')}
+                  className="!min-h-[38px] !px-3.5 text-xs shrink-0"
+                  onResult={(outcome) => {
+                    if (outcome === 'copied') {
+                      showToast(t('已複製 Waynote App 連結', '已复制 Waynote App 链接', 'Waynote app link copied'), 'success');
+                    } else if (outcome === 'shared') {
+                      showToast(t('感謝推薦 Waynote！', '感谢推荐 Waynote！', 'Thanks for sharing Waynote!'), 'success');
+                    }
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Data & Version */}
+            <div className="rounded-2xl bg-zinc-50/90 dark:bg-white/[0.04] border border-zinc-200/70 dark:border-white/10 divide-y divide-zinc-200/70 dark:divide-white/[0.07]">
+              <button
+                type="button"
+                onClick={() => importInputRef.current?.click()}
+                className="w-full px-4 py-3.5 flex items-center justify-between gap-3 text-left hover:bg-white/80 dark:hover:bg-white/[0.04] transition-colors cursor-pointer"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <ArrowUpTrayIcon className="w-4 h-4 text-zinc-600 dark:text-zinc-300 shrink-0" />
+                  <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                    {t('匯入 JSON 備份', '导入 JSON 备份', 'Import JSON Backup')}
+                  </span>
+                </div>
+                <ChevronRightIcon className="w-4 h-4 text-zinc-400 shrink-0" />
+              </button>
+
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setShowArchivedList(!showArchivedList)}
+                  className="w-full px-4 py-3.5 flex items-center justify-between gap-3 text-left hover:bg-white/80 dark:hover:bg-white/[0.04] transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <ArchiveIcon className="w-4 h-4 text-zinc-600 dark:text-zinc-300 shrink-0" />
+                    <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                      {t(
+                        `已封存旅程 (${archivedTrips.length})`,
+                        `已归档旅程 (${archivedTrips.length})`,
+                        `Archived Trips (${archivedTrips.length})`
+                      )}
+                    </span>
+                  </div>
+                  <ChevronRightIcon
+                    className={`w-4 h-4 text-zinc-400 transition-transform shrink-0 ${
+                      showArchivedList ? 'rotate-90' : ''
+                    }`}
+                  />
+                </button>
+                {showArchivedList && (
+                  <div className="px-3 pb-3 space-y-1.5 max-h-44 overflow-y-auto no-scrollbar border-t border-zinc-200/70 dark:border-white/10 pt-2">
+                    {archivedTrips.length === 0 ? (
+                      <p className="text-xs text-zinc-400 text-center py-2">
+                        {t('暫無封存紀錄', '暂无归档记录', 'No archived trips')}
+                      </p>
+                    ) : (
+                      archivedTrips.map((arch) => (
+                        <button
+                          type="button"
+                          key={arch.id}
+                          onClick={() => handleRestoreTrip(arch)}
+                          className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-zinc-100 dark:hover:bg-white/[0.06] transition-colors text-left group cursor-pointer"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-zinc-900 dark:text-white truncate">
+                              {arch.name}
+                            </p>
+                            <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate font-num">
+                              {localizeDestinationLabel(arch.destination, lang)} · {arch.startDate}
+                            </p>
+                          </div>
+                          <RefreshIcon className="w-4 h-4 text-zinc-400 group-hover:text-[#2563EB] dark:group-hover:text-sky-400 shrink-0" />
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowHomeSettings(false);
+                  setIsChangelogOpen(true);
+                }}
+                className="w-full px-4 py-3.5 flex items-center justify-between gap-3 text-left hover:bg-white/80 dark:hover:bg-white/[0.04] transition-colors cursor-pointer"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <ClipboardDocumentListIcon className="w-4 h-4 text-zinc-600 dark:text-zinc-300 shrink-0" />
+                  <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                    {t('版本紀錄', '版本记录', 'Release Notes')}
+                  </span>
+                </div>
+                <span className="text-xs font-num font-bold text-[#2563EB] dark:text-sky-400">
+                  {APP_VERSION}
+                </span>
+              </button>
+            </div>
+          </div>
+        </LiquidModal>
+
+        {/* Gemini AI Enable Safeguard Confirmation Modal */}
+        <LiquidModal
+          open={isAiConfirmOpen}
+          onClose={() => setIsAiConfirmOpen(false)}
+          maxWidthClass="max-w-sm"
+          zIndexClass="z-[115]"
+          title={t('是否確認開啟 Gemini AI？', '是否确认开启 Gemini AI？', 'Enable Gemini AI?')}
+        >
+          <div className="space-y-4">
+            <div className="p-3.5 rounded-2xl bg-indigo-500/10 dark:bg-indigo-500/15 border border-indigo-500/20 flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 flex items-center justify-center shrink-0">
+                <ShieldCheckIcon className="w-5 h-5" />
+              </div>
+              <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
+                {t(
+                  '開啟後僅在您手動點擊探索或規劃按鈕時才會呼叫 Gemini API。滑動下方確認按鈕即可解除鎖定。',
+                  '开启后仅在您手动点击探索或规划按钮时才会调用 Gemini API。滑动下方确认按钮即可解除锁定。',
+                  'Gemini API is only called when you manually tap AI features. Swipe below to confirm unlocking.'
+                )}
+              </p>
+            </div>
+
+            <SwipeConfirmButton
+              label={t('向右滑動確認開啟 Gemini AI', '向右滑动确认开启 Gemini AI', 'Swipe right to enable AI')}
+              confirmedLabel={t('已開啟 Gemini AI', '已开启 Gemini AI', 'Gemini AI Enabled')}
+              onConfirm={() => {
+                setAiEnabled(true);
+                setIsAiConfirmOpen(false);
+                showToast(
+                  t('已允許手動觸發 Gemini AI 功能', '已允许手动触发 Gemini AI 功能', 'Gemini AI access enabled'),
+                  'success'
+                );
+              }}
+            />
+
+            <button
+              type="button"
+              onClick={() => setIsAiConfirmOpen(false)}
+              className="w-full min-h-[42px] rounded-full bg-zinc-100 dark:bg-white/[0.08] text-zinc-700 dark:text-zinc-200 text-xs font-semibold cursor-pointer hover:bg-zinc-200/80 dark:hover:bg-white/[0.14] transition-colors"
+            >
+              {t('取消，保持鎖定', '取消，保持锁定', 'Cancel & Keep Locked')}
+            </button>
+          </div>
+        </LiquidModal>
       </div>
     </MotionConfig>
   );

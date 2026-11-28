@@ -49,9 +49,9 @@ const photoMetaCache = new Map<string, CachedPhotoMeta>();
 const photoBinaryCache = new Map<string, { expiresAt: number; contentType: string; buffer: Buffer }>();
 
 const NON_SCENIC_IMAGE_RE =
-  /(\.svg$|montage|collage|photomontage|composite|views_of|split_image|multiview|collection|mosaic|grid|flag_of|coat_of_arms|emblem|seal_of|crest|locator|map|district|blank|logo|icon|symbol|diagram|chart|signature|wordmark|banner_of|stamp|coin|timeline|poster|commons-logo|wikipedia-logo|wiktionary|wikibooks|wikisource|silhouette|地圖|位置圖|行政區|路線圖|國旗|徽章|標誌|拼圖|合集|總覽圖|%E5%9C%B0%E5%9C%96|%E4%BD%8D%E7%BD%AE%E5%9C%96|%E8%A1%8C%E6%94%BF%E5%8D%80|%E5%9C%8B%E6%97%97)/i;
+  /(\.svg$|\.gif$|montage|collage|photomontage|composite|views_of|split_image|multiview|collection|mosaic|grid|flag_of|coat_of_arms|emblem|seal_of|crest|locator|location_map|location|position_of|district_map|province_map|_map\.|_map_|map_of|peta|karte|karta|carte|mapa|topo|topographic|relief|elevation|terrain|borders|boundary|regency|regencies|province|provinces|prefecture|municipality|municipalities|subdivision|administrative|adm_|in_indonesia|in_bali|in_japan|in_france|in_italy|in_thailand|openstreetmap|osm_|satellite_map|blank_map|blank|logo|icon|symbol|diagram|chart|schema|signature|wordmark|banner_of|stamp|coin|timeline|poster|commons-logo|wikipedia-logo|wiktionary|wikibooks|wikisource|silhouette|地圖|地图|位置圖|位置图|行政區|行政区|路線圖|路线图|國旗|国旗|徽章|標誌|标志|拼圖|拼图|合集|總覽圖|总览图|%E5%9C%B0%E5%9C%96|%E5%9C%B0%E5%9B%BE|%E4%BD%8D%E7%BD%AE%E5%9C%96|%E8%A1%8C%E6%94%BF%E5%8D%80|%E5%9C%8B%E6%97%97)/i;
 
-function isScenicPhotoUrl(url?: string | null): url is string {
+function isScenicPhotoUrl(url?: string | null, strictJpegOnly = false): url is string {
   if (!url || typeof url !== 'string') return false;
   let parsed: URL;
   try {
@@ -67,31 +67,46 @@ function isScenicPhotoUrl(url?: string | null): url is string {
   } catch {
     // ignore malformed encoding
   }
-  return !NON_SCENIC_IMAGE_RE.test(pathname) && !NON_SCENIC_IMAGE_RE.test(decodedPath);
+  if (NON_SCENIC_IMAGE_RE.test(pathname) || NON_SCENIC_IMAGE_RE.test(decodedPath)) {
+    return false;
+  }
+  const lower = decodedPath.toLowerCase();
+  if (strictJpegOnly && !/\.jpe?g$/i.test(lower)) {
+    return false;
+  }
+  return true;
 }
 
 function scoreScenicImage(url: string, width: number, height: number, mime?: string): number {
   if (!isScenicPhotoUrl(url)) return -1;
-  if (mime && mime.includes('svg')) return -1;
+  if (mime && (mime.includes('svg') || mime.includes('gif'))) return -1;
   if (width < 460 || height < 280) return -1;
   const aspect = width / Math.max(1, height);
   if (aspect < 0.72 || aspect > 2.8) return -1;
+
+  const lower = decodeURIComponent(url).toLowerCase();
+  const isJpeg =
+    mime === 'image/jpeg' || lower.endsWith('.jpg') || lower.endsWith('.jpeg');
+  if (!isJpeg && /\b(map|area|region|island|district|province|bali|denpasar|diagram)\b/.test(lower)) {
+    return -1;
+  }
 
   let score = 0;
   if (aspect >= 1.15 && aspect <= 2.2) score += 45;
   else if (aspect >= 1.0) score += 20;
   if (width >= 1000) score += 20;
   else if (width >= 750) score += 12;
-  if (!mime || mime === 'image/jpeg' || url.toLowerCase().endsWith('.jpg') || url.toLowerCase().endsWith('.jpeg')) {
-    score += 20;
+  if (isJpeg) {
+    score += 32;
+  } else if (mime === 'image/png' || lower.endsWith('.png')) {
+    score -= 22;
   }
 
-  const lower = decodeURIComponent(url).toLowerCase();
-  if (/(skyline|panorama|cityscape|view|night|sunset|harbor|harbour|waterfront|tower|bridge|temple|shrine|palace|castle|lake|river|mountain|square|downtown|station|scenery)/.test(lower)) {
+  if (/(skyline|panorama|cityscape|view|night|sunset|harbor|harbour|waterfront|tower|bridge|temple|shrine|palace|castle|lake|river|mountain|square|downtown|station|scenery|beach|coast|pura|rice|terrace)/.test(lower)) {
     score += 30;
   }
-  if (/(portrait|headshot|statue|plaque|museum_interior|coin|grave|signpost|ticket|diagram|plan)/.test(lower)) {
-    score -= 35;
+  if (/(portrait|headshot|statue|plaque|museum_interior|coin|grave|signpost|ticket|diagram|plan|graph|chart)/.test(lower)) {
+    score -= 40;
   }
   return score;
 }
@@ -128,7 +143,7 @@ async function fetchWikiLeadImage(
       const w = p.thumbnail?.width || 0;
       const h = p.thumbnail?.height || 0;
       const minAspect = requireLandscape ? 0.92 : 0.72;
-      if (isScenicPhotoUrl(src) && w >= 420 && w >= h * minAspect) {
+      if (isScenicPhotoUrl(src, true) && w >= 420 && w >= h * minAspect) {
         return {
           imageUrl: src,
           title: p.title || titleQuery,
@@ -281,7 +296,7 @@ async function fetchWikiSearchImage(
       const src = p.thumbnail?.source;
       const w = p.thumbnail?.width || 0;
       const h = p.thumbnail?.height || 0;
-      if (isScenicPhotoUrl(src) && w >= 420 && w >= h * 0.78) {
+      if (isScenicPhotoUrl(src, true) && w >= 420 && w >= h * 0.78) {
         return { imageUrl: src, title: p.title || searchQuery };
       }
     }
@@ -310,7 +325,7 @@ async function fetchWikiGeoImage(lat: number, lon: number): Promise<{ imageUrl: 
       const src = p.thumbnail?.source;
       const w = p.thumbnail?.width || 0;
       const h = p.thumbnail?.height || 0;
-      if (isScenicPhotoUrl(src) && w >= 420 && w >= h * 0.78) {
+      if (isScenicPhotoUrl(src, true) && w >= 420 && w >= h * 0.78) {
         return { imageUrl: src, title: p.title || '' };
       }
     }
@@ -932,6 +947,53 @@ async function startServer() {
     }
   });
 
+  const SCENIC_CITY_PHOTO_OVERRIDE: Record<string, { wikiTitle: string; commonsQueries: string[] }> = {
+    '峇里島': {
+      wikiTitle: 'Pura Ulun Danu Bratan',
+      commonsQueries: ['Pura Ulun Danu Bratan Bali', 'Tanah Lot Bali sunset', 'Nusa Penida Bali'],
+    },
+    '巴厘岛': {
+      wikiTitle: 'Pura Ulun Danu Bratan',
+      commonsQueries: ['Pura Ulun Danu Bratan Bali', 'Tanah Lot Bali sunset', 'Nusa Penida Bali'],
+    },
+    bali: {
+      wikiTitle: 'Pura Ulun Danu Bratan',
+      commonsQueries: ['Pura Ulun Danu Bratan Bali', 'Tanah Lot Bali sunset', 'Nusa Penida Bali'],
+    },
+    denpasar: {
+      wikiTitle: 'Pura Ulun Danu Bratan',
+      commonsQueries: ['Pura Ulun Danu Bratan Bali', 'Bali beach temple'],
+    },
+    '沖繩': {
+      wikiTitle: 'Okinawa Island',
+      commonsQueries: ['Naha Okinawa skyline', 'Shuri Castle Okinawa', 'Kabira Bay Okinawa'],
+    },
+    '冲绳': {
+      wikiTitle: 'Okinawa Island',
+      commonsQueries: ['Naha Okinawa skyline', 'Shuri Castle Okinawa'],
+    },
+    okinawa: {
+      wikiTitle: 'Okinawa Island',
+      commonsQueries: ['Naha Okinawa skyline', 'Kabira Bay Okinawa'],
+    },
+    '普吉': {
+      wikiTitle: 'Phuket province',
+      commonsQueries: ['Phuket beach Thailand', 'Promthep Cape Phuket'],
+    },
+    phuket: {
+      wikiTitle: 'Phuket province',
+      commonsQueries: ['Phuket beach Thailand', 'Promthep Cape Phuket'],
+    },
+    '聖托里尼': {
+      wikiTitle: 'Santorini',
+      commonsQueries: ['Oia Santorini sunset', 'Santorini caldera view'],
+    },
+    santorini: {
+      wikiTitle: 'Santorini',
+      commonsQueries: ['Oia Santorini sunset', 'Santorini caldera view'],
+    },
+  };
+
   app.get('/api/destination-photo', async (req, res) => {
     const rawCity = String(req.query.city || '').trim();
     const lang = normalizeAppLanguage(String(req.query.lang || ''));
@@ -942,12 +1004,16 @@ async function startServer() {
 
     const primaryCity = rawCity.split(/\s*[-→>/,]\s*/)[0]?.trim() || rawCity;
     const intel = detectDestinationIntel(primaryCity);
-    const cacheKey = `v5:${primaryCity.toLowerCase()}`;
+    const cacheKey = `v6:${primaryCity.toLowerCase()}`;
     const cached = photoMetaCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
       res.json(cached.data);
       return;
     }
+
+    const override =
+      SCENIC_CITY_PHOTO_OVERRIDE[primaryCity.toLowerCase()] ||
+      SCENIC_CITY_PHOTO_OVERRIDE[(intel.cityQuery || '').toLowerCase()];
 
     const hasCjk = /[\u4e00-\u9fff]/.test(primaryCity);
     const hasIntelMapping = intel.cityQuery && intel.cityQuery !== primaryCity;
@@ -956,7 +1022,7 @@ async function startServer() {
     );
 
     // Run Open-Meteo geocoding (top-population pick) + Wikipedia lead images in parallel
-    const [geoOutcome, zhLeadDirect, enIntelDirect] = await Promise.allSettled([
+    const [geoOutcome, overrideLeadDirect, zhLeadDirect, enIntelDirect] = await Promise.allSettled([
       (async () => {
         for (const q of geoQueries) {
           try {
@@ -984,8 +1050,9 @@ async function startServer() {
         }
         return null;
       })(),
-      hasCjk ? fetchWikiLeadImage('zh', primaryCity) : Promise.resolve(null),
-      fetchWikiLeadImage('en', intel.cityQuery || primaryCity),
+      override ? fetchWikiLeadImage('en', override.wikiTitle) : Promise.resolve(null),
+      hasCjk && !override ? fetchWikiLeadImage('zh', primaryCity) : Promise.resolve(null),
+      !override ? fetchWikiLeadImage('en', intel.cityQuery || primaryCity) : Promise.resolve(null),
     ]);
 
     const topGeo = geoOutcome.status === 'fulfilled' ? geoOutcome.value : null;
@@ -995,14 +1062,16 @@ async function startServer() {
     const lon = topGeo?.longitude ?? null;
 
     let enGeoLead: { imageUrl: string; title: string; hasCoords: boolean } | null = null;
-    if (topGeo?.name && topGeo.name.toLowerCase() !== (intel.cityQuery || '').toLowerCase()) {
+    if (!override && topGeo?.name && topGeo.name.toLowerCase() !== (intel.cityQuery || '').toLowerCase()) {
       enGeoLead = await fetchWikiLeadImage('en', topGeo.name);
     }
 
+    const overrideVal = overrideLeadDirect.status === 'fulfilled' ? overrideLeadDirect.value : null;
     const zhVal = zhLeadDirect.status === 'fulfilled' ? zhLeadDirect.value : null;
     const enVal = enIntelDirect.status === 'fulfilled' ? enIntelDirect.value : null;
 
     let found: { imageUrl: string; title: string } | null =
+      overrideVal ||
       (hasIntelMapping ? enVal || enGeoLead || zhVal : null) ||
       (hasCjk && zhVal?.hasCoords ? zhVal : null) ||
       (enGeoLead?.hasCoords ? enGeoLead : null) ||
@@ -1012,10 +1081,18 @@ async function startServer() {
       enVal ||
       null;
 
-    // If lead image was skipped (e.g. collage/montage like Tokyo) or missing, inspect embedded article scenic photos
+    // For curated island/scenic overrides, check Commons landmark photography if lead failed
+    if (!found && override) {
+      for (const cq of override.commonsQueries) {
+        found = await fetchCommonsScenicPhoto(cq);
+        if (found) break;
+      }
+    }
+
+    // If lead image was skipped (e.g. collage/montage or map) or missing, inspect embedded article scenic photos
     if (!found) {
       const articleCandidates = await Promise.allSettled([
-        fetchWikiArticleScenicImage('en', resolvedName),
+        fetchWikiArticleScenicImage('en', override?.wikiTitle || resolvedName),
         hasCjk ? fetchWikiArticleScenicImage('zh', primaryCity) : Promise.resolve(null),
       ]);
       for (const r of articleCandidates) {

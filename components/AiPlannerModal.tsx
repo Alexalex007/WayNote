@@ -92,7 +92,7 @@ export const AiPlannerWorkspace: React.FC<AiPlannerWorkspaceProps> = ({
   onAfterApply,
 }) => {
   const { lang, t } = useI18n();
-  const { aiEnabled, setAiEnabled } = useAiAccess();
+  const { aiEnabled, requestAiEnable } = useAiAccess();
   const [mode, setMode] = useState<'single_day' | 'multi_day'>('multi_day');
   const [pace, setPace] = useState<'relaxed' | 'balanced' | 'packed'>('balanced');
   const [targetStartDate, setTargetStartDate] = useState<string>(selectedDate || trip.startDate);
@@ -543,7 +543,7 @@ export const AiPlannerWorkspace: React.FC<AiPlannerWorkspaceProps> = ({
             ) : (
               <button
                 type="button"
-                onClick={() => setAiEnabled(true)}
+                onClick={requestAiEnable}
                 className="w-full min-h-[48px] rounded-full bg-zinc-900 dark:bg-white/15 text-white text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer hover:opacity-90 transition-opacity"
               >
                 <SparklesIcon className="w-4 h-4" />

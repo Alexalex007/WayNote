@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getAiEnabled, setAiEnabled, subscribeAiEnabled } from '../services/aiGuard';
+import {
+  getAiEnabled,
+  requestAiEnable as triggerAiEnableConfirm,
+  setAiEnabled,
+  subscribeAiEnabled,
+} from '../services/aiGuard';
 import { tactileAudio } from '../services/tactileAudio';
 
 export function useAiAccess() {
@@ -20,5 +25,10 @@ export function useAiAccess() {
     }
   }, []);
 
-  return { aiEnabled, setAiEnabled: updateAiEnabled };
+  const requestAiEnable = useCallback(() => {
+    tactileAudio.playTick(0.95);
+    triggerAiEnableConfirm();
+  }, []);
+
+  return { aiEnabled, setAiEnabled: updateAiEnabled, requestAiEnable };
 }

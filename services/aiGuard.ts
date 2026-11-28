@@ -39,3 +39,19 @@ export function subscribeAiEnabled(listener: (enabled: boolean) => void): () => 
     aiListeners.delete(listener);
   };
 }
+
+const aiEnableRequestListeners = new Set<() => void>();
+
+export function requestAiEnable(): void {
+  if (getAiEnabled()) return;
+  for (const listener of aiEnableRequestListeners) {
+    listener();
+  }
+}
+
+export function subscribeAiEnableRequest(listener: () => void): () => void {
+  aiEnableRequestListeners.add(listener);
+  return () => {
+    aiEnableRequestListeners.delete(listener);
+  };
+}
