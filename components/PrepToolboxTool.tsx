@@ -678,7 +678,7 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
         }
       }}
       className={`ink-card rounded-3xl flex flex-col justify-between text-left cursor-pointer hover:brightness-[1.03] active:scale-[0.99] transition-all focus:outline-none focus:ring-2 focus:ring-sky-400/60 ${
-        compact ? 'p-3.5 sm:p-5 gap-2.5 sm:gap-4 h-full' : 'p-5 sm:p-6 gap-5'
+        compact ? 'p-3.5 sm:p-5 md:p-6 gap-2.5 sm:gap-4 h-full' : 'p-5 sm:p-6 gap-5'
       }`}
     >
       <div className="flex items-start justify-between gap-2.5">
@@ -687,7 +687,7 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
             {intel.countryLabel} · {intel.timezoneLabel}
           </div>
           <div className="flex items-center gap-1.5 mt-0.5">
-            <h2 className={`${compact ? 'text-lg sm:text-2xl' : 'text-2xl'} font-display font-bold text-white truncate`}>
+            <h2 className={`${compact ? 'text-lg sm:text-2xl md:text-[28px]' : 'text-2xl'} font-display font-bold text-white truncate`}>
               {intel.displayCity}
             </h2>
             <ChevronRightIcon className="w-4 h-4 text-zinc-400 shrink-0" />
@@ -700,7 +700,7 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
             e.stopPropagation();
             setShowWeatherModal(true);
           }}
-          className={`${compact ? 'min-h-[34px] px-3' : 'min-h-[40px] px-4'} rounded-full bg-white/10 hover:bg-white/18 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0`}
+          className={`${compact ? 'min-h-[34px] md:min-h-[40px] px-3 md:px-4' : 'min-h-[40px] px-4'} rounded-full bg-white/10 hover:bg-white/18 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0`}
         >
           {liveWeather.data ? (
             <>
@@ -721,13 +721,56 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
         </button>
       </div>
 
+      {/* Tablet & Desktop Balanced Interior Metrics (Hidden on Compact Mobile Bento) */}
+      {compact && (
+        <div className="hidden md:grid grid-cols-2 gap-3 my-auto">
+          <div className="rounded-2xl bg-white/[0.06] border border-white/10 p-3.5 space-y-1">
+            <div className="text-[11px] text-zinc-400">
+              {t('當地貨幣・退稅門檻', '当地货币・退税门槛', 'Currency · Tax-Free')}
+            </div>
+            <div className="font-display font-bold font-num text-base text-white truncate">
+              {intel.currency} ({intel.currencySymbol})
+            </div>
+            <div className="text-[11px] font-num text-zinc-300 truncate">
+              {intel.taxFreeThreshold === null
+                ? t('無退稅制度', '无退税制度', 'No tax refund')
+                : intel.taxFreeThreshold === 0
+                  ? t('消費即享退稅', '消费即享退税', 'No min spend')
+                  : t(
+                      `滿 ${intel.currencySymbol}${intel.taxFreeThreshold.toLocaleString()} 可退稅`,
+                      `满 ${intel.currencySymbol}${intel.taxFreeThreshold.toLocaleString()} 可退税`,
+                      `Min ${intel.currencySymbol}${intel.taxFreeThreshold.toLocaleString()}`
+                    )}
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-white/[0.06] border border-white/10 p-3.5 space-y-1">
+            <div className="text-[11px] text-zinc-400">
+              {liveWeather.data?.daily?.[0]
+                ? t('今日氣溫範圍', '今日气温范围', "Today's Range")
+                : t('主要門戶機場', '主要门户机场', 'Primary Gateway')}
+            </div>
+            <div className="font-display font-bold font-num text-base text-white truncate">
+              {liveWeather.data?.daily?.[0]
+                ? `${liveWeather.data.daily[0].tempMax}° / ${liveWeather.data.daily[0].tempMin}°`
+                : intel.airports[0]?.code || intel.displayCity}
+            </div>
+            <div className="text-[11px] text-zinc-300 truncate">
+              {liveWeather.data?.daily?.[0]
+                ? `${liveWeather.data.current.label} · ${t('降雨率', '降雨率', 'Rain')} ${liveWeather.data.daily[0].precipProb}%`
+                : intel.airports[0]?.name || intel.countryLabel}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className={`grid grid-cols-3 gap-2 sm:gap-3 ${compact ? 'pt-2.5 sm:pt-3.5' : 'pt-4'} border-t border-white/10 text-xs`}>
         <div>
           <div className="text-zinc-400 flex items-center gap-1 mb-0.5 text-[11px]">
             <ClockIcon className="w-3.5 h-3.5 shrink-0" />
             <span className="truncate">{t('當地時間', '当地时间', 'Time')}</span>
           </div>
-          <div className={`font-num font-semibold ${compact ? 'text-sm sm:text-base' : 'text-base'} text-white`}>
+          <div className={`font-num font-semibold ${compact ? 'text-sm sm:text-base md:text-lg' : 'text-base'} text-white`}>
             {localClock.timeStr}
           </div>
         </div>
@@ -755,15 +798,15 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
       <div
         className={
           section === 'TOOLS'
-            ? 'flex-1 min-h-0 overflow-hidden px-4 sm:px-8 pt-2 pb-4 lg:pb-8 flex flex-col'
-            : 'flex-1 min-h-0 overflow-y-auto no-scrollbar px-5 sm:px-8 pt-3 pb-6 lg:pb-10'
+            ? 'flex-1 min-h-0 overflow-hidden px-4 sm:px-6 md:px-8 pt-2 pb-4 md:pb-6 lg:pb-8 flex flex-col'
+            : 'flex-1 min-h-0 overflow-y-auto no-scrollbar px-5 sm:px-8 pt-3 pb-6 md:pb-10'
         }
       >
         <div
           className={
             section === 'TOOLS'
-              ? 'max-w-5xl lg:max-w-6xl mx-auto w-full flex-1 min-h-0 flex flex-col gap-2.5 sm:gap-4'
-              : 'max-w-5xl lg:max-w-6xl mx-auto space-y-5'
+              ? 'max-w-5xl md:max-w-none lg:max-w-7xl mx-auto w-full flex-1 min-h-0 flex flex-col gap-2.5 sm:gap-4'
+              : 'max-w-5xl md:max-w-none lg:max-w-7xl mx-auto space-y-5'
           }
         >
           {/* Header Sub-row */}
@@ -786,8 +829,8 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
 
           {/* SECTION 1: TRAVEL ITEM CHECKLIST */}
           {section === 'LISTS' && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-              <div className="lg:col-span-7 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
+              <div className="md:col-span-7 space-y-4">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <SlidingSegmentedControl
                     value={listMode}
@@ -898,7 +941,7 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
               </div>
 
               {/* Wide-screen Tablet/Desktop Right Column */}
-              <div className="hidden lg:flex lg:col-span-5 flex-col gap-4">
+              <div className="hidden md:flex md:col-span-5 flex-col gap-4">
                 {renderDestinationCard()}
 
                 <div className="surface-elevated rounded-3xl p-5 space-y-3">
@@ -951,9 +994,9 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
 
           {/* SECTION 2: TOOLS BENTO WIDGETS (Zero-scroll full-viewport layout) */}
           {section === 'TOOLS' && (
-            <div className="flex-1 min-h-0 grid grid-cols-4 lg:grid-cols-12 lg:grid-rows-3 gap-2.5 sm:gap-3.5 content-start lg:content-stretch">
-              {/* 1. Large Hero Bento (4 cols mobile / 6x2 desktop): Destination Time, Weather & Plug */}
-              <div className="col-span-4 lg:col-span-6 lg:row-span-2 min-h-0">
+            <div className="flex-1 min-h-0 grid grid-cols-4 md:grid-cols-12 md:grid-rows-3 gap-2.5 sm:gap-3.5 lg:gap-4 content-start md:content-stretch">
+              {/* 1. Large Hero Bento (4 cols mobile / 6x2 tablet & desktop): Destination Time, Weather & Plug */}
+              <div className="col-span-4 md:col-span-6 md:row-span-2 min-h-0">
                 {renderDestinationCard(true)}
               </div>
 
@@ -961,27 +1004,27 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
               <button
                 type="button"
                 onClick={() => setShowWeatherModal(true)}
-                className="col-span-2 lg:col-span-3 surface-pastel-mint rounded-[22px] sm:rounded-3xl p-3 sm:p-4 flex flex-col justify-between text-left hover:brightness-[0.98] active:scale-[0.98] transition-all cursor-pointer min-h-[76px] sm:min-h-[96px]"
+                className="col-span-2 md:col-span-3 surface-pastel-mint rounded-[22px] sm:rounded-3xl p-3 sm:p-4 md:p-5 flex flex-col justify-between text-left hover:brightness-[0.98] active:scale-[0.98] transition-all cursor-pointer min-h-[76px] sm:min-h-[96px]"
               >
                 <div className="flex items-center justify-between w-full">
-                  <div className="w-8 h-8 rounded-xl bg-[var(--tab-accent-soft)] flex items-center justify-center shrink-0">
+                  <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-[var(--tab-accent-soft)] flex items-center justify-center shrink-0">
                     {liveWeather.data ? (
                       <WeatherGlyph
                         kind={liveWeather.data.current.kind}
                         isDay={liveWeather.data.current.isDay}
-                        className="w-4 h-4"
+                        className="w-4 h-4 md:w-5 md:h-5"
                       />
                     ) : (
-                      <SunIcon className="w-4 h-4 text-[var(--tab-accent)]" />
+                      <SunIcon className="w-4 h-4 md:w-5 md:h-5 text-[var(--tab-accent)]" />
                     )}
                   </div>
-                  <ArrowUpRightIcon className="w-3.5 h-3.5 text-zinc-400" />
+                  <ArrowUpRightIcon className="w-3.5 h-3.5 md:w-4 md:h-4 text-zinc-400" />
                 </div>
                 <div className="mt-1.5">
-                  <div className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">
+                  <div className="text-xs sm:text-sm md:text-base font-bold text-zinc-900 dark:text-zinc-100 truncate">
                     {t('7 日天氣', '7 日天气', '7-Day Weather')}
                   </div>
-                  <div className="text-[11px] font-num text-zinc-500 dark:text-zinc-400 truncate">
+                  <div className="text-[11px] md:text-xs font-num text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
                     {liveWeather.data?.daily?.[0]
                       ? `${liveWeather.data.daily[0].tempMax}° / ${liveWeather.data.daily[0].tempMin}°`
                       : t('即時預報', '实时预报', 'Forecast')}
@@ -994,19 +1037,19 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
                 href={`https://www.google.com/maps/search/?api=1&query=${encodedDest}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="col-span-2 lg:col-span-3 surface-pastel-sky rounded-[22px] sm:rounded-3xl p-3 sm:p-4 flex flex-col justify-between hover:brightness-[0.98] active:scale-[0.98] transition-all min-h-[76px] sm:min-h-[96px]"
+                className="col-span-2 md:col-span-3 surface-pastel-sky rounded-[22px] sm:rounded-3xl p-3 sm:p-4 md:p-5 flex flex-col justify-between hover:brightness-[0.98] active:scale-[0.98] transition-all min-h-[76px] sm:min-h-[96px]"
               >
                 <div className="flex items-center justify-between w-full">
-                  <div className="w-8 h-8 rounded-xl bg-sky-500/15 flex items-center justify-center shrink-0">
-                    <MapIcon className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                  <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-sky-500/15 flex items-center justify-center shrink-0">
+                    <MapIcon className="w-4 h-4 md:w-5 md:h-5 text-sky-600 dark:text-sky-400" />
                   </div>
-                  <ArrowUpRightIcon className="w-3.5 h-3.5 text-zinc-400" />
+                  <ArrowUpRightIcon className="w-3.5 h-3.5 md:w-4 md:h-4 text-zinc-400" />
                 </div>
                 <div className="mt-1.5">
-                  <div className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">
+                  <div className="text-xs sm:text-sm md:text-base font-bold text-zinc-900 dark:text-zinc-100 truncate">
                     {t('Google 地圖', 'Google 地图', 'Google Maps')}
                   </div>
-                  <div className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
+                  <div className="text-[11px] md:text-xs text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
                     {intel.displayCity}
                   </div>
                 </div>
@@ -1017,19 +1060,19 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
                 href={`https://translate.google.com/?sl=auto&tl=${encodeURIComponent(translateSpec.tl)}&op=translate`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="col-span-2 lg:col-span-3 surface-elevated rounded-[22px] sm:rounded-3xl p-3 sm:p-4 flex flex-col justify-between hover:brightness-[0.98] active:scale-[0.98] transition-all min-h-[76px] sm:min-h-[96px]"
+                className="col-span-2 md:col-span-3 surface-elevated rounded-[22px] sm:rounded-3xl p-3 sm:p-4 md:p-5 flex flex-col justify-between hover:brightness-[0.98] active:scale-[0.98] transition-all min-h-[76px] sm:min-h-[96px]"
               >
                 <div className="flex items-center justify-between w-full">
-                  <div className="w-8 h-8 rounded-xl bg-violet-500/12 flex items-center justify-center shrink-0">
-                    <TranslateIcon className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+                  <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-violet-500/12 flex items-center justify-center shrink-0">
+                    <TranslateIcon className="w-4 h-4 md:w-5 md:h-5 text-violet-600 dark:text-violet-400" />
                   </div>
-                  <ArrowUpRightIcon className="w-3.5 h-3.5 text-zinc-400" />
+                  <ArrowUpRightIcon className="w-3.5 h-3.5 md:w-4 md:h-4 text-zinc-400" />
                 </div>
                 <div className="mt-1.5">
-                  <div className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">
+                  <div className="text-xs sm:text-sm md:text-base font-bold text-zinc-900 dark:text-zinc-100 truncate">
                     {t('即時翻譯', '实时翻译', 'Translate')}
                   </div>
-                  <div className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
+                  <div className="text-[11px] md:text-xs text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
                     {translateSpec.label}
                   </div>
                 </div>
@@ -1039,21 +1082,21 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
               <button
                 type="button"
                 onClick={openDestDetail}
-                className="col-span-2 lg:col-span-3 surface-pastel-peach rounded-[22px] sm:rounded-3xl p-3 sm:p-4 flex flex-col justify-between text-left hover:brightness-[0.98] active:scale-[0.98] transition-all cursor-pointer min-h-[76px] sm:min-h-[96px]"
+                className="col-span-2 md:col-span-3 surface-pastel-peach rounded-[22px] sm:rounded-3xl p-3 sm:p-4 md:p-5 flex flex-col justify-between text-left hover:brightness-[0.98] active:scale-[0.98] transition-all cursor-pointer min-h-[76px] sm:min-h-[96px]"
               >
                 <div className="flex items-center justify-between w-full">
-                  <div className="w-8 h-8 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
-                    <TagIcon className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
+                    <TagIcon className="w-4 h-4 md:w-5 md:h-5 text-amber-600 dark:text-amber-400" />
                   </div>
-                  <span className="text-[11px] font-num font-bold text-amber-700 dark:text-amber-300">
+                  <span className="text-[11px] md:text-xs font-num font-bold text-amber-700 dark:text-amber-300">
                     {intel.currency}
                   </span>
                 </div>
                 <div className="mt-1.5">
-                  <div className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">
+                  <div className="text-xs sm:text-sm md:text-base font-bold text-zinc-900 dark:text-zinc-100 truncate">
                     {t('退稅・幣別', '退税・币别', 'Tax-Free')}
                   </div>
-                  <div className="text-[11px] font-num text-zinc-500 dark:text-zinc-400 truncate">
+                  <div className="text-[11px] md:text-xs font-num text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
                     {intel.taxFreeThreshold === null
                       ? t('無退稅制度', '无退税制度', 'No tax refund')
                       : intel.taxFreeThreshold === 0
@@ -1068,18 +1111,18 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
               </button>
 
               {/* 6. Medium-Wide Bottom Bento: Airport Hub with Interactive Split-Flap Board */}
-              <div className="col-span-2 lg:col-span-5 surface-elevated rounded-[22px] sm:rounded-3xl p-3 sm:p-4 flex items-center justify-between gap-2.5 min-h-[68px]">
-                <div className="flex items-center gap-2.5 min-w-0">
+              <div className="col-span-2 md:col-span-5 surface-elevated rounded-[22px] sm:rounded-3xl p-3 sm:p-4 md:p-5 flex items-center justify-between gap-2.5 min-h-[68px]">
+                <div className="flex items-center gap-2.5 md:gap-3.5 min-w-0">
                   <SplitFlapBoard
                     size="sm"
                     words={intel.airports.length > 0 ? intel.airports.map((a) => a.code) : ['AIR']}
                     ariaLabel={t('切換當地機場代碼翻牌', '切换当地机场代码翻牌', 'Flip destination airport code')}
                   />
                   <div className="min-w-0">
-                    <div className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">
+                    <div className="text-xs sm:text-sm md:text-base font-bold text-zinc-900 dark:text-zinc-100 truncate">
                       {intel.airports[0]?.name || t('機場交通', '机场交通', 'Airport')}
                     </div>
-                    <div className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
+                    <div className="text-[11px] md:text-xs text-zinc-500 dark:text-zinc-400 truncate">
                       {intel.airports.length > 1
                         ? t('點擊翻牌切換機場', '点击翻牌切换机场', 'Tap board to switch')
                         : intel.displayCity}
@@ -1102,23 +1145,23 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
               {/* 7. Compact Bottom Bento: Direct Emergency SOS Dial */}
               <a
                 href={`tel:${primaryPhone}`}
-                className="col-span-1 lg:col-span-4 surface-pastel-rose rounded-[22px] sm:rounded-3xl p-3 sm:p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-1 hover:brightness-[0.98] active:scale-[0.98] transition-all min-h-[68px]"
+                className="col-span-1 md:col-span-4 surface-pastel-rose rounded-[22px] sm:rounded-3xl p-3 sm:p-4 md:p-5 flex flex-col md:flex-row md:items-center justify-between gap-1 md:gap-3 hover:brightness-[0.98] active:scale-[0.98] transition-all min-h-[68px]"
               >
-                <div className="flex items-center justify-between lg:justify-start lg:gap-2.5">
+                <div className="flex items-center justify-between md:justify-start md:gap-2.5">
                   <span className="text-[10px] sm:text-xs font-extrabold tracking-wide text-rose-600 dark:text-rose-400">
                     SOS
                   </span>
-                  <ArrowUpRightIcon className="w-3 h-3 text-rose-400 lg:hidden" />
+                  <ArrowUpRightIcon className="w-3 h-3 text-rose-400 md:hidden" />
                 </div>
-                <div className="lg:flex-1 lg:min-w-0">
-                  <div className="font-num font-bold text-sm sm:text-base text-rose-700 dark:text-rose-300 leading-tight truncate">
+                <div className="md:flex-1 md:min-w-0">
+                  <div className="font-num font-bold text-sm sm:text-base md:text-lg text-rose-700 dark:text-rose-300 leading-tight truncate">
                     {primaryPhone}
                   </div>
-                  <div className="text-[10px] sm:text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
+                  <div className="text-[10px] sm:text-[11px] md:text-xs text-zinc-500 dark:text-zinc-400 truncate">
                     {t('緊急撥號', '紧急拨号', 'Emergency')}
                   </div>
                 </div>
-                <ArrowUpRightIcon className="w-3.5 h-3.5 text-zinc-400 hidden lg:block shrink-0" />
+                <ArrowUpRightIcon className="w-3.5 h-3.5 md:w-4 md:h-4 text-zinc-400 hidden md:block shrink-0" />
               </a>
 
               {/* 8. Compact Bottom Bento: Local News */}
@@ -1132,29 +1175,29 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
                 }`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="col-span-1 lg:col-span-3 surface-pastel-sky rounded-[22px] sm:rounded-3xl p-3 sm:p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-1 hover:brightness-[0.98] active:scale-[0.98] transition-all min-h-[68px]"
+                className="col-span-1 md:col-span-3 surface-pastel-sky rounded-[22px] sm:rounded-3xl p-3 sm:p-4 md:p-5 flex flex-col md:flex-row md:items-center justify-between gap-1 md:gap-2.5 hover:brightness-[0.98] active:scale-[0.98] transition-all min-h-[68px]"
               >
-                <div className="flex items-center justify-between lg:justify-start">
-                  <NewspaperIcon className="w-4 h-4 text-sky-600 dark:text-sky-400" />
-                  <ArrowUpRightIcon className="w-3 h-3 text-zinc-400 lg:hidden" />
+                <div className="flex items-center justify-between md:justify-start">
+                  <NewspaperIcon className="w-4 h-4 md:w-5 md:h-5 text-sky-600 dark:text-sky-400" />
+                  <ArrowUpRightIcon className="w-3 h-3 text-zinc-400 md:hidden" />
                 </div>
-                <div className="lg:flex-1 lg:min-w-0 lg:px-2">
-                  <div className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 leading-tight truncate">
+                <div className="md:flex-1 md:min-w-0">
+                  <div className="text-xs sm:text-sm md:text-base font-bold text-zinc-900 dark:text-zinc-100 leading-tight truncate">
                     {t('資訊', '资讯', 'News')}
                   </div>
-                  <div className="text-[10px] sm:text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
+                  <div className="text-[10px] sm:text-[11px] md:text-xs text-zinc-500 dark:text-zinc-400 truncate">
                     {t('當地快訊', '当地快讯', 'Local')}
                   </div>
                 </div>
-                <ArrowUpRightIcon className="w-3.5 h-3.5 text-zinc-400 hidden lg:block shrink-0" />
+                <ArrowUpRightIcon className="w-3.5 h-3.5 md:w-4 md:h-4 text-zinc-400 hidden md:block shrink-0" />
               </a>
             </div>
           )}
 
           {/* SECTION 3: DOCUMENTS VAULT */}
           {section === 'DOCS' && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-              <div className="lg:col-span-8 surface-elevated rounded-3xl p-5 sm:p-6 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
+              <div className="md:col-span-7 lg:col-span-8 surface-elevated rounded-3xl p-5 sm:p-6 space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <PaperClipIcon className="w-4 h-4 text-[var(--tab-accent)]" />
@@ -1250,7 +1293,7 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
                 )}
               </div>
 
-              <div className="hidden lg:block lg:col-span-4">
+              <div className="hidden md:block md:col-span-5 lg:col-span-4">
                 {renderDestinationCard()}
               </div>
             </div>

@@ -1222,7 +1222,7 @@ const ItineraryTool: React.FC<Props> = ({
   return (
     <div data-scroll-lock className="h-full min-h-0 flex flex-col relative bg-transparent overflow-clip">
       {/* Header (IMG_7245 clean editorial header) */}
-      <div className="px-5 sm:px-8 pt-3 sm:pt-5 pb-2 flex items-center justify-between gap-3 shrink-0 relative z-20">
+      <div className="px-5 sm:px-8 max-w-7xl w-full mx-auto pt-3 sm:pt-5 pb-2 flex items-center justify-between gap-3 shrink-0 relative z-20">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-0.5 font-num">
             <span className="font-bold text-[#F26B3A]">{getDayNumber(selectedDate)}</span>
@@ -1277,7 +1277,7 @@ const ItineraryTool: React.FC<Props> = ({
       </div>
 
       {/* Centered Horizontal Day Pill Strip (Clean floating pills, zero bottom shadow cutoff) */}
-      <div className="px-5 sm:px-8 pb-3 shrink-0 relative z-20">
+      <div className="px-5 sm:px-8 max-w-7xl w-full mx-auto pb-3 shrink-0 relative z-20">
         <div className="overflow-x-auto no-scrollbar py-1">
           <div className="w-max min-w-full flex items-center justify-center gap-2">
             {dates.map((date) => {
@@ -1309,9 +1309,9 @@ const ItineraryTool: React.FC<Props> = ({
       {/* Workspace Grid */}
       <div
         data-scroll-lock
-        className="flex-1 min-h-0 px-5 sm:px-8 max-w-7xl w-full mx-auto grid grid-cols-1 grid-rows-[minmax(0,1fr)] lg:grid-cols-12 gap-6 overflow-clip"
+        className="flex-1 min-h-0 px-5 sm:px-8 max-w-7xl w-full mx-auto grid grid-cols-1 grid-rows-[minmax(0,1fr)] md:grid-cols-12 gap-5 lg:gap-6 overflow-clip"
       >
-        <div data-scroll-lock className="lg:col-span-8 flex flex-col min-h-0 h-full overflow-clip">
+        <div data-scroll-lock className="md:col-span-7 lg:col-span-8 flex flex-col min-h-0 h-full overflow-clip">
           {/* Action Row: Route, Hotel & AI Planner (left) + Compact Icon Lock Toggle (right) */}
           <div className="flex items-center justify-between gap-2 pb-3 shrink-0">
             <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 overflow-x-auto no-scrollbar">
@@ -1356,7 +1356,7 @@ const ItineraryTool: React.FC<Props> = ({
           </div>
 
           {/* Scrollable Connected Vertical Timeline with Free Drag-and-Drop Reorder */}
-          <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar pb-6 lg:pb-10 pr-0.5">
+          <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar pb-6 md:pb-10 pr-0.5">
             {!isLocked && canSort && (
               <div className="mb-3 px-4 py-2 rounded-2xl bg-[#F26B3A]/10 text-[#F26B3A] text-xs font-semibold flex items-center justify-between">
                 <span>{t('拖曳卡片調整順序', '拖拽卡片调整顺序', 'Drag cards to reorder')}</span>
@@ -1474,9 +1474,9 @@ const ItineraryTool: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Desktop Side Panel */}
-        <div className="hidden lg:flex lg:col-span-4 flex-col min-h-0 h-full gap-4 overflow-y-auto no-scrollbar pb-10">
-          <div className="ink-card rounded-3xl p-6 space-y-5">
+        {/* Tablet & Desktop Side Panel */}
+        <div className="hidden md:flex md:col-span-5 lg:col-span-4 flex-col min-h-0 h-full gap-4 overflow-y-auto no-scrollbar pb-8 lg:pb-10">
+          <div className="ink-card rounded-3xl p-5 lg:p-6 space-y-4 lg:space-y-5">
             <div className="flex items-center justify-between">
               <h3 className="font-display font-bold text-base text-white">{t('當日概覽', '当日概览', 'Day Overview')}</h3>
               <span className="text-xs font-num text-zinc-400">
@@ -1484,7 +1484,7 @@ const ItineraryTool: React.FC<Props> = ({
               </span>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-2.5">
               <div>
                 <p className="text-[11px] text-zinc-400 mb-1">{t('行程', '行程', 'Stops')}</p>
                 <p className="text-2xl font-display font-bold font-num text-white">{currentActivities.length}</p>
@@ -1499,28 +1499,71 @@ const ItineraryTool: React.FC<Props> = ({
               </div>
             </div>
 
-            <div className="pt-4 border-t border-white/10 flex items-center justify-between text-xs text-zinc-300">
-              <div className="flex items-center gap-1.5 truncate">
-                <BoltIcon className="w-4 h-4 text-[#FF9E7B] shrink-0" />
-                <span className="truncate">{activeIntel.voltagePlug}</span>
+            {currentActivities.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] text-zinc-400 font-num">
+                  <span>{t('今日進度', '今日进度', 'Today Progress')}</span>
+                  <span className="text-zinc-200 font-semibold">
+                    {Math.round((completedCount / currentActivities.length) * 100)}%
+                  </span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-white/10 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-[#F26B3A] transition-all duration-300"
+                    style={{ width: `${Math.round((completedCount / currentActivities.length) * 100)}%` }}
+                  />
+                </div>
               </div>
+            )}
+
+            <div className="pt-3.5 border-t border-white/10 space-y-2.5 text-xs text-zinc-300">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 truncate">
+                  <BoltIcon className="w-4 h-4 text-[#FF9E7B] shrink-0" />
+                  <span className="truncate">{activeIntel.voltagePlug}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowWeatherModal(true)}
+                  className="text-[#FF9E7B] font-semibold hover:underline shrink-0 cursor-pointer ml-2"
+                >
+                  {t('7 日預報 →', '7 日预报 →', '7-Day Forecast →')}
+                </button>
+              </div>
+
               <button
                 type="button"
-                onClick={() => setShowWeatherModal(true)}
-                className="text-[#FF9E7B] font-semibold hover:underline shrink-0 cursor-pointer ml-2"
+                onClick={openHotelManager}
+                className="w-full px-3 py-2 rounded-2xl bg-white/[0.06] hover:bg-white/[0.11] border border-white/10 flex items-center justify-between gap-2 text-left transition-colors cursor-pointer"
               >
-                {t('7 日預報 →', '7 日预报 →', '7-Day Forecast →')}
+                <div className="flex items-center gap-2 min-w-0">
+                  <HomeIcon className="w-4 h-4 text-indigo-300 shrink-0" />
+                  <span className="truncate font-medium text-white">
+                    {activeHotelForDay ? activeHotelForDay.name : t('新增入住酒店', '新增入住酒店', 'Add Hotel Stay')}
+                  </span>
+                </div>
+                <span className="text-[11px] text-zinc-400 shrink-0">
+                  {activeHotelForDay ? t('編輯', '编辑', 'Edit') : '+'}
+                </span>
               </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-2.5">
+            <div className="grid grid-cols-2 gap-2.5">
               <button
                 type="button"
                 onClick={openAddModal}
-                className="min-h-[44px] rounded-full bg-[#F26B3A] hover:bg-[#E15A2A] text-white font-semibold text-xs flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer"
+                className="min-h-[42px] px-3 rounded-full bg-[#F26B3A] hover:bg-[#E15A2A] text-white font-semibold text-xs flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer"
               >
-                <PlusIcon className="w-4 h-4" />
-                <span>{t('新增行程 / 航班', '新增行程 / 航班', 'Add Stop / Flight')}</span>
+                <PlusIcon className="w-4 h-4 shrink-0" />
+                <span className="truncate">{t('新增行程', '新增行程', 'Add Stop')}</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleOpenRouteNav}
+                className="min-h-[42px] px-3 rounded-full bg-white/12 hover:bg-white/20 text-white font-semibold text-xs flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer"
+              >
+                <NavigationArrowIcon className="w-4 h-4 text-[#FF9E7B] shrink-0" />
+                <span className="truncate">{t('今日路線', '今日路线', 'Day Route')}</span>
               </button>
             </div>
           </div>

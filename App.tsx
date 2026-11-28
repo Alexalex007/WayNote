@@ -390,24 +390,25 @@ const WorkspaceSidebar: React.FC<
     <aside
       aria-hidden={isHidden}
       className={`hidden ${
-        isHidden ? 'lg:hidden' : 'lg:flex'
-      } w-64 shrink-0 flex-col justify-between pl-[max(1rem,env(safe-area-inset-left))] pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] pr-0 z-20`}
+        isHidden ? 'md:hidden' : 'md:flex'
+      } md:w-[88px] lg:w-64 xl:w-[272px] shrink-0 flex-col justify-between pl-[max(0.75rem,env(safe-area-inset-left))] lg:pl-[max(1rem,env(safe-area-inset-left))] pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] pr-0 z-20 transition-[width] duration-200`}
     >
-      <div className="surface-elevated rounded-3xl h-full flex flex-col justify-between p-4">
-        <div className="space-y-5">
-          <div className="flex items-center justify-between gap-2 pb-3 border-b border-zinc-200/70 dark:border-white/[0.08]">
+      <div className="surface-elevated rounded-3xl h-full flex flex-col justify-between p-2.5 lg:p-4">
+        <div className="space-y-4 lg:space-y-5">
+          <div className="flex items-center justify-center lg:justify-between gap-2 pb-3 border-b border-zinc-200/70 dark:border-white/[0.08]">
             <button
               type="button"
               onClick={onGoHome}
-              className="flex items-center gap-2.5 text-left group cursor-pointer min-w-0"
+              title={`${tripData.name} · ${t('返回首頁', '返回首页', 'Back to home')}`}
+              className="flex items-center justify-center lg:justify-start gap-2.5 text-left group cursor-pointer min-w-0"
             >
               <div
-                className="w-9 h-9 rounded-xl text-white flex items-center justify-center shrink-0 shadow-sm transition-colors duration-300"
+                className="w-10 h-10 lg:w-9 lg:h-9 rounded-xl text-white flex items-center justify-center shrink-0 shadow-sm transition-colors duration-300"
                 style={{ background: `linear-gradient(135deg, ${navCurrentFrom}, ${navCurrentTo})` }}
               >
                 <WaynoteLogoIcon className="w-5 h-5" />
               </div>
-              <div className="min-w-0">
+              <div className="hidden lg:block min-w-0">
                 <div className="text-[11px] font-medium text-zinc-400">Waynote</div>
                 <div className="text-sm font-bold text-zinc-900 dark:text-white truncate">
                   {tripData.name}
@@ -416,7 +417,7 @@ const WorkspaceSidebar: React.FC<
             </button>
           </div>
 
-          <div className="px-1 space-y-0.5">
+          <div className="hidden lg:block px-1 space-y-0.5">
             <div className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate">
               {localizeDestinationLabel(tripData.destination, lang)}
             </div>
@@ -425,7 +426,7 @@ const WorkspaceSidebar: React.FC<
             </div>
           </div>
 
-          <nav ref={navRef} className="relative space-y-1">
+          <nav ref={navRef} className="relative space-y-1.5 lg:space-y-1">
             {thumb && (
               <motion.div
                 aria-hidden="true"
@@ -448,7 +449,7 @@ const WorkspaceSidebar: React.FC<
                   height: { type: 'spring', stiffness: 440, damping: 33, mass: 0.82 },
                   backgroundImage: { duration: 0.45, ease: 'easeInOut' },
                 }}
-                className="absolute inset-x-0 top-0 rounded-xl pointer-events-none z-0"
+                className="absolute inset-x-0 top-0 rounded-2xl lg:rounded-xl pointer-events-none z-0"
               />
             )}
             {navItems.map((item, idx) => {
@@ -462,6 +463,7 @@ const WorkspaceSidebar: React.FC<
                   ref={(el) => {
                     btnRefs.current[idx] = el;
                   }}
+                  title={item.label}
                   onClick={() => {
                     if (!isActive) tactileAudio.playTick(0.9 + idx * 0.06);
                     onSelectTab(item.id);
@@ -474,14 +476,15 @@ const WorkspaceSidebar: React.FC<
                         }
                       : undefined
                   }
-                  className={`relative z-10 w-full min-h-[42px] px-3.5 rounded-xl flex items-center gap-3 font-semibold text-sm transition-colors duration-200 cursor-pointer ${
+                  className={`relative z-10 w-full py-2.5 px-1 lg:py-0 lg:min-h-[42px] lg:px-3.5 rounded-2xl lg:rounded-xl flex flex-col lg:flex-row items-center justify-center lg:justify-start gap-1 lg:gap-3 font-semibold text-[10px] leading-tight lg:text-sm transition-colors duration-200 cursor-pointer ${
                     isActive
                       ? 'text-white'
                       : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-900/5 dark:hover:bg-white/5'
                   }`}
                 >
-                  <Icon className="w-4 h-4 shrink-0" />
-                  <span>{item.label}</span>
+                  <Icon className="w-[18px] h-[18px] lg:w-4 lg:h-4 shrink-0" />
+                  <span className="lg:hidden truncate max-w-full">{item.shortLabel}</span>
+                  <span className="hidden lg:inline truncate">{item.label}</span>
                 </button>
               );
             })}
@@ -491,16 +494,17 @@ const WorkspaceSidebar: React.FC<
         <button
           type="button"
           onClick={onOpenSyncHub}
-          className="w-full p-3.5 rounded-2xl bg-zinc-100/90 dark:bg-white/[0.04] border border-zinc-200/70 dark:border-white/[0.08] text-left hover:bg-zinc-200/60 dark:hover:bg-white/[0.08] transition-colors cursor-pointer space-y-1.5"
+          title={syncBadge.text}
+          className="w-full p-2.5 lg:p-3.5 rounded-2xl bg-zinc-100/90 dark:bg-white/[0.04] border border-zinc-200/70 dark:border-white/[0.08] text-left hover:bg-zinc-200/60 dark:hover:bg-white/[0.08] transition-colors cursor-pointer flex flex-col items-center lg:items-stretch gap-1 lg:space-y-1.5"
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs font-semibold text-zinc-900 dark:text-white">
-              <span className={`w-2 h-2 rounded-full ${syncBadge.dotClass}`} />
-              <span>{syncBadge.text}</span>
+          <div className="flex items-center justify-center lg:justify-between w-full gap-1.5">
+            <div className="flex items-center gap-1.5 lg:gap-2 text-xs font-semibold text-zinc-900 dark:text-white">
+              <span className={`w-2 h-2 rounded-full ${syncBadge.dotClass} shrink-0`} />
+              <span className="hidden lg:inline">{syncBadge.text}</span>
             </div>
-            <QrCodeIcon className="w-4 h-4 text-[var(--tab-accent)] transition-colors" />
+            <QrCodeIcon className="w-4 h-4 text-[var(--tab-accent)] transition-colors shrink-0" />
           </div>
-          <div className="flex items-center justify-between text-[11px] font-num text-zinc-500 dark:text-zinc-400">
+          <div className="hidden lg:flex items-center justify-between text-[11px] font-num text-zinc-500 dark:text-zinc-400">
             <span>{tripData.syncId}</span>
             <span>{t('同步設定 →', '同步设置 →', 'Sync settings →')}</span>
           </div>
@@ -681,7 +685,7 @@ const WorkspaceDock: React.FC<
     <div
       aria-hidden={isHidden}
       className={`${
-        isHidden ? 'hidden' : 'lg:hidden absolute'
+        isHidden ? 'hidden' : 'md:hidden absolute'
       } bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-3 right-3 z-40 pointer-events-none flex justify-center`}
     >
       <nav
@@ -2017,13 +2021,13 @@ function App() {
     );
   };
 
-  const handleOpenTrip = (trip: Trip) => {
+  const handleOpenTrip = (trip: Trip, initialTab: Tab = Tab.ITINERARY) => {
     const normalized = ensureSyncFields(trip);
     setTripData(normalized);
     setSelectedHomeTripId(normalized.id);
     localStorage.setItem(STORAGE_ACTIVE_KEY, JSON.stringify(normalized));
     setView('TRIP');
-    setActiveTab(Tab.ITINERARY);
+    setActiveTab(initialTab);
   };
 
   const syncBadge = useMemo(() => {
@@ -2311,7 +2315,7 @@ function App() {
                   <div className="app-shell-fixed z-40" onClick={() => setShowHomeSettings(false)} />
                 )}
 
-                <div className="relative z-10 w-full max-w-xl md:max-w-2xl lg:max-w-5xl mx-auto pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] sm:px-6 lg:px-8 pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))] flex-1 flex flex-col justify-between gap-6">
+                <div className="relative z-10 w-full max-w-xl md:max-w-none lg:max-w-7xl xl:max-w-[1400px] mx-auto pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] sm:px-6 md:px-8 lg:px-10 pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))] flex-1 flex flex-col justify-between gap-6">
                   {/* Top Bar */}
                   <header className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2.5">
@@ -2528,8 +2532,8 @@ function App() {
                     {tripsList.length > 0 && selectedHomeTrip && homeStats ? (
                       <>
                         {/* Planned Journeys Header & Filter Tabs */}
-                        <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
-                          <div className="flex items-baseline justify-between gap-3">
+                        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+                          <div className="flex items-baseline justify-between md:justify-start gap-3">
                             <h1 className="text-2xl sm:text-3xl font-display font-bold text-zinc-900 dark:text-white tracking-tight">
                               {t('我的旅程', '我的旅程', 'Planned Journeys')}
                             </h1>
@@ -2556,296 +2560,323 @@ function App() {
                           />
                         </div>
 
-                        {/* Scenic Top-Typography Home Cards */}
-                        {filteredHomeTrips.length === 0 ? (
-                          <div className="surface-elevated rounded-3xl p-8 text-center space-y-3">
-                            <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-                              {t('此分類尚無旅程', '此分类暂无旅程', 'No trips in this category')}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => setHomeFilter('ALL')}
-                              className="text-xs font-semibold text-[#2563EB] dark:text-sky-400 cursor-pointer"
-                            >
-                              {t('顯示全部旅程', '显示全部旅程', 'Show all trips')}
-                            </button>
-                          </div>
-                        ) : (
-                          <div
-                            onScroll={handleHomeCarouselScroll}
-                            className={
-                              filteredHomeTrips.length > 1
-                                ? 'flex gap-3.5 overflow-x-auto no-scrollbar snap-x snap-mandatory -mx-1 px-1 py-1 lg:mx-0 lg:px-0 lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:overflow-visible'
-                                : 'grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch'
-                            }
-                          >
-                            {filteredHomeTrips.map((item) => {
-                              const span = getDaySpanUtc(item.startDate, item.endDate);
-                              const dateParts = formatHomeCardDateParts(item.startDate, lang);
-                              const cardWidthClass =
-                                filteredHomeTrips.length > 1
-                                  ? 'w-[86%] sm:w-[340px] lg:w-full shrink-0'
-                                  : 'w-full lg:col-span-7';
-                              return (
-                                <div
-                                  key={item.id}
-                                  data-trip-id={item.id}
-                                  role="button"
-                                  tabIndex={0}
-                                  onClick={() => handleOpenTrip(item)}
-                                  onMouseEnter={() => setSelectedHomeTripId(item.id)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter' || e.key === ' ') {
-                                      e.preventDefault();
-                                      handleOpenTrip(item);
-                                    }
-                                  }}
-                                  className={`${cardWidthClass} snap-start rounded-[28px] overflow-hidden cursor-pointer transition-transform duration-150 active:scale-[0.99] surface-elevated shadow-[0_18px_36px_-16px_rgba(15,34,74,0.28)] focus:outline-none focus:ring-2 focus:ring-[#2563EB]`}
+                        {/* Mobile Sequential Stack (< md) | Tablet & Desktop 12-Col Bento Hub (md+) */}
+                        <div className="space-y-5 md:space-y-0 md:grid md:grid-cols-12 md:gap-5 lg:gap-6 md:items-start">
+                          {/* Primary Zone: Scenic Trip Cards (+ Quick Snapshot when 1 Trip on Tablet/Desktop) */}
+                          <div className="md:col-span-7 lg:col-span-8 space-y-4 min-w-0">
+                            {filteredHomeTrips.length === 0 ? (
+                              <div className="surface-elevated rounded-3xl p-8 md:py-14 text-center space-y-3">
+                                <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                                  {t('此分類尚無旅程', '此分类暂无旅程', 'No trips in this category')}
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => setHomeFilter('ALL')}
+                                  className="text-xs font-semibold text-[#2563EB] dark:text-sky-400 cursor-pointer"
                                 >
-                                  <DestinationCover
-                                    city={item.destination}
-                                    debounceMs={0}
-                                    className="h-52 sm:h-56 w-full"
-                                    scrimClassName="bg-gradient-to-b from-black/58 via-black/14 to-black/18"
-                                  >
-                                    <div className="h-full p-5 sm:p-6 flex items-start justify-between gap-3 text-white">
-                                      <div className="min-w-0 space-y-2.5">
-                                        <h2 className="text-[22px] sm:text-[25px] font-display font-bold text-white leading-tight truncate tracking-tight drop-shadow-sm">
-                                          {localizeDestinationLabel(item.destination, lang)}
-                                        </h2>
-                                        <div className="inline-flex">
-                                          <HomeTripWeatherPill
-                                            city={item.destination}
-                                            tripId={item.id}
-                                            onOpenWeather={handleOpenHomeWeather}
-                                          />
+                                  {t('顯示全部旅程', '显示全部旅程', 'Show all trips')}
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <div
+                                  onScroll={handleHomeCarouselScroll}
+                                  className={
+                                    filteredHomeTrips.length > 1
+                                      ? 'flex gap-3.5 overflow-x-auto no-scrollbar snap-x snap-mandatory -mx-1 px-1 py-1 md:mx-0 md:px-0 md:py-0 md:grid md:grid-cols-2 md:gap-4 md:overflow-visible'
+                                      : 'grid grid-cols-1 gap-4'
+                                  }
+                                >
+                                  {filteredHomeTrips.map((item) => {
+                                    const span = getDaySpanUtc(item.startDate, item.endDate);
+                                    const dateParts = formatHomeCardDateParts(item.startDate, lang);
+                                    const isSingleDesktop = filteredHomeTrips.length === 1;
+                                    const cardWidthClass =
+                                      filteredHomeTrips.length > 1
+                                        ? 'w-[86%] sm:w-[340px] md:w-full shrink-0'
+                                        : 'w-full';
+                                    return (
+                                      <div
+                                        key={item.id}
+                                        data-trip-id={item.id}
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={() => handleOpenTrip(item)}
+                                        onMouseEnter={() => setSelectedHomeTripId(item.id)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            handleOpenTrip(item);
+                                          }
+                                        }}
+                                        className={`${cardWidthClass} snap-start rounded-[28px] overflow-hidden cursor-pointer transition-transform duration-150 active:scale-[0.99] surface-elevated shadow-[0_18px_36px_-16px_rgba(15,34,74,0.28)] focus:outline-none focus:ring-2 focus:ring-[#2563EB]`}
+                                      >
+                                        <DestinationCover
+                                          city={item.destination}
+                                          debounceMs={0}
+                                          className={isSingleDesktop ? 'h-52 sm:h-56 md:h-64 lg:h-[290px] w-full' : 'h-52 sm:h-56 md:h-52 lg:h-56 w-full'}
+                                          scrimClassName="bg-gradient-to-b from-black/58 via-black/14 to-black/18"
+                                        >
+                                          <div className="h-full p-5 sm:p-6 flex items-start justify-between gap-3 text-white">
+                                            <div className="min-w-0 space-y-2.5">
+                                              <h2 className="text-[22px] sm:text-[25px] font-display font-bold text-white leading-tight truncate tracking-tight drop-shadow-sm">
+                                                {localizeDestinationLabel(item.destination, lang)}
+                                              </h2>
+                                              <div className="inline-flex">
+                                                <HomeTripWeatherPill
+                                                  city={item.destination}
+                                                  tripId={item.id}
+                                                  onOpenWeather={handleOpenHomeWeather}
+                                                />
+                                              </div>
+                                            </div>
+
+                                            <div className="text-right shrink-0 flex flex-col items-end">
+                                              <span className="text-[36px] sm:text-[42px] font-display font-light leading-none tracking-tight text-white font-num drop-shadow-sm">
+                                                {dateParts.day}
+                                              </span>
+                                              <span className="text-xs sm:text-[13px] font-display font-medium text-white/95 mt-0.5 drop-shadow-sm">
+                                                {dateParts.monthLabel}
+                                              </span>
+                                              <span className="text-[11px] font-num font-medium text-white/80 mt-1.5 drop-shadow-sm">
+                                                {item.startDate.slice(5)} ~ {item.endDate.slice(5)}
+                                                {span ? ` · ${span.days}${t('天', '天', 'd')}` : ''}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </DestinationCover>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+
+                                {/* Tablet & Desktop Quick Glance Strip when focusing a single active/selected trip */}
+                                {filteredHomeTrips.length === 1 && (() => {
+                                  const heroTrip = filteredHomeTrips[0];
+                                  const actTotal = Object.values(heroTrip.activities || {}).reduce<number>(
+                                    (sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0),
+                                    0
+                                  );
+                                  const packList = heroTrip.packingList || [];
+                                  const packDone = packList.filter((p) => p.checked).length;
+                                  const savedSpots = (heroTrip.savedPlaces || []).length;
+                                  const heroIntel = detectDestinationIntel(heroTrip.destination, lang);
+                                  return (
+                                    <div className="hidden md:grid grid-cols-3 gap-3.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenTrip(heroTrip, Tab.ITINERARY)}
+                                        className="surface-elevated rounded-3xl p-4 text-left hover:bg-white dark:hover:bg-zinc-800/80 transition-colors cursor-pointer group"
+                                      >
+                                        <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
+                                          <span>{t('行程節點', '行程节点', 'Itinerary Stops')}</span>
+                                          <ChevronRightIcon className="w-3.5 h-3.5 text-zinc-400 group-hover:translate-x-0.5 transition-transform" />
                                         </div>
-                                      </div>
+                                        <div className="mt-1.5 font-display font-bold font-num text-xl text-zinc-900 dark:text-white">
+                                          {actTotal}
+                                          <span className="text-xs font-normal text-zinc-400 ml-1">
+                                            {t('個安排', '个安排', 'stops')}
+                                          </span>
+                                        </div>
+                                      </button>
 
-                                      <div className="text-right shrink-0 flex flex-col items-end">
-                                        <span className="text-[36px] sm:text-[42px] font-display font-light leading-none tracking-tight text-white font-num drop-shadow-sm">
-                                          {dateParts.day}
-                                        </span>
-                                        <span className="text-xs sm:text-[13px] font-display font-medium text-white/95 mt-0.5 drop-shadow-sm">
-                                          {dateParts.monthLabel}
-                                        </span>
-                                        <span className="text-[11px] font-num font-medium text-white/80 mt-1.5 drop-shadow-sm">
-                                          {item.startDate.slice(5)} ~ {item.endDate.slice(5)}
-                                          {span ? ` · ${span.days}${t('天', '天', 'd')}` : ''}
-                                        </span>
-                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenTrip(heroTrip, Tab.EXPLORE)}
+                                        className="surface-elevated rounded-3xl p-4 text-left hover:bg-white dark:hover:bg-zinc-800/80 transition-colors cursor-pointer group"
+                                      >
+                                        <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
+                                          <span>{t('口袋景點', '收藏景点', 'Saved Spots')}</span>
+                                          <ChevronRightIcon className="w-3.5 h-3.5 text-zinc-400 group-hover:translate-x-0.5 transition-transform" />
+                                        </div>
+                                        <div className="mt-1.5 font-display font-bold font-num text-xl text-zinc-900 dark:text-white">
+                                          {savedSpots}
+                                          <span className="text-xs font-normal text-zinc-400 ml-1">
+                                            {t('處收藏', '处收藏', 'saved')}
+                                          </span>
+                                        </div>
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenTrip(heroTrip, Tab.TOOLBOX)}
+                                        className="surface-elevated rounded-3xl p-4 text-left hover:bg-white dark:hover:bg-zinc-800/80 transition-colors cursor-pointer group"
+                                      >
+                                        <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
+                                          <span>{t('裝備清單 · 幣別', '装备清单 · 币别', 'Packing · FX')}</span>
+                                          <ChevronRightIcon className="w-3.5 h-3.5 text-zinc-400 group-hover:translate-x-0.5 transition-transform" />
+                                        </div>
+                                        <div className="mt-1.5 font-display font-bold font-num text-xl text-zinc-900 dark:text-white">
+                                          {packList.length > 0 ? `${packDone}/${packList.length}` : heroIntel.currency}
+                                          <span className="text-xs font-normal text-zinc-400 ml-1.5">
+                                            {packList.length > 0 ? heroIntel.currency : heroIntel.timezoneLabel}
+                                          </span>
+                                        </div>
+                                      </button>
                                     </div>
-                                  </DestinationCover>
-                                </div>
-                              );
-                            })}
+                                  );
+                                })()}
+                              </>
+                            )}
+                          </div>
 
-                            {/* On Wide Screen with Single Trip: Companion Quick Sync & New Trip Card right beside it */}
-                            {filteredHomeTrips.length === 1 && (
-                              <div className="hidden lg:flex lg:col-span-5 surface-elevated rounded-[28px] p-5 flex-col justify-between gap-4">
-                                <div className="space-y-2">
-                                  <div className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-                                    {t('快速加入協作或建立新旅程', '快速加入协作或创建新旅程', 'Join a synced trip or start a new one')}
-                                  </div>
-                                  <form onSubmit={handleHomeJoinSubmit} className="flex items-center gap-2">
-                                    <input
-                                      type="text"
-                                      value={homeSyncCode}
-                                      onChange={(e) => setHomeSyncCode(e.target.value.toUpperCase())}
-                                      placeholder="SKY-XXXX-XXXX"
-                                      className="flex-1 min-w-0 h-10 px-3.5 rounded-xl bg-zinc-100/90 dark:bg-white/[0.06] font-num text-xs font-semibold text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none"
-                                    />
-                                    <button
-                                      type="submit"
-                                      disabled={!homeSyncCode.trim() || isHomeJoining}
-                                      className="h-10 px-4 rounded-xl bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-semibold text-xs disabled:opacity-35 cursor-pointer whitespace-nowrap shrink-0"
-                                    >
-                                      {isHomeJoining ? t('連線中', '连接中', 'Joining') : t('加入', '加入', 'Join')}
-                                    </button>
-                                  </form>
+                          {/* Command & Countdown Column (Below Cards on Mobile, Sticky Right Rail on Tablet/Desktop) */}
+                          <div className="md:col-span-5 lg:col-span-4 space-y-4 min-w-0">
+                            <div className="flex flex-col gap-3 md:surface-elevated md:rounded-3xl md:p-4">
+                              <form
+                                onSubmit={handleHomeJoinSubmit}
+                                className="order-1 md:order-2 surface-elevated md:bg-zinc-100/85 md:dark:bg-white/[0.05] md:shadow-none md:border md:border-zinc-200/70 md:dark:border-white/[0.08] rounded-2xl p-2 flex items-center gap-2"
+                              >
+                                <div className="pl-2.5 flex items-center gap-2 text-zinc-400 shrink-0">
+                                  <WifiIcon className="w-4 h-4" />
                                 </div>
+                                <input
+                                  type="text"
+                                  value={homeSyncCode}
+                                  onChange={(e) => setHomeSyncCode(e.target.value.toUpperCase())}
+                                  placeholder={t(
+                                    '輸入同步碼加入行程 (SKY-XXXX-XXXX)',
+                                    '输入同步码加入行程 (SKY-XXXX-XXXX)',
+                                    'Enter sync code (SKY-XXXX-XXXX)'
+                                  )}
+                                  className="flex-1 min-w-0 h-10 bg-transparent font-num text-xs sm:text-sm font-medium text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none"
+                                />
+                                <button
+                                  type="submit"
+                                  disabled={!homeSyncCode.trim() || isHomeJoining}
+                                  className="h-10 px-4 rounded-xl bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-semibold text-xs disabled:opacity-35 cursor-pointer whitespace-nowrap shrink-0"
+                                >
+                                  {isHomeJoining ? t('連線中', '连接中', 'Joining') : t('加入', '加入', 'Join')}
+                                </button>
+                              </form>
 
+                              <div className="order-2 md:order-1 flex justify-center">
                                 <MovingBorderBeamButton
                                   onClick={() => openCreateFlow()}
                                   beamFrom="#2563EB"
                                   beamTo="#0EA5E9"
-                                  className="w-full min-h-[48px]"
+                                  className="min-h-[48px] md:w-full"
+                                  innerClassName="px-7"
                                 >
                                   <PlusIcon className="w-4 h-4 text-[#2563EB] dark:text-sky-400" />
                                   <span>{t('新旅程', '新旅程', 'New Trip')}</span>
                                 </MovingBorderBeamButton>
                               </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Cross-Device Sync Bar + Centered New Trip CTA */}
-                        <div
-                          className={`grid grid-cols-1 gap-3 items-center ${
-                            filteredHomeTrips.length === 1 ? 'lg:hidden' : 'lg:grid-cols-12'
-                          }`}
-                        >
-                          <form
-                            onSubmit={handleHomeJoinSubmit}
-                            className="lg:col-span-8 surface-elevated rounded-2xl p-2 flex items-center gap-2"
-                          >
-                            <div className="pl-3 flex items-center gap-2 text-zinc-400 shrink-0">
-                              <WifiIcon className="w-4 h-4" />
                             </div>
-                            <input
-                              type="text"
-                              value={homeSyncCode}
-                              onChange={(e) => setHomeSyncCode(e.target.value.toUpperCase())}
-                              placeholder={t(
-                                '輸入同步碼加入行程 (SKY-XXXX-XXXX)',
-                                '输入同步码加入行程 (SKY-XXXX-XXXX)',
-                                'Enter sync code to join trip (SKY-XXXX-XXXX)'
-                              )}
-                              className="flex-1 min-w-0 h-10 bg-transparent font-num text-xs sm:text-sm font-medium text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none"
-                            />
-                            <button
-                              type="submit"
-                              disabled={!homeSyncCode.trim() || isHomeJoining}
-                              className="h-10 px-4 rounded-xl bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-semibold text-xs disabled:opacity-35 cursor-pointer whitespace-nowrap shrink-0"
-                            >
-                              {isHomeJoining ? t('連線中', '连接中', 'Joining') : t('加入', '加入', 'Join')}
-                            </button>
-                          </form>
 
-                          <div className="lg:col-span-4 flex justify-center lg:justify-end">
-                            <MovingBorderBeamButton
-                              onClick={() => openCreateFlow()}
-                              beamFrom="#2563EB"
-                              beamTo="#0EA5E9"
-                              className="min-h-[48px] lg:w-full"
-                              innerClassName="px-7"
-                            >
-                              <PlusIcon className="w-4 h-4 text-[#2563EB] dark:text-sky-400" />
-                              <span>{t('新旅程', '新旅程', 'New Trip')}</span>
-                            </MovingBorderBeamButton>
-                          </div>
-                        </div>
+                            {/* Trip Countdown List */}
+                            <div className="space-y-2.5 pt-0.5">
+                              <div className="flex items-center justify-between px-1">
+                                <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                                  {t('行程倒數', '行程倒数', 'Trip Countdown')}
+                                </span>
+                                <span className="text-[11px] font-num font-semibold text-zinc-400 dark:text-zinc-500">
+                                  {t(
+                                    `共 ${homeCountdownList.length} 趟旅程`,
+                                    `共 ${homeCountdownList.length} 趟旅程`,
+                                    homeCountdownList.length === 1 ? '1 trip' : `${homeCountdownList.length} trips`
+                                  )}
+                                </span>
+                              </div>
 
-                        {/* Bottom All-Trips Countdown Section */}
-                        <div className="space-y-2.5 pt-1">
-                          <div className="flex items-center justify-between px-1">
-                            <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-                              {t('行程倒數', '行程倒数', 'Trip Countdown')}
-                            </span>
-                            <span className="text-[11px] font-num font-semibold text-zinc-400 dark:text-zinc-500">
-                              {t(
-                                `共 ${homeCountdownList.length} 趟旅程`,
-                                `共 ${homeCountdownList.length} 趟旅程`,
-                                homeCountdownList.length === 1 ? '1 trip' : `${homeCountdownList.length} trips`
-                              )}
-                            </span>
-                          </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-3">
+                                {homeCountdownList.map((entry) => {
+                                  const radius = 25;
+                                  const circumference = 2 * Math.PI * radius;
+                                  const strokeDashoffset = circumference * (1 - entry.countdownProgress);
+                                  const isHighlighted = selectedHomeTrip?.id === entry.trip.id;
 
-                          <div
-                            className={
-                              homeCountdownList.length > 1
-                                ? 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3'
-                                : 'space-y-2.5'
-                            }
-                          >
-                            {homeCountdownList.map((entry) => {
-                              const radius = 25;
-                              const circumference = 2 * Math.PI * radius;
-                              const strokeDashoffset = circumference * (1 - entry.countdownProgress);
-                              const isHighlighted = selectedHomeTrip?.id === entry.trip.id;
+                                  return (
+                                    <div
+                                      key={entry.trip.id}
+                                      onClick={() => handleOpenTrip(entry.trip)}
+                                      onMouseEnter={() => setSelectedHomeTripId(entry.trip.id)}
+                                      className={`surface-elevated rounded-3xl p-4 sm:p-5 flex items-center justify-between gap-3.5 cursor-pointer hover:bg-white dark:hover:bg-zinc-800/80 transition-colors ${
+                                        isHighlighted && homeCountdownList.length > 1
+                                          ? 'ring-1 ring-[#2563EB]/45 dark:ring-sky-400/45'
+                                          : ''
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-3.5 min-w-0">
+                                        <div className="relative w-15 h-15 shrink-0 flex items-center justify-center">
+                                          <svg className="w-15 h-15 -rotate-90" viewBox="0 0 60 60">
+                                            <circle
+                                              cx="30"
+                                              cy="30"
+                                              r={radius}
+                                              fill="none"
+                                              strokeWidth="4.5"
+                                              className="stroke-zinc-200/80 dark:stroke-white/10"
+                                            />
+                                            <circle
+                                              cx="30"
+                                              cy="30"
+                                              r={radius}
+                                              fill="none"
+                                              strokeWidth="4.5"
+                                              strokeLinecap="round"
+                                              stroke={
+                                                entry.status === 'PAST'
+                                                  ? '#10b981'
+                                                  : isDarkResolved
+                                                    ? '#38BDF8'
+                                                    : '#2563EB'
+                                              }
+                                              strokeDasharray={circumference}
+                                              strokeDashoffset={strokeDashoffset}
+                                              className="transition-all duration-500"
+                                            />
+                                          </svg>
+                                          <div className="absolute inset-0 flex flex-col items-center justify-center leading-none">
+                                            <span className="font-display font-bold font-num text-sm text-zinc-900 dark:text-white">
+                                              {entry.countdownValue}
+                                            </span>
+                                            <span className="text-[9px] font-num font-semibold text-zinc-500 dark:text-zinc-400">
+                                              {entry.countdownUnit}
+                                            </span>
+                                          </div>
+                                        </div>
 
-                              return (
-                                <div
-                                  key={entry.trip.id}
-                                  onClick={() => handleOpenTrip(entry.trip)}
-                                  onMouseEnter={() => setSelectedHomeTripId(entry.trip.id)}
-                                  className={`surface-elevated rounded-3xl p-4 sm:p-5 flex items-center justify-between gap-3.5 cursor-pointer hover:bg-white dark:hover:bg-zinc-800/80 transition-colors ${
-                                    isHighlighted && homeCountdownList.length > 1
-                                      ? 'ring-1 ring-[#2563EB]/45 dark:ring-sky-400/45'
-                                      : ''
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-3.5 min-w-0">
-                                    <div className="relative w-15 h-15 shrink-0 flex items-center justify-center">
-                                      <svg className="w-15 h-15 -rotate-90" viewBox="0 0 60 60">
-                                        <circle
-                                          cx="30"
-                                          cy="30"
-                                          r={radius}
-                                          fill="none"
-                                          strokeWidth="4.5"
-                                          className="stroke-zinc-200/80 dark:stroke-white/10"
-                                        />
-                                        <circle
-                                          cx="30"
-                                          cy="30"
-                                          r={radius}
-                                          fill="none"
-                                          strokeWidth="4.5"
-                                          strokeLinecap="round"
-                                          stroke={
-                                            entry.status === 'PAST'
-                                              ? '#10b981'
-                                              : isDarkResolved
-                                                ? '#38BDF8'
-                                                : '#2563EB'
-                                          }
-                                          strokeDasharray={circumference}
-                                          strokeDashoffset={strokeDashoffset}
-                                          className="transition-all duration-500"
-                                        />
-                                      </svg>
-                                      <div className="absolute inset-0 flex flex-col items-center justify-center leading-none">
-                                        <span className="font-display font-bold font-num text-sm text-zinc-900 dark:text-white">
-                                          {entry.countdownValue}
-                                        </span>
-                                        <span className="text-[9px] font-num font-semibold text-zinc-500 dark:text-zinc-400">
-                                          {entry.countdownUnit}
-                                        </span>
+                                        <div className="min-w-0">
+                                          <div className="flex items-center gap-1.5 flex-wrap">
+                                            <span className="text-xs font-semibold text-[#2563EB] dark:text-sky-400">
+                                              {entry.countdownLabel}
+                                            </span>
+                                            <span className="text-[11px] font-num text-zinc-400 dark:text-zinc-500">
+                                              · {entry.dayBadge}
+                                            </span>
+                                          </div>
+                                          <div className="font-display font-bold text-base text-zinc-900 dark:text-white truncate mt-0.5">
+                                            {entry.trip.name}
+                                          </div>
+                                          <div className="text-[11px] font-num text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
+                                            {entry.statusText} · {entry.trip.startDate.slice(5)} ~{' '}
+                                            {entry.trip.endDate.slice(5)} · {t('當地', '当地', 'Local')}{' '}
+                                            {getDestinationLocalTime(entry.intel.utcOffsetHours, lang).timeStr}
+                                          </div>
+                                        </div>
                                       </div>
+
+                                      <ChevronRightIcon className="w-5 h-5 text-zinc-400 shrink-0" />
                                     </div>
-
-                                    <div className="min-w-0">
-                                      <div className="flex items-center gap-1.5 flex-wrap">
-                                        <span className="text-xs font-semibold text-[#2563EB] dark:text-sky-400">
-                                          {entry.countdownLabel}
-                                        </span>
-                                        <span className="text-[11px] font-num text-zinc-400 dark:text-zinc-500">
-                                          · {entry.dayBadge}
-                                        </span>
-                                      </div>
-                                      <div className="font-display font-bold text-base text-zinc-900 dark:text-white truncate mt-0.5">
-                                        {entry.trip.name}
-                                      </div>
-                                      <div className="text-[11px] font-num text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
-                                        {entry.statusText} · {entry.trip.startDate.slice(5)} ~{' '}
-                                        {entry.trip.endDate.slice(5)} · {t('當地', '当地', 'Local')}{' '}
-                                        {getDestinationLocalTime(entry.intel.utcOffsetHours, lang).timeStr}
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  <ChevronRightIcon className="w-5 h-5 text-zinc-400 shrink-0" />
-                                </div>
-                              );
-                            })}
+                                  );
+                                })}
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </>
                     ) : (
-                      /* Scenic Welcome Card when no trips yet (Horizontal Split on Tablet/Desktop) */
-                      <div className="surface-elevated rounded-3xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 items-stretch">
+                      /* Scenic Welcome Card when no trips yet (Horizontal Split on Tablet & Desktop) */
+                      <div className="surface-elevated rounded-3xl overflow-hidden grid grid-cols-1 md:grid-cols-12 items-stretch">
                         <DestinationCover
                           city={exploreCity || rotatingShowcaseCity}
                           debounceMs={80}
                           crossfade
-                          className="h-52 sm:h-60 lg:h-full lg:min-h-[300px] w-full lg:col-span-6"
+                          className="h-52 sm:h-60 md:h-full md:min-h-[420px] lg:min-h-[460px] w-full md:col-span-6 lg:col-span-7"
                         >
-                          <div className="h-full p-6 flex flex-col justify-end text-white">
+                          <div className="h-full p-6 md:p-8 flex flex-col justify-end text-white">
                             <span className="text-xs font-medium text-white/85 flex items-center gap-1.5">
-                              {!exploreCity && (
-                                <span className="w-1.5 h-1.5 rounded-full bg-white/80 animate-pulse shrink-0" />
-                              )}
                               <span>
                                 {exploreCity
                                   ? localizeDestinationLabel(exploreCity, lang)
@@ -2856,15 +2887,15 @@ function App() {
                                     )}
                               </span>
                             </span>
-                            <h1 className="text-2xl sm:text-3xl font-display font-bold tracking-tight text-white mt-0.5">
+                            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-display font-bold tracking-tight text-white mt-1">
                               {t('開始下一趟旅程', '开启下一趟旅程', 'Plan Your Next Journey')}
                             </h1>
                           </div>
                         </DestinationCover>
 
-                        <div className="p-6 lg:p-7 space-y-5 lg:col-span-6 flex flex-col justify-between">
+                        <div className="p-6 md:p-7 lg:p-8 space-y-5 md:col-span-6 lg:col-span-5 flex flex-col justify-between">
                           <div className="space-y-4">
-                            <div className="hidden lg:block space-y-1">
+                            <div className="hidden md:block space-y-1">
                               <div className="text-xs font-semibold text-[#2563EB] dark:text-sky-400">
                                 {t('精選 40 座旅遊城市', '精选 40 座旅游城市', '40 Featured Cities')}
                               </div>
@@ -2877,7 +2908,7 @@ function App() {
                               </p>
                             </div>
 
-                            <div className="flex lg:flex-wrap gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+                            <div className="flex md:flex-wrap gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
                               {QUICK_CITIES.map((city) => {
                                 const active = exploreCity === city;
                                 return (
@@ -3010,7 +3041,7 @@ function App() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -18 }}
                 transition={{ duration: 0.22 }}
-                className="h-full min-h-0 w-full flex flex-col max-w-2xl lg:max-w-5xl mx-auto pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:p-8 overflow-clip"
+                className="h-full min-h-0 w-full flex flex-col max-w-2xl md:max-w-none lg:max-w-7xl xl:max-w-[1340px] mx-auto pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:p-8 md:px-8 lg:px-10 overflow-clip"
               >
                 <div className="mb-4 shrink-0 flex items-center justify-between gap-3 relative z-20">
                   <div className="flex items-center gap-3">
@@ -3048,21 +3079,18 @@ function App() {
                   onSubmit={handleCreateTrip}
                   className="flex-1 min-h-0 overflow-y-auto no-scrollbar pb-8"
                 >
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-start">
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-5 lg:gap-6 items-start">
                     {/* Left Column on Tablet/Desktop: Photo Preview, Type Switch, Cities & Name */}
-                    <div className="lg:col-span-5 space-y-4">
+                    <div className="md:col-span-5 space-y-4">
                       {/* Live Auto-Matched Global Destination Banner */}
                       <DestinationCover
                         city={createPreviewCity || rotatingShowcaseCity}
                         debounceMs={createPreviewCity ? 360 : 80}
                         crossfade={!createPreviewCity}
-                        className="h-36 sm:h-44 lg:h-48 rounded-3xl shadow-sm"
+                        className="h-36 sm:h-44 md:h-48 lg:h-52 rounded-3xl shadow-sm"
                       >
                         <div className="h-full p-5 flex flex-col justify-end text-white">
                           <div className="text-xs text-white/85 font-num flex items-center gap-1.5">
-                            {!createPreviewIntel && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-white/80 animate-pulse shrink-0" />
-                            )}
                             <span>
                               {createPreviewIntel
                                 ? `${createPreviewIntel.countryLabel} · ${createPreviewIntel.currency} · ${createPreviewIntel.timezoneLabel}`
@@ -3110,7 +3138,7 @@ function App() {
                         <div className="text-xs font-medium text-zinc-500 dark:text-zinc-400 px-1">
                           {t('快速選擇城市', '快速选择城市', 'Popular Cities')}
                         </div>
-                        <div className="flex lg:flex-wrap gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+                        <div className="flex md:flex-wrap gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
                           {QUICK_CITIES.map((city) => {
                             const localized = localizeDestinationLabel(city, lang);
                             const currentVal =
@@ -3299,7 +3327,7 @@ function App() {
                     </div>
 
                     {/* Right Column on Tablet/Desktop: Dates, Quick Durations, Calendar & Submit */}
-                    <div className="lg:col-span-7 space-y-4">
+                    <div className="md:col-span-7 space-y-4">
                       {tripType === 'Single' ? (
                         <>
                           {/* Selected Dates Display Summary Pills */}
@@ -3418,7 +3446,7 @@ function App() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="h-full min-h-0 w-full flex flex-col lg:flex-row overflow-clip relative"
+                className="h-full min-h-0 w-full flex flex-col md:flex-row overflow-clip relative"
               >
                 {/* DESKTOP / TABLET LEFT SIDEBAR (Temporarily hidden while editing / modals open) */}
                 <WorkspaceSidebar
@@ -3478,7 +3506,7 @@ function App() {
                     </div>
                   </header>
 
-                  <div data-scroll-lock className="flex-1 min-h-0 h-full overflow-clip pb-[calc(88px+env(safe-area-inset-bottom))] lg:pb-0">
+                  <div data-scroll-lock className="flex-1 min-h-0 h-full overflow-clip pb-[calc(88px+env(safe-area-inset-bottom))] md:pb-0">
                     {activeTab === Tab.ITINERARY && (
                       <ItineraryTool
                         trip={tripData}
@@ -3511,10 +3539,10 @@ function App() {
                       />
                     )}
                     {activeTab === Tab.SETTINGS && (
-                      <div className="h-full overflow-y-auto no-scrollbar px-4 sm:px-6 lg:px-8 pt-2 pb-8 lg:pb-12">
-                        <div className="max-w-2xl lg:max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-start">
+                      <div className="h-full overflow-y-auto no-scrollbar px-4 sm:px-6 md:px-8 pt-2 pb-8 md:pb-10">
+                        <div className="max-w-2xl md:max-w-none lg:max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-5 lg:gap-6 items-start">
                           {/* Left Column on Wide Screens: Cloud Account + Live Sync + Appearance & Language */}
-                          <div className="lg:col-span-6 space-y-5">
+                          <div className="md:col-span-6 space-y-5">
                             {/* Top Hero Pair: Cloud Account & Live Collaboration Pass */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                               <button
@@ -3798,7 +3826,7 @@ function App() {
                           </div>
 
                           {/* Right Column on Wide Screens: Trip & Data + Danger Zone */}
-                          <div className="lg:col-span-6 space-y-5">
+                          <div className="md:col-span-6 space-y-5">
                             {/* Section 2: 旅程與資料管理 (Clean Grouped Hairline List) */}
                             <section className="space-y-2">
                               <h2 className="px-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">

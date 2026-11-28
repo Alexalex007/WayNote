@@ -777,7 +777,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
     const totalAmount = isPre ? preTripTotalBase : onTripTotalBase;
 
     return (
-      <div data-scroll-lock className="h-full min-h-0 flex flex-col max-w-4xl w-full mx-auto px-5 sm:px-8 pt-5 overflow-clip">
+      <div data-scroll-lock className="h-full min-h-0 flex flex-col max-w-4xl md:max-w-none lg:max-w-7xl w-full mx-auto px-5 sm:px-8 pt-5 overflow-clip">
         <div className="relative flex items-center justify-between gap-3 pb-4 shrink-0 min-h-[44px]">
           <button
             type="button"
@@ -832,7 +832,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
           />
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-2.5 pb-6 lg:pb-10">
+        <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-2.5 pb-6 md:pb-10">
           {listExpenses.length === 0 ? (
             <div className="surface-elevated rounded-3xl py-14 flex flex-col items-center justify-center text-center">
               <TagIcon className="w-8 h-8 text-zinc-400 mb-3" />
@@ -851,8 +851,8 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
   return (
     <div data-scroll-lock className="h-full min-h-0 flex flex-col relative bg-transparent overflow-clip">
       {currentView === 'DASHBOARD' ? (
-        <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar px-5 sm:px-8 pt-3 pb-6 lg:pb-10">
-          <div className="max-w-5xl lg:max-w-6xl mx-auto space-y-5">
+        <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar px-5 sm:px-8 pt-3 pb-6 md:pb-10">
+          <div className="max-w-5xl md:max-w-none lg:max-w-7xl mx-auto space-y-5">
             {/* Action Toolbar */}
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-3">
@@ -905,8 +905,8 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
 
             {/* Unified Total Spent + Budget Tracking + Daily Bar Chart Hero Card (2-Col on Wide Tablets/Desktop) */}
             <div className="surface-elevated rounded-3xl p-5 sm:p-7">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-7 items-center">
-                <div className="lg:col-span-7 space-y-4 min-w-0">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-5 md:gap-6 lg:gap-7 items-center">
+                <div className="md:col-span-7 space-y-4 min-w-0">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <span className="text-xs font-semibold tracking-wide text-zinc-400 dark:text-zinc-500 uppercase">
@@ -1115,8 +1115,8 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
 
                 {/* Daily Spend Vertical Bar Chart */}
                 {dailyChart.bars.length > 0 && (
-                  <div className="lg:col-span-5 lg:rounded-2xl lg:bg-zinc-100/60 lg:dark:bg-white/[0.03] lg:p-4 lg:border lg:border-zinc-200/60 lg:dark:border-white/[0.07]">
-                    <div className="hidden lg:flex items-center justify-between text-xs mb-2">
+                  <div className="md:col-span-5 md:rounded-2xl md:bg-zinc-100/60 md:dark:bg-white/[0.03] md:p-4 md:border md:border-zinc-200/60 md:dark:border-white/[0.07]">
+                    <div className="hidden md:flex items-center justify-between text-xs mb-2">
                       <span className="font-semibold text-zinc-500 dark:text-zinc-400">
                         {t('每日消費趨勢', '每日消费趋势', 'Daily Spend Trend')}
                       </span>
@@ -1124,7 +1124,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
                         {t('點擊長條篩選單日', '点击柱状条筛选单日', 'Tap a bar to filter day')}
                       </span>
                     </div>
-                    <div className="relative h-28 lg:h-36 flex items-end gap-2 sm:gap-3 overflow-x-auto no-scrollbar pr-8 pb-6">
+                    <div className="relative h-28 md:h-36 flex items-end gap-2 sm:gap-3 overflow-x-auto no-scrollbar pr-8 pb-6">
                       {dailyChart.maxTotal > 0 && (
                         <div
                           className="absolute left-0 right-0 border-t border-dashed border-zinc-300 dark:border-white/20 pointer-events-none flex justify-end"
@@ -1205,7 +1205,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
             )}
 
             {/* Separated Expense Tables (Side-by-Side 2 Columns on Wide Screens) */}
-            <div className={`grid grid-cols-1 ${scopeFilter === 'ALL' ? 'lg:grid-cols-2' : ''} gap-5 items-start`}>
+            <div className={`grid grid-cols-1 ${scopeFilter === 'ALL' ? 'md:grid-cols-2' : ''} gap-5 items-start`}>
               {/* Table 1: 行前開支表 */}
               {(scopeFilter === 'ALL' || scopeFilter === 'PRE_TRIP') && (
                 <section className="surface-elevated rounded-3xl overflow-hidden">
@@ -1388,8 +1388,8 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
             </div>
 
             {/* Bottom Row: Unified Grand Total + Currency Converter Side-by-Side on Wide Screens */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
-              <section className="lg:col-span-6 ink-card rounded-3xl p-5 sm:p-6 flex flex-col justify-between space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-stretch">
+              <section className="md:col-span-6 ink-card rounded-3xl p-5 sm:p-6 flex flex-col justify-between space-y-4 h-full">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div>
                     <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
@@ -1437,7 +1437,7 @@ const ExpensesTool: React.FC<Props> = ({ trip, onUpdateTrip, onShowToast }) => {
               </section>
 
               {/* Currency Converter & Dynamic Tax-Free */}
-              <div className="lg:col-span-6 surface-elevated rounded-3xl p-5 sm:p-6 space-y-4">
+              <div className="md:col-span-6 surface-elevated rounded-3xl p-5 sm:p-6 space-y-4 h-full">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2 text-zinc-900 dark:text-white">
                     <ArrowsRightLeftIcon className="w-4 h-4 text-[var(--tab-accent)]" />

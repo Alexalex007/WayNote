@@ -719,8 +719,8 @@ const ExploreTool: React.FC<Props> = ({
   };
 
   return (
-    <div className="h-full overflow-y-auto no-scrollbar px-4 sm:px-6 lg:px-8 pt-2 pb-10">
-      <div className="max-w-2xl lg:max-w-5xl mx-auto space-y-4">
+    <div className="h-full overflow-y-auto no-scrollbar px-5 sm:px-8 pt-2 pb-8 md:pb-10">
+      <div className="max-w-2xl md:max-w-none lg:max-w-7xl mx-auto space-y-4">
         {/* Unified Coral-Amber Explore & AI Planning Studio Header */}
         <div className="surface-elevated rounded-3xl p-4 sm:p-5 space-y-4 relative overflow-hidden">
           <div
@@ -941,7 +941,7 @@ const ExploreTool: React.FC<Props> = ({
               )}
 
               {aiLoading && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5 lg:gap-4">
                   {Array.from({ length: 4 }).map((_, i) => (
                     <div key={i} className="surface-elevated rounded-3xl p-5 space-y-3 animate-pulse">
                       <div className="flex items-center gap-3">
@@ -1043,7 +1043,7 @@ const ExploreTool: React.FC<Props> = ({
               )}
 
               {!aiLoading && !aiError && aiSuggestions.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5 lg:gap-4">
                   {aiSuggestions.map((spot) => {
                     const alreadySaved = savedPlaces.some(
                       (p) => p.name.trim().toLowerCase() === spot.name.trim().toLowerCase()
@@ -1203,7 +1203,7 @@ const ExploreTool: React.FC<Props> = ({
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5 lg:gap-4">
                   <AnimatePresence initial={false}>
                     {filteredPlaces.map((place) => {
                       const meta = categoryMeta[normalizeCategory(place.category)] || categoryMeta.other;

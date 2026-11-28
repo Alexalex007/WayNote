@@ -349,9 +349,10 @@ export const AiPlannerWorkspace: React.FC<AiPlannerWorkspaceProps> = ({
     <div className={wrapperClass}>
       <div className={scrollClass}>
         {!result ? (
+          <div className={inline ? 'lg:grid lg:grid-cols-12 lg:gap-5 lg:items-start' : ''}>
           <form
             onSubmit={handleGenerate}
-            className={inline ? 'surface-elevated rounded-3xl p-4 sm:p-6 space-y-4' : 'space-y-4'}
+            className={inline ? 'lg:col-span-8 surface-elevated rounded-3xl p-4 sm:p-6 space-y-4' : 'space-y-4'}
           >
             {inline && (
               <div className="flex items-start justify-between gap-3 pb-1 border-b border-zinc-200/70 dark:border-white/[0.08]">
@@ -550,6 +551,80 @@ export const AiPlannerWorkspace: React.FC<AiPlannerWorkspaceProps> = ({
               </button>
             )}
           </form>
+
+          {inline && (
+            <aside className="hidden lg:flex lg:col-span-4 flex-col gap-4">
+              <div className="surface-elevated rounded-3xl p-5 space-y-4">
+                <div>
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                    {t('行程背景與參考', '行程背景与参考', 'TRIP CONTEXT')}
+                  </span>
+                  <h4 className="text-base font-display font-bold text-zinc-900 dark:text-white mt-0.5 truncate">
+                    {localizeDestinationLabel(trip.destination, lang)}
+                  </h4>
+                  <p className="text-xs font-num text-zinc-500 dark:text-zinc-400 mt-1">
+                    {trip.startDate} → {trip.endDate} · {t(`共 ${dates.length} 天`, `共 ${dates.length} 天`, `${dates.length} days`)}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="rounded-2xl bg-zinc-100/80 dark:bg-white/[0.04] p-3">
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400">{t('住宿飯店', '住宿酒店', 'Hotels')}</p>
+                    <p className="text-lg font-display font-bold font-num text-zinc-900 dark:text-white mt-0.5">
+                      {(trip.hotels || []).length}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-zinc-100/80 dark:bg-white/[0.04] p-3">
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400">{t('口袋名單', '收藏清单', 'Saved Spots')}</p>
+                    <p className="text-lg font-display font-bold font-num text-[#E11D48] dark:text-rose-400 mt-0.5">
+                      {(trip.savedPlaces || []).length}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-zinc-200/70 dark:border-white/[0.08] space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
+                      {t('帶入口袋景點', '带入收藏景点', 'Include Saved Spots')}
+                    </span>
+                    <span className="text-[11px] text-zinc-400">{t('點擊加入需求', '点击加入需求', 'Tap to add')}</span>
+                  </div>
+
+                  {(trip.savedPlaces || []).length === 0 ? (
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                      {t(
+                        '先在探索或口袋名單收錄想去的地方，即可在這裡一鍵帶入規劃。',
+                        '先在探索或收藏清单保存想去的地方，即可在这里一键带入规划。',
+                        'Save spots in Discovery or Wishlist to drop them straight into your prompt.'
+                      )}
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto no-scrollbar">
+                      {(trip.savedPlaces || []).slice(0, 16).map((place) => {
+                        const included = userPrompt.includes(place.name);
+                        return (
+                          <button
+                            key={place.id}
+                            type="button"
+                            onClick={() => toggleQuickInterest(place.name)}
+                            className={`h-8 px-3 rounded-full text-xs font-semibold transition-colors cursor-pointer truncate max-w-full ${
+                              included
+                                ? 'bg-[#E11D48] text-white'
+                                : 'bg-zinc-100 dark:bg-white/[0.06] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200/70 dark:hover:bg-white/10'
+                            }`}
+                          >
+                            {included ? '✓ ' : '+ '}
+                            {place.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </aside>
+          )}
+          </div>
         ) : (
           <div className="space-y-4">
             {/* Summary & Route Tip Card */}
@@ -631,7 +706,7 @@ export const AiPlannerWorkspace: React.FC<AiPlannerWorkspaceProps> = ({
                     </a>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                  <div className={`grid grid-cols-1 md:grid-cols-2 ${inline ? 'xl:grid-cols-3' : ''} gap-2.5`}>
                     {activePreviewDay.stops.map((stop, idx) => {
                       const TypeIcon =
                         stop.type === 'food'
