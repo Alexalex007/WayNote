@@ -88,20 +88,12 @@ function lookupStaticGeo(rawCity?: string | null): GeoTarget | null {
   return null;
 }
 
-const STAR_COORDS = Array.from({ length: 64 }, (_, i) => {
-  const x = ((i * 197 + 31) % 98) + 1;
-  const y = ((i * 313 + 17) % 92) + 2;
-  const r = i % 7 === 0 ? 1.5 : i % 3 === 0 ? 1.05 : 0.7;
-  const delay = (i % 8) * 0.55;
-  const hero = i % 13 === 0;
-  return { x, y, r, delay, hero };
-});
-
 const BASE_SCALE = 512;
 const BASE_MERCATOR = geoMercator().center([0, 0]).scale(BASE_SCALE).translate([0, 0]);
 const WORLD_SPAN_X = 2 * Math.PI * BASE_SCALE;
+const HALF_WORLD_X = WORLD_SPAN_X * 0.5;
 
-// Habitable vertical Mercator bounds [-56°S .. +72°N] so overview fills any viewport without polar voids
+// Habitable vertical Mercator bounds [-56°S .. +72°N] for full-bleed overview framing
 const OVERVIEW_CENTER_LNG = 104;
 const OVERVIEW_CENTER_LAT = 22;
 const OVERVIEW_CENTER_SPAN_DEG = 105;
@@ -109,8 +101,15 @@ const HABITABLE_TOP_Y = (BASE_MERCATOR([0, 72]) || [0, -947])[1];
 const HABITABLE_BOT_Y = (BASE_MERCATOR([0, -56]) || [0, 606])[1];
 const HABITABLE_SPAN_Y = Math.max(1, HABITABLE_BOT_Y - HABITABLE_TOP_Y);
 
+// Bitmap vertical envelope covers up to ~84°N (Greenland) down to -58°S cleanly
+const BMP_TOP_Y = -1520;
+const BMP_BOT_Y = 660;
+const BMP_W = Math.ceil(WORLD_SPAN_X);
+const BMP_H = Math.ceil(BMP_BOT_Y - BMP_TOP_Y);
+
 interface CompiledLandAtlas {
-  landPath: Path2D | null;
+  fillPath: Path2D | null;
+  coastPath: Path2D | null;
 }
 
 function isNonAntarcticPolygon(rings: Position[][]): boolean {
@@ -143,32 +142,17 @@ function filterHabitableLand(geom: Geometry): Geometry {
   return geom;
 }
 
-function buildPath2DFromGeo(
-  projection: ReturnType<typeof geoMercator>,
-  feat: Feature<Geometry>
-): Path2D | null {
-  if (typeof Path2D === 'undefined') return null;
-  const p = new Path2D();
-  const adapter = {
-    beginPath() {},
-    moveTo(x: number, y: number) {
-      p.moveTo(x, y);
-    },
-    lineTo(x: number, y: number) {
-      p.lineTo(x, y);
-    },
-    closePath() {
-      p.closePath();
-    },
-    arc(x: number, y: number, r: number, a0: number, a1: number) {
-      p.arc(x, y, r, a0, a1);
-    },
-  };
-  geoPath(projection, adapter as unknown as CanvasRenderingContext2D)(feat);
-  return p;
+function isAntimeridianSeam(x1: number, x2: number): boolean {
+  const onLeftEdge = Math.abs(Math.abs(x1) - HALF_WORLD_X) < 2.2;
+  const onRightEdge = Math.abs(Math.abs(x2) - HALF_WORLD_X) < 2.2;
+  return (onLeftEdge && onRightEdge) || Math.abs(x2 - x1) > HALF_WORLD_X;
 }
 
 function compileLandDataset(rawTopo: unknown): CompiledLandAtlas {
+  if (typeof Path2D === 'undefined') {
+    return { fillPath: null, coastPath: null };
+  }
+
   const topo = rawTopo as Topology<{ land: GeometryCollection }>;
   const rawFeatures = feature(topo, topo.objects.land).features;
   const habitableFeatures: Feature<Geometry>[] = rawFeatures.map((f) => ({
@@ -176,33 +160,104 @@ function compileLandDataset(rawTopo: unknown): CompiledLandAtlas {
     geometry: filterHabitableLand(f.geometry),
   }));
 
-  if (typeof Path2D === 'undefined') {
-    return { landPath: null };
-  }
+  const fillPath = new Path2D();
+  const coastPath = new Path2D();
 
-  const combined = new Path2D();
+  let ringStartX = 0;
+  let ringStartY = 0;
+  let prevX = 0;
+  let prevY = 0;
+  let lastCoastX = 0;
+  let lastCoastY = 0;
+  let hasActive = false;
+
+  const adapter = {
+    beginPath() {},
+    moveTo(x: number, y: number) {
+      fillPath.moveTo(x, y);
+      coastPath.moveTo(x, y);
+      ringStartX = x;
+      ringStartY = y;
+      prevX = x;
+      prevY = y;
+      lastCoastX = x;
+      lastCoastY = y;
+      hasActive = true;
+    },
+    lineTo(x: number, y: number) {
+      fillPath.lineTo(x, y);
+      if (!hasActive || isAntimeridianSeam(prevX, x)) {
+        // Break stroke across +/-180deg cut edges so no straight vertical meridian seam is ever drawn
+        coastPath.moveTo(x, y);
+        lastCoastX = x;
+        lastCoastY = y;
+      } else {
+        const dx = x - lastCoastX;
+        const dy = y - lastCoastY;
+        if (dx * dx + dy * dy >= 0.09) {
+          coastPath.lineTo(x, y);
+          lastCoastX = x;
+          lastCoastY = y;
+        }
+      }
+      prevX = x;
+      prevY = y;
+      hasActive = true;
+    },
+    closePath() {
+      fillPath.closePath();
+      if (hasActive && !isAntimeridianSeam(prevX, ringStartX)) {
+        coastPath.lineTo(ringStartX, ringStartY);
+      }
+      hasActive = false;
+    },
+    arc(x: number, y: number, r: number, a0: number, a1: number) {
+      fillPath.arc(x, y, r, a0, a1);
+      coastPath.arc(x, y, r, a0, a1);
+    },
+  };
+
+  const pathGen = geoPath(BASE_MERCATOR, adapter as unknown as CanvasRenderingContext2D);
   for (let i = 0; i < habitableFeatures.length; i++) {
-    const sub = buildPath2DFromGeo(BASE_MERCATOR, habitableFeatures[i]);
-    if (sub) combined.addPath(sub);
+    pathGen(habitableFeatures[i]);
   }
 
-  return { landPath: combined };
+  return { fillPath, coastPath };
 }
 
-// Instant compiled 50m borderless land atlas; dynamically upgraded to Ultra-HD 10m
-const INITIAL_LAND_50M = compileLandDataset(worldLand50m);
-let cachedHdLand10m: CompiledLandAtlas | null = null;
-let pendingHdLand10mPromise: Promise<CompiledLandAtlas> | null = null;
+// Single pre-compiled seam-free 50m borderless land atlas (zero 400k-vertex main-thread stalls)
+const LAND_ATLAS_50M = compileLandDataset(worldLand50m);
 
-function loadHdLand10m(): Promise<CompiledLandAtlas> {
-  if (cachedHdLand10m) return Promise.resolve(cachedHdLand10m);
-  if (!pendingHdLand10mPromise) {
-    pendingHdLand10mPromise = import('world-atlas/land-10m.json').then((mod) => {
-      cachedHdLand10m = compileLandDataset(mod.default ?? mod);
-      return cachedHdLand10m;
-    });
+const worldBitmapCache: { dark: HTMLCanvasElement | null; light: HTMLCanvasElement | null } = {
+  dark: null,
+  light: null,
+};
+
+function getWorldMotionBitmap(dark: boolean): HTMLCanvasElement | null {
+  if (typeof document === 'undefined' || !LAND_ATLAS_50M.fillPath || !LAND_ATLAS_50M.coastPath) {
+    return null;
   }
-  return pendingHdLand10mPromise;
+  const key = dark ? 'dark' : 'light';
+  if (worldBitmapCache[key]) return worldBitmapCache[key];
+
+  const bmp = document.createElement('canvas');
+  bmp.width = BMP_W;
+  bmp.height = BMP_H;
+  const bctx = bmp.getContext('2d');
+  if (!bctx) return null;
+
+  bctx.translate(HALF_WORLD_X, -BMP_TOP_Y);
+  bctx.lineJoin = 'bevel';
+  bctx.lineCap = 'butt';
+  bctx.fillStyle = dark ? 'rgba(148, 163, 184, 0.085)' : 'rgba(255, 255, 255, 0.44)';
+  bctx.strokeStyle = dark ? 'rgba(148, 163, 184, 0.19)' : 'rgba(96, 165, 250, 0.22)';
+  bctx.lineWidth = 0.75;
+
+  bctx.fill(LAND_ATLAS_50M.fillPath);
+  bctx.stroke(LAND_ATLAS_50M.coastPath);
+
+  worldBitmapCache[key] = bmp;
+  return bmp;
 }
 
 interface GlobeBackdropProps {
@@ -213,27 +268,11 @@ interface GlobeBackdropProps {
 export const GlobeBackdrop: React.FC<GlobeBackdropProps> = React.memo(({ focusCity, isDark }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [atlas, setAtlas] = useState<CompiledLandAtlas>(() => cachedHdLand10m || INITIAL_LAND_50M);
+  const isAnimatingRef = useRef(false);
   const [viewport, setViewport] = useState<{ width: number; height: number }>(() => ({
     width: typeof window !== 'undefined' ? Math.max(320, window.innerWidth) : 390,
     height: typeof window !== 'undefined' ? Math.max(480, window.innerHeight) : 844,
   }));
-
-  useEffect(() => {
-    let active = true;
-    if (!cachedHdLand10m) {
-      loadHdLand10m()
-        .then((hd) => {
-          if (active) setAtlas(hd);
-        })
-        .catch(() => {
-          // Keep 50m gracefully if dynamic chunk fails
-        });
-    }
-    return () => {
-      active = false;
-    };
-  }, []);
 
   useEffect(() => {
     const updateSize = () => {
@@ -301,14 +340,12 @@ export const GlobeBackdrop: React.FC<GlobeBackdropProps> = React.memo(({ focusCi
   });
 
   const renderParamsRef = useRef({
-    atlas,
     viewport,
     isDark,
     hasFocusCity,
     resolvedTarget,
   });
   renderParamsRef.current = {
-    atlas,
     viewport,
     isDark,
     hasFocusCity,
@@ -319,14 +356,14 @@ export const GlobeBackdrop: React.FC<GlobeBackdropProps> = React.memo(({ focusCi
   drawFrameRef.current = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const { atlas: curAtlas, viewport: vp, isDark: dark, hasFocusCity: focused, resolvedTarget: target } =
+    const { viewport: vp, isDark: dark, hasFocusCity: focused, resolvedTarget: target } =
       renderParamsRef.current;
 
     const vw = vp.width;
     const vh = vp.height;
-    if (vw <= 0 || vh <= 0 || !curAtlas.landPath) return;
+    if (vw <= 0 || vh <= 0 || !LAND_ATLAS_50M.fillPath || !LAND_ATLAS_50M.coastPath) return;
 
-    const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2.5) : 1;
+    const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 1.5) : 1;
     const targetPxW = Math.round(vw * dpr);
     const targetPxH = Math.round(vh * dpr);
     if (canvas.width !== targetPxW || canvas.height !== targetPxH) {
@@ -339,11 +376,6 @@ export const GlobeBackdrop: React.FC<GlobeBackdropProps> = React.memo(({ focusCi
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, vw, vh);
-    ctx.lineJoin = 'round';
-    ctx.lineCap = 'round';
-
-    const landFill = dark ? 'rgba(148, 163, 184, 0.085)' : 'rgba(255, 255, 255, 0.44)';
-    const coastStroke = dark ? 'rgba(148, 163, 184, 0.19)' : 'rgba(96, 165, 250, 0.22)';
 
     const isOverview = !focused || !target;
     let camLng = cameraRef.current.lng;
@@ -373,34 +405,47 @@ export const GlobeBackdrop: React.FC<GlobeBackdropProps> = React.memo(({ focusCi
     const cmx = centerPt[0];
     const cmy = isOverview ? (HABITABLE_TOP_Y + HABITABLE_BOT_Y) * 0.5 : centerPt[1];
 
-    // Tile horizontally so every screen aspect ratio stays full-bleed across the antimeridian
-    const leftEdgeWorldX = cmx - (vw * 0.5) / zoom;
-    const rightEdgeWorldX = cmx + (vw * 0.5) / zoom;
-    const minTile = Math.max(-3, Math.floor((leftEdgeWorldX + WORLD_SPAN_X * 0.5) / WORLD_SPAN_X) - 1);
-    const maxTile = Math.min(3, Math.ceil((rightEdgeWorldX - WORLD_SPAN_X * 0.5) / WORLD_SPAN_X) + 1);
+    // Exact visible horizontal world tile bounds (zero offscreen wasted tile draws)
+    const padWorld = 12 / Math.max(0.05, zoom);
+    const leftEdgeWorldX = cmx - (vw * 0.5) / zoom - padWorld;
+    const rightEdgeWorldX = cmx + (vw * 0.5) / zoom + padWorld;
+    const minTile = Math.max(-3, Math.ceil(leftEdgeWorldX / WORLD_SPAN_X - 0.5));
+    const maxTile = Math.min(3, Math.floor(rightEdgeWorldX / WORLD_SPAN_X + 0.5));
     const offsets: number[] = [];
     for (let k = minTile; k <= maxTile; k++) {
       offsets.push(k * WORLD_SPAN_X);
     }
     if (offsets.length === 0) offsets.push(0);
 
-    const coastLineWidth = (isOverview ? 0.6 : 0.75) / Math.max(0.05, zoom);
+    // During animated pan/zoom, blit pre-rendered GPU offscreen bitmap (zero per-frame vector tessellation)
+    const motionBmp = isAnimatingRef.current ? getWorldMotionBitmap(dark) : null;
+    if (motionBmp) {
+      const dw = WORLD_SPAN_X * zoom;
+      const dh = BMP_H * zoom;
+      const dy = vh * anchorYRatio + (BMP_TOP_Y - cmy) * zoom;
+      for (let o = 0; o < offsets.length; o++) {
+        const dx = vw * 0.5 + (offsets[o] - HALF_WORLD_X - cmx) * zoom;
+        ctx.drawImage(motionBmp, dx, dy, dw, dh);
+      }
+    } else {
+      ctx.lineJoin = 'bevel';
+      ctx.lineCap = 'butt';
+      ctx.fillStyle = dark ? 'rgba(148, 163, 184, 0.085)' : 'rgba(255, 255, 255, 0.44)';
+      ctx.strokeStyle = dark ? 'rgba(148, 163, 184, 0.19)' : 'rgba(96, 165, 250, 0.22)';
+      ctx.lineWidth = (isOverview ? 0.6 : 0.75) / Math.max(0.05, zoom);
 
-    ctx.fillStyle = landFill;
-    ctx.strokeStyle = coastStroke;
-    ctx.lineWidth = coastLineWidth;
+      for (let o = 0; o < offsets.length; o++) {
+        const worldOffset = offsets[o];
+        const tx = vw * 0.5 + (worldOffset - cmx) * zoom;
+        const ty = vh * anchorYRatio - cmy * zoom;
 
-    for (let o = 0; o < offsets.length; o++) {
-      const worldOffset = offsets[o];
-      const tx = vw * 0.5 + (worldOffset - cmx) * zoom;
-      const ty = vh * anchorYRatio - cmy * zoom;
-
-      ctx.save();
-      ctx.translate(tx, ty);
-      ctx.scale(zoom, zoom);
-      ctx.fill(curAtlas.landPath);
-      ctx.stroke(curAtlas.landPath);
-      ctx.restore();
+        ctx.save();
+        ctx.translate(tx, ty);
+        ctx.scale(zoom, zoom);
+        ctx.fill(LAND_ATLAS_50M.fillPath);
+        ctx.stroke(LAND_ATLAS_50M.coastPath);
+        ctx.restore();
+      }
     }
 
     // Crisp Pinpoint Marker Centered on Focused City
@@ -448,14 +493,15 @@ export const GlobeBackdrop: React.FC<GlobeBackdropProps> = React.memo(({ focusCi
     }
   };
 
-  // Immediate redraw on theme, viewport, or atlas upgrade
+  // Immediate redraw on theme or viewport change
   useEffect(() => {
     drawFrameRef.current();
-  }, [atlas, viewport.width, viewport.height, isDark, hasFocusCity, resolvedTarget]);
+  }, [viewport.width, viewport.height, isDark, hasFocusCity, resolvedTarget]);
 
-  // Silky 60/120fps canvas-only pan & zoom animation (zero React re-renders per frame)
+  // Hardware-accelerated GPU bitmap pan/zoom glide with crisp settled vector pass
   useEffect(() => {
     if (!resolvedTarget) {
+      isAnimatingRef.current = false;
       cameraRef.current = {
         lng: OVERVIEW_CENTER_LNG,
         lat: OVERVIEW_CENTER_LAT,
@@ -484,14 +530,16 @@ export const GlobeBackdrop: React.FC<GlobeBackdropProps> = React.memo(({ focusCi
       prefersReducedMotion ||
       (Math.abs(deltaLng) < 0.05 && Math.abs(deltaLat) < 0.05 && Math.abs(deltaSpan) < 0.1)
     ) {
+      isAnimatingRef.current = false;
       cameraRef.current = target;
       drawFrameRef.current();
       return;
     }
 
-    const duration = 640;
+    const duration = 480;
     const startedAt = performance.now();
     let rafId = 0;
+    isAnimatingRef.current = true;
 
     const step = (now: number) => {
       const t = Math.min(1, (now - startedAt) / duration);
@@ -501,17 +549,22 @@ export const GlobeBackdrop: React.FC<GlobeBackdropProps> = React.memo(({ focusCi
         lat: start.lat + deltaLat * eased,
         spanDeg: start.spanDeg + deltaSpan * eased,
       };
-      drawFrameRef.current();
       if (t < 1) {
+        isAnimatingRef.current = true;
+        drawFrameRef.current();
         rafId = requestAnimationFrame(step);
       } else {
+        isAnimatingRef.current = false;
         cameraRef.current = target;
         drawFrameRef.current();
       }
     };
 
     rafId = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(rafId);
+    return () => {
+      isAnimatingRef.current = false;
+      cancelAnimationFrame(rafId);
+    };
   }, [resolvedTarget]);
 
   return (
@@ -519,47 +572,13 @@ export const GlobeBackdrop: React.FC<GlobeBackdropProps> = React.memo(({ focusCi
       ref={containerRef}
       aria-hidden="true"
       className="app-shell-fixed w-full pointer-events-none overflow-hidden select-none"
+      style={{ contain: 'strict' }}
     >
-      {/* Night Cosmos Twinkling Stars (Dark Mode Only) */}
-      {isDark && (
-        <svg
-          viewBox="0 0 100 100"
-          preserveAspectRatio="none"
-          className="absolute inset-0 w-full h-full opacity-85"
-        >
-          {STAR_COORDS.map((star, idx) => (
-            <g key={idx}>
-              <circle
-                cx={star.x}
-                cy={star.y}
-                r={star.r * 0.13}
-                fill="#FFFFFF"
-                className={star.hero ? 'animate-star-twinkle' : undefined}
-                style={
-                  star.hero
-                    ? { animationDelay: `${star.delay}s` }
-                    : { opacity: 0.22 + (idx % 5) * 0.10 }
-                }
-              />
-              {star.hero && (
-                <path
-                  d={`M${star.x - 0.45} ${star.y} L${star.x + 0.45} ${star.y} M${star.x} ${star.y - 0.45} L${star.x} ${star.y + 0.45}`}
-                  stroke="#BAE6FD"
-                  strokeWidth="0.07"
-                  strokeLinecap="round"
-                  className="animate-star-twinkle"
-                  style={{ animationDelay: `${star.delay}s` }}
-                />
-              )}
-            </g>
-          ))}
-        </svg>
-      )}
-
-      {/* Full-Bleed Borderless Hardware-Accelerated Canvas (50m instant + 10m Ultra-HD upgrade) */}
+      {/* Full-Bleed Borderless Hardware-Accelerated Canvas (seam-free 50m vector + GPU motion blit) */}
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 w-full h-full block"
+        className="absolute inset-0 w-full h-full block will-change-transform"
+        style={{ transform: 'translateZ(0)' }}
       />
     </div>
   );

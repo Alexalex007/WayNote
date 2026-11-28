@@ -3041,44 +3041,45 @@ function App() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -18 }}
                 transition={{ duration: 0.22 }}
-                className="h-full min-h-0 w-full flex flex-col max-w-2xl md:max-w-none lg:max-w-7xl xl:max-w-[1340px] mx-auto pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:p-8 md:px-8 lg:px-10 overflow-clip"
+                className="h-full min-h-0 w-full flex flex-col max-w-2xl md:max-w-none lg:max-w-7xl xl:max-w-[1340px] mx-auto pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:p-8 md:px-8 lg:px-10 overflow-clip md:overflow-y-auto md:no-scrollbar"
               >
-                <div className="mb-4 shrink-0 flex items-center justify-between gap-3 relative z-20">
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setView('HOME')}
-                      aria-label={t('返回首頁', '返回首页', 'Back to home')}
-                      className="surface-elevated w-10 h-10 rounded-full flex items-center justify-center text-zinc-800 dark:text-zinc-200 hover:bg-white dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
-                    >
-                      <ChevronLeftIcon className="w-5 h-5" />
-                    </button>
-                    <h2 className="text-2xl font-display font-bold text-zinc-900 dark:text-white">
-                      {t('建立新旅程', '创建新旅程', 'Create New Trip')}
-                    </h2>
+                <div className="flex-1 min-h-0 flex flex-col md:flex-none md:my-auto md:py-4">
+                  <div className="mb-4 shrink-0 flex items-center justify-between gap-3 relative z-20">
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setView('HOME')}
+                        aria-label={t('返回首頁', '返回首页', 'Back to home')}
+                        className="surface-elevated w-10 h-10 rounded-full flex items-center justify-center text-zinc-800 dark:text-zinc-200 hover:bg-white dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
+                      >
+                        <ChevronLeftIcon className="w-5 h-5" />
+                      </button>
+                      <h2 className="text-2xl font-display font-bold text-zinc-900 dark:text-white">
+                        {t('建立新旅程', '创建新旅程', 'Create New Trip')}
+                      </h2>
+                    </div>
+
+                    {((tripType === 'Single' && singleSpan) || (tripType === 'Multi' && activeStopSpan)) && (
+                      <span className="text-xs font-num font-bold text-[#2563EB] dark:text-sky-400">
+                        {tripType === 'Single'
+                          ? t(
+                              `共 ${singleSpan!.days} 天 ${singleSpan!.nights} 夜`,
+                              `共 ${singleSpan!.days} 天 ${singleSpan!.nights} 晚`,
+                              `${singleSpan!.days}D / ${singleSpan!.nights}N`
+                            )
+                          : t(
+                              `第 ${activeStop?.id || 1} 站 · ${activeStopSpan!.days} 天 ${activeStopSpan!.nights} 夜`,
+                              `第 ${activeStop?.id || 1} 站 · ${activeStopSpan!.days} 天 ${activeStopSpan!.nights} 晚`,
+                              `Stop ${activeStop?.id || 1} · ${activeStopSpan!.days}D / ${activeStopSpan!.nights}N`
+                            )}
+                      </span>
+                    )}
                   </div>
 
-                  {((tripType === 'Single' && singleSpan) || (tripType === 'Multi' && activeStopSpan)) && (
-                    <span className="text-xs font-num font-bold text-[#2563EB] dark:text-sky-400">
-                      {tripType === 'Single'
-                        ? t(
-                            `共 ${singleSpan!.days} 天 ${singleSpan!.nights} 夜`,
-                            `共 ${singleSpan!.days} 天 ${singleSpan!.nights} 晚`,
-                            `${singleSpan!.days}D / ${singleSpan!.nights}N`
-                          )
-                        : t(
-                            `第 ${activeStop?.id || 1} 站 · ${activeStopSpan!.days} 天 ${activeStopSpan!.nights} 夜`,
-                            `第 ${activeStop?.id || 1} 站 · ${activeStopSpan!.days} 天 ${activeStopSpan!.nights} 晚`,
-                            `Stop ${activeStop?.id || 1} · ${activeStopSpan!.days}D / ${activeStopSpan!.nights}N`
-                          )}
-                    </span>
-                  )}
-                </div>
-
-                <form
-                  onSubmit={handleCreateTrip}
-                  className="flex-1 min-h-0 overflow-y-auto no-scrollbar pb-8"
-                >
+                  <form
+                    onSubmit={handleCreateTrip}
+                    className="flex-1 min-h-0 overflow-y-auto no-scrollbar pb-8 md:flex-none md:overflow-visible md:pb-0"
+                  >
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-5 lg:gap-6 items-start">
                     {/* Left Column on Tablet/Desktop: Photo Preview, Type Switch, Cities & Name */}
                     <div className="md:col-span-5 space-y-4">
@@ -3435,6 +3436,7 @@ function App() {
                     </div>
                   </div>
                 </form>
+                </div>
               </motion.div>
             )}
 
