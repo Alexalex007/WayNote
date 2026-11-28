@@ -12,6 +12,7 @@ import {
 import { LiquidModal, SlidingSegmentedControl } from './LiquidPrimitives';
 import { StepperPill, SendPlaneButton, StampButton } from './TactileButtons';
 import { tactileAudio } from '../services/tactileAudio';
+import { useAiAccess } from '../hooks/useAiAccess';
 import {
   SparklesIcon,
   MapIcon,
@@ -91,6 +92,7 @@ export const AiPlannerWorkspace: React.FC<AiPlannerWorkspaceProps> = ({
   onAfterApply,
 }) => {
   const { lang, t } = useI18n();
+  const { aiEnabled, setAiEnabled } = useAiAccess();
   const [mode, setMode] = useState<'single_day' | 'multi_day'>('multi_day');
   const [pace, setPace] = useState<'relaxed' | 'balanced' | 'packed'>('balanced');
   const [targetStartDate, setTargetStartDate] = useState<string>(selectedDate || trip.startDate);
@@ -146,6 +148,16 @@ export const AiPlannerWorkspace: React.FC<AiPlannerWorkspaceProps> = ({
 
   const handleGenerate = async (e?: React.FormEvent) => {
     e?.preventDefault();
+    if (!aiEnabled) {
+      setErrorMsg(
+        t(
+          '目前已在設定中停用 Gemini AI 功能，如需使用請先開啟授權。',
+          '目前已在设置中停用 Gemini AI 功能，如需使用请先开启授权。',
+          'Gemini AI is currently disabled in Settings. Enable it to generate a route.'
+        )
+      );
+      return;
+    }
     setLoading(true);
     setErrorMsg(null);
 
@@ -168,6 +180,7 @@ export const AiPlannerWorkspace: React.FC<AiPlannerWorkspaceProps> = ({
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/x-ndjson, application/json',
+          'X-Waynote-Ai-Consent': '1',
         },
         signal: controller.signal,
         body: JSON.stringify({
@@ -516,15 +529,26 @@ export const AiPlannerWorkspace: React.FC<AiPlannerWorkspaceProps> = ({
               </div>
             )}
 
-            <SendPlaneButton
-              type="submit"
-              sending={loading}
-              disabled={loading || (!destinationInput.trim() && !userPrompt.trim())}
-              idleLabel={t('開始 AI 規劃行程與路線', '开始 AI 规划行程与路线', 'Generate AI Itinerary & Route')}
-              sendingLabel={t('正在為您規劃最佳順路行程...', '正在为您规划最佳顺路行程...', 'Crafting optimal itinerary & route...')}
-              icon={<SparklesIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />}
-              className="w-full min-h-[48px]"
-            />
+            {aiEnabled ? (
+              <SendPlaneButton
+                type="submit"
+                sending={loading}
+                disabled={loading || (!destinationInput.trim() && !userPrompt.trim())}
+                idleLabel={t('開始 AI 規劃行程與路線', '开始 AI 规划行程与路线', 'Generate AI Itinerary & Route')}
+                sendingLabel={t('正在為您規劃最佳順路行程...', '正在为您规划最佳顺路行程...', 'Crafting optimal itinerary & route...')}
+                icon={<SparklesIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />}
+                className="w-full min-h-[48px]"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setAiEnabled(true)}
+                className="w-full min-h-[48px] rounded-full bg-zinc-900 dark:bg-white/15 text-white text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer hover:opacity-90 transition-opacity"
+              >
+                <SparklesIcon className="w-4 h-4" />
+                <span>{t('AI 已鎖定 — 點此啟用 AI 行程規劃', 'AI 已锁定 — 点此启用 AI 行程规划', 'AI Locked — Tap to Enable Planner')}</span>
+              </button>
+            )}
           </form>
         ) : (
           <div className="space-y-4">

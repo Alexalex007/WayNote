@@ -1143,3 +1143,345 @@ export const ShareAppButton: React.FC<ShareAppButtonProps> = ({
   );
 };
 
+/* -------------------------------------------------------------------------- */
+/* 11. DayNightOrbButton — 180° rotating cosmic/daylight theme orb            */
+/* -------------------------------------------------------------------------- */
+interface DayNightOrbButtonProps {
+  mode: 'system' | 'light' | 'dark';
+  isDark: boolean;
+  onClick: () => void;
+  ariaLabel: string;
+  title?: string;
+  size?: 'sm' | 'md';
+  className?: string;
+}
+
+export const DayNightOrbButton: React.FC<DayNightOrbButtonProps> = ({
+  mode,
+  isDark,
+  onClick,
+  ariaLabel,
+  title,
+  size = 'md',
+  className = '',
+}) => {
+  const prefersReduced = useReducedMotion();
+  const dim = size === 'sm' ? 'w-10 h-10' : 'w-11 h-11';
+
+  return (
+    <motion.button
+      type="button"
+      onClick={() => {
+        tactileAudio.playPop(isDark ? 1.25 : 0.85);
+        onClick();
+      }}
+      whileHover={prefersReduced ? undefined : { scale: 1.05 }}
+      whileTap={{ scale: 0.92 }}
+      aria-label={ariaLabel}
+      title={title}
+      className={`relative ${dim} rounded-full flex items-center justify-center cursor-pointer transition-colors duration-300 border select-none shrink-0 ${
+        isDark
+          ? 'bg-[#17163B] border-indigo-400/35 shadow-[0_6px_18px_-4px_rgba(99,102,241,0.45),inset_0_1px_1px_rgba(255,255,255,0.16)]'
+          : 'bg-gradient-to-br from-[#F0F7FF] to-[#DBEAFE] border-sky-400/45 shadow-[0_6px_16px_-4px_rgba(37,99,235,0.28),inset_0_1px_1px_rgba(255,255,255,0.9)]'
+      } ${className}`}
+    >
+      <motion.span
+        aria-hidden="true"
+        animate={prefersReduced ? undefined : { rotate: isDark ? 180 : 0 }}
+        transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+        className="w-5 h-5 flex items-center justify-center"
+      >
+        {isDark ? (
+          <svg viewBox="0 0 24 24" className="w-5 h-5 drop-shadow-[0_0_6px_rgba(253,224,71,0.65)]" style={{ transform: 'rotate(180deg)' }}>
+            <defs>
+              <linearGradient id="waynote-moon-orb" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#FEF08A" />
+                <stop offset="100%" stopColor="#F59E0B" />
+              </linearGradient>
+            </defs>
+            <path
+              d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
+              fill="url(#waynote-moon-orb)"
+            />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" className="w-5 h-5 drop-shadow-[0_0_6px_rgba(245,158,11,0.45)]">
+            <defs>
+              <radialGradient id="waynote-sun-orb" cx="42%" cy="38%" r="60%">
+                <stop offset="0%" stopColor="#FEF08A" />
+                <stop offset="55%" stopColor="#FBBF24" />
+                <stop offset="100%" stopColor="#F97316" />
+              </radialGradient>
+            </defs>
+            <circle cx="12" cy="12" r="5.2" fill="url(#waynote-sun-orb)" />
+            <g stroke="#F59E0B" strokeWidth="1.9" strokeLinecap="round">
+              <line x1="12" y1="2.2" x2="12" y2="4.1" />
+              <line x1="12" y1="19.9" x2="12" y2="21.8" />
+              <line x1="2.2" y1="12" x2="4.1" y2="12" />
+              <line x1="19.9" y1="12" x2="21.8" y2="12" />
+              <line x1="5.07" y1="5.07" x2="6.42" y2="6.42" />
+              <line x1="17.58" y1="17.58" x2="18.93" y2="18.93" />
+              <line x1="18.93" y1="5.07" x2="17.58" y2="6.42" />
+              <line x1="6.42" y1="17.58" x2="5.07" y2="18.93" />
+            </g>
+          </svg>
+        )}
+      </motion.span>
+
+      {mode === 'system' && (
+        <span
+          aria-hidden="true"
+          className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full text-[8px] font-bold flex items-center justify-center border ${
+            isDark
+              ? 'bg-indigo-500 text-white border-[#080D1B]'
+              : 'bg-[#2563EB] text-white border-white'
+          }`}
+        >
+          A
+        </span>
+      )}
+    </motion.button>
+  );
+};
+
+/* -------------------------------------------------------------------------- */
+/* 12. MovingBorderBeamButton — Rotating conic-gradient laser border CTA      */
+/* -------------------------------------------------------------------------- */
+interface MovingBorderBeamButtonProps {
+  children: React.ReactNode;
+  onClick?: () => void;
+  type?: 'button' | 'submit';
+  disabled?: boolean;
+  beamFrom?: string;
+  beamTo?: string;
+  className?: string;
+  innerClassName?: string;
+}
+
+export const MovingBorderBeamButton: React.FC<MovingBorderBeamButtonProps> = ({
+  children,
+  onClick,
+  type = 'button',
+  disabled = false,
+  beamFrom,
+  beamTo,
+  className = '',
+  innerClassName = '',
+}) => {
+  const prefersReduced = useReducedMotion();
+  const c1 = beamFrom || 'var(--tab-accent, #38BDF8)';
+  const c2 = beamTo || 'var(--accent-indigo, #A855F7)';
+
+  return (
+    <motion.button
+      type={type}
+      disabled={disabled}
+      onClick={() => {
+        if (disabled) return;
+        tactileAudio.playWhoosh(true);
+        onClick?.();
+      }}
+      whileHover={disabled || prefersReduced ? undefined : { scale: 1.015 }}
+      whileTap={disabled ? undefined : { scale: 0.965 }}
+      className={`relative overflow-hidden p-[1.75px] rounded-full inline-flex items-center justify-center min-h-[46px] cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed shadow-[0_12px_28px_-10px_rgba(37,99,235,0.42)] dark:shadow-[0_14px_32px_-10px_rgba(0,0,0,0.75)] group ${className}`}
+    >
+      {/* Rotating Conic Laser Beam */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -inset-[120%] beam-spin"
+        style={{
+          background: `conic-gradient(from 0deg, transparent 0deg, transparent 245deg, ${c1} 290deg, ${c2} 332deg, #ffffff 352deg, transparent 360deg)`,
+        }}
+      />
+      {/* Static fallback rim for reduced motion or subtle ambient edge */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 rounded-full border border-zinc-300/60 dark:border-white/15"
+      />
+      {/* Inner Capsule Core */}
+      <span
+        className={`relative z-10 w-full h-full min-h-[42.5px] px-5 py-2.5 rounded-full bg-white/95 dark:bg-[#10192D] text-zinc-900 dark:text-white font-semibold text-xs sm:text-sm inline-flex items-center justify-center gap-2 transition-colors group-hover:bg-white dark:group-hover:bg-[#142038] ${innerClassName}`}
+      >
+        {children}
+      </span>
+    </motion.button>
+  );
+};
+
+/* -------------------------------------------------------------------------- */
+/* 13. NeonOutlineButton — Glowing luminous outline button                    */
+/* -------------------------------------------------------------------------- */
+interface NeonOutlineButtonProps {
+  children: React.ReactNode;
+  onClick?: () => void;
+  type?: 'button' | 'submit';
+  disabled?: boolean;
+  tone?: 'accent' | 'sky' | 'rose' | 'emerald';
+  size?: 'sm' | 'md';
+  className?: string;
+}
+
+export const NeonOutlineButton: React.FC<NeonOutlineButtonProps> = ({
+  children,
+  onClick,
+  type = 'button',
+  disabled = false,
+  tone = 'accent',
+  size = 'md',
+  className = '',
+}) => {
+  const prefersReduced = useReducedMotion();
+  const [lit, setLit] = useState(false);
+  const timerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  const toneClasses: Record<'accent' | 'sky' | 'rose' | 'emerald', string> = {
+    accent:
+      'border-[var(--tab-accent)] text-[var(--tab-accent)] bg-[var(--tab-accent-soft)] shadow-[0_0_14px_-4px_var(--tab-accent)] hover:bg-[var(--tab-accent)] hover:text-white',
+    sky:
+      'border-sky-500/80 dark:border-sky-400/85 text-sky-700 dark:text-sky-300 bg-sky-500/10 dark:bg-sky-500/12 shadow-[0_0_14px_-3px_rgba(56,189,248,0.45)] hover:bg-sky-500 hover:text-white dark:hover:bg-sky-400 dark:hover:text-slate-950',
+    rose:
+      'border-rose-500/85 dark:border-orange-400/85 text-rose-600 dark:text-orange-300 bg-rose-500/10 dark:bg-orange-500/12 shadow-[0_0_14px_-3px_rgba(244,63,94,0.42)] hover:bg-gradient-to-r hover:from-[#E11D48] hover:to-[#F97316] hover:text-white hover:border-transparent',
+    emerald:
+      'border-emerald-500/85 dark:border-emerald-400/85 text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 dark:bg-emerald-500/12 shadow-[0_0_14px_-3px_rgba(16,185,129,0.42)] hover:bg-emerald-500 hover:text-white dark:hover:bg-emerald-400 dark:hover:text-slate-950',
+  };
+
+  const sizeClass =
+    size === 'sm'
+      ? 'min-h-[38px] px-3.5 text-xs'
+      : 'min-h-[44px] px-4.5 text-xs sm:text-sm';
+
+  return (
+    <motion.button
+      type={type}
+      disabled={disabled}
+      onClick={() => {
+        if (disabled) return;
+        tactileAudio.playZap();
+        setLit(true);
+        if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+        timerRef.current = window.setTimeout(() => setLit(false), 320);
+        onClick?.();
+      }}
+      whileHover={disabled || prefersReduced ? undefined : { scale: 1.02 }}
+      whileTap={disabled ? undefined : { scale: 0.95 }}
+      className={`rounded-full border-[1.5px] font-semibold inline-flex items-center justify-center gap-1.5 whitespace-nowrap transition-all duration-200 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed ${sizeClass} ${toneClasses[tone]} ${
+        lit ? 'brightness-110 ring-2 ring-current/25' : ''
+      } ${className}`}
+    >
+      {children}
+    </motion.button>
+  );
+};
+
+/* -------------------------------------------------------------------------- */
+/* 14. SplitFlapBoard — Airport 3D split-flap interactive display             */
+/* -------------------------------------------------------------------------- */
+interface SplitFlapBoardProps {
+  words: string[];
+  size?: 'sm' | 'md';
+  padLength?: number;
+  ariaLabel?: string;
+  onWordChange?: (word: string, index: number) => void;
+  className?: string;
+}
+
+export const SplitFlapBoard: React.FC<SplitFlapBoardProps> = ({
+  words,
+  size = 'md',
+  padLength,
+  ariaLabel,
+  onWordChange,
+  className = '',
+}) => {
+  const prefersReduced = useReducedMotion();
+  const safeWords = words.length > 0 ? words.map((w) => w.toUpperCase()) : ['GATE'];
+  const maxLen = padLength || Math.max(3, ...safeWords.map((w) => w.length));
+  const [wordIdx, setWordIdx] = useState(0);
+  const [displayChars, setDisplayChars] = useState<string[]>(() =>
+    safeWords[0].padEnd(maxLen, ' ').slice(0, maxLen).split('')
+  );
+  const [flippingSlots, setFlippingSlots] = useState<boolean[]>(() =>
+    Array.from({ length: maxLen }, () => false)
+  );
+  const timersRef = useRef<number[]>([]);
+
+  useEffect(() => {
+    setWordIdx(0);
+    setDisplayChars(safeWords[0].padEnd(maxLen, ' ').slice(0, maxLen).split(''));
+    setFlippingSlots(Array.from({ length: maxLen }, () => false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [words.join('|'), maxLen]);
+
+  useEffect(() => {
+    return () => {
+      timersRef.current.forEach((id) => window.clearTimeout(id));
+      timersRef.current = [];
+    };
+  }, []);
+
+  const triggerFlip = (nextIndex: number) => {
+    timersRef.current.forEach((id) => window.clearTimeout(id));
+    timersRef.current = [];
+
+    const nextWord = safeWords[nextIndex].padEnd(maxLen, ' ').slice(0, maxLen);
+    if (prefersReduced) {
+      setDisplayChars(nextWord.split(''));
+      onWordChange?.(safeWords[nextIndex], nextIndex);
+      return;
+    }
+
+    nextWord.split('').forEach((ch, idx) => {
+      const startTimer = window.setTimeout(() => {
+        tactileAudio.playTick(0.95 + idx * 0.08);
+        setFlippingSlots((prev) => prev.map((v, i) => (i === idx ? true : v)));
+        const swapTimer = window.setTimeout(() => {
+          setDisplayChars((prev) => prev.map((c, i) => (i === idx ? ch : c)));
+          setFlippingSlots((prev) => prev.map((v, i) => (i === idx ? false : v)));
+        }, 105);
+        timersRef.current.push(swapTimer);
+      }, idx * 45);
+      timersRef.current.push(startTimer);
+    });
+
+    onWordChange?.(safeWords[nextIndex], nextIndex);
+  };
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const nextIndex = (wordIdx + 1) % safeWords.length;
+    setWordIdx(nextIndex);
+    triggerFlip(nextIndex);
+  };
+
+  const tileDim =
+    size === 'sm'
+      ? 'w-[22px] h-[28px] text-[12px]'
+      : 'w-[28px] h-[36px] text-[15px]';
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      aria-label={ariaLabel || safeWords[wordIdx]}
+      className={`split-flap-stage inline-flex items-center gap-1 p-1.5 rounded-xl bg-[#0D0E12] border border-white/14 shadow-[0_6px_16px_-4px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.08)] cursor-pointer active:scale-[0.97] transition-transform select-none shrink-0 ${
+        size === 'sm' ? 'min-h-[40px]' : 'min-h-[48px]'
+      } ${className}`}
+    >
+      {displayChars.map((ch, idx) => (
+        <span
+          key={idx}
+          className={`split-flap-tile ${tileDim} ${flippingSlots[idx] ? 'is-flipping' : ''}`}
+        >
+          {ch === ' ' ? '\u00A0' : ch}
+        </span>
+      ))}
+    </button>
+  );
+};
+

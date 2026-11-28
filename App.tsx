@@ -8,6 +8,7 @@ import { mergeTrips, generateSyncCode, normalizeSyncCode } from './shared/syncMe
 import { detectDestinationIntel, getDestinationLocalTime } from './shared/destinationIntel';
 import { useI18n } from './hooks/useI18n';
 import { useTactileSound } from './hooks/useTactileSound';
+import { useAiAccess } from './hooks/useAiAccess';
 import { tactileAudio } from './services/tactileAudio';
 import {
   AppLanguage,
@@ -37,7 +38,14 @@ import {
   useAnyModalOpen,
 } from './components/LiquidPrimitives';
 import { DestinationCover } from './components/DestinationCover';
-import { StretchToggle, CopyMorphButton, DownloadProgressButton, ShareAppButton } from './components/TactileButtons';
+import {
+  StretchToggle,
+  CopyMorphButton,
+  DownloadProgressButton,
+  ShareAppButton,
+  DayNightOrbButton,
+  MovingBorderBeamButton,
+} from './components/TactileButtons';
 import {
   buildTripIcs,
   buildDayIcs,
@@ -80,6 +88,7 @@ import {
   SpeakerXMarkIcon,
   CalendarIcon,
   ArrowUpRightIcon,
+  SparklesIcon,
 } from './components/Icons';
 
 const APP_VERSION = 'v6.8';
@@ -773,6 +782,7 @@ const WorkspaceDock: React.FC<
 function App() {
   const { lang, setLanguage, t } = useI18n();
   const { soundEnabled, setSoundEnabled } = useTactileSound();
+  const { aiEnabled, setAiEnabled } = useAiAccess();
   const isAnyModalOpen = useAnyModalOpen();
   const [view, setView] = useState<'HOME' | 'CREATE' | 'TRIP'>('HOME');
   const [activeTab, setActiveTab] = useState<Tab>(Tab.ITINERARY);
@@ -2198,12 +2208,6 @@ function App() {
     }
   }, [activeTab, t]);
 
-  const renderThemeIcon = () => {
-    if (themeMode === 'system') return <ComputerDesktopIcon className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />;
-    if (themeMode === 'dark') return <MoonIcon className="w-4 h-4 text-sky-300" />;
-    return <SunIcon className="w-4 h-4 text-[#2563EB]" />;
-  };
-
   const activeDurationDays = tripType === 'Single' ? singleSpan?.days : activeStopSpan?.days;
 
   return (
@@ -2359,10 +2363,12 @@ function App() {
                         )}
                       </button>
 
-                      <button
-                        type="button"
+                      <DayNightOrbButton
+                        size="sm"
+                        mode={themeMode}
+                        isDark={isDarkResolved}
                         onClick={cycleThemeMode}
-                        aria-label={t('切換外觀主題', '切换外观主题', 'Switch theme')}
+                        ariaLabel={t('切換外觀主題', '切换外观主题', 'Switch theme')}
                         title={
                           themeMode === 'system'
                             ? t('跟隨系統', '跟随系统', 'System')
@@ -2370,10 +2376,7 @@ function App() {
                               ? t('夜間模式', '夜间模式', 'Dark mode')
                               : t('日光模式', '日光模式', 'Light mode')
                         }
-                        className="surface-elevated w-10 h-10 rounded-full text-zinc-700 dark:text-zinc-200 flex items-center justify-center hover:bg-white dark:hover:bg-zinc-800 transition-colors cursor-pointer"
-                      >
-                        {renderThemeIcon()}
-                      </button>
+                      />
 
                       <div className="relative">
                         <button
@@ -2662,14 +2665,15 @@ function App() {
                                   </form>
                                 </div>
 
-                                <button
-                                  type="button"
+                                <MovingBorderBeamButton
                                   onClick={() => openCreateFlow()}
-                                  className="w-full min-h-[48px] px-6 rounded-full bg-gradient-to-r from-[#2563EB] to-[#0EA5E9] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 active:scale-[0.985] transition-all cursor-pointer shadow-[0_10px_24px_-8px_rgba(37,99,235,0.52)]"
+                                  beamFrom="#2563EB"
+                                  beamTo="#0EA5E9"
+                                  className="w-full min-h-[48px]"
                                 >
-                                  <PlusIcon className="w-4 h-4" />
+                                  <PlusIcon className="w-4 h-4 text-[#2563EB] dark:text-sky-400" />
                                   <span>{t('新旅程', '新旅程', 'New Trip')}</span>
-                                </button>
+                                </MovingBorderBeamButton>
                               </div>
                             )}
                           </div>
@@ -2709,14 +2713,16 @@ function App() {
                           </form>
 
                           <div className="lg:col-span-4 flex justify-center lg:justify-end">
-                            <button
-                              type="button"
+                            <MovingBorderBeamButton
                               onClick={() => openCreateFlow()}
-                              className="min-h-[48px] lg:w-full px-7 rounded-full bg-gradient-to-r from-[#2563EB] to-[#0EA5E9] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer shadow-[0_10px_24px_-8px_rgba(37,99,235,0.54)]"
+                              beamFrom="#2563EB"
+                              beamTo="#0EA5E9"
+                              className="min-h-[48px] lg:w-full"
+                              innerClassName="px-7"
                             >
-                              <PlusIcon className="w-4 h-4" />
+                              <PlusIcon className="w-4 h-4 text-[#2563EB] dark:text-sky-400" />
                               <span>{t('新旅程', '新旅程', 'New Trip')}</span>
-                            </button>
+                            </MovingBorderBeamButton>
                           </div>
                         </div>
 
@@ -2893,12 +2899,13 @@ function App() {
                           </div>
 
                           <div className="space-y-4">
-                            <button
-                              type="button"
+                            <MovingBorderBeamButton
                               onClick={() => openCreateFlow(exploreCity ? localizeDestinationLabel(exploreCity, lang) : undefined)}
-                              className="w-full min-h-[50px] rounded-full bg-gradient-to-r from-[#2563EB] to-[#0EA5E9] text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.985] transition-all cursor-pointer shadow-[0_10px_24px_-8px_rgba(37,99,235,0.52)]"
+                              beamFrom="#2563EB"
+                              beamTo="#0EA5E9"
+                              className="w-full min-h-[50px]"
                             >
-                              <PlusIcon className="w-4 h-4" />
+                              <PlusIcon className="w-4 h-4 text-[#2563EB] dark:text-sky-400" />
                               <span>
                                 {exploreCity
                                   ? t(
@@ -2908,7 +2915,7 @@ function App() {
                                     )
                                   : t('開始規劃旅程', '开始规划旅程', 'Start Planning')}
                               </span>
-                            </button>
+                            </MovingBorderBeamButton>
 
                             {archivedTrips.length > 0 && (
                               <div className="pt-4 border-t border-zinc-200/70 dark:border-white/[0.08] space-y-2">
@@ -3604,9 +3611,13 @@ function App() {
                                 <div className="space-y-3.5">
                                   <div className="flex items-center justify-between gap-3">
                                     <div className="flex items-center gap-3 min-w-0">
-                                      <div className="w-9 h-9 rounded-xl bg-[var(--tab-accent-soft)] flex items-center justify-center shrink-0">
-                                        {renderThemeIcon()}
-                                      </div>
+                                      <DayNightOrbButton
+                                        size="sm"
+                                        mode={themeMode}
+                                        isDark={isDarkResolved}
+                                        onClick={cycleThemeMode}
+                                        ariaLabel={t('切換外觀主題', '切换外观主题', 'Switch theme')}
+                                      />
                                       <div className="min-w-0">
                                         <div className="font-display font-bold text-sm text-zinc-900 dark:text-white">
                                           {t('外觀主題', '外观主题', 'Appearance')}
@@ -3707,6 +3718,38 @@ function App() {
                                     checked={soundEnabled}
                                     onChange={setSoundEnabled}
                                     ariaLabel={t('觸感互動音效', '触感互动音效', 'Tactile Sound FX')}
+                                    className="shrink-0"
+                                  />
+                                </div>
+
+                                <div className="pt-4 border-t border-zinc-200/70 dark:border-white/[0.08] flex items-center justify-between gap-3">
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <div className="w-9 h-9 rounded-xl bg-[var(--tab-accent-soft)] text-[var(--tab-accent)] flex items-center justify-center shrink-0">
+                                      <SparklesIcon className="w-4 h-4" />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <div className="font-display font-bold text-sm text-zinc-900 dark:text-white">
+                                        {t('Gemini AI 功能授權', 'Gemini AI 功能授权', 'Gemini AI Access')}
+                                      </div>
+                                      <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                                        {aiEnabled
+                                          ? t('僅於手動點擊 AI 按鈕時才呼叫', '仅在手动点击 AI 按钮时才调用', 'Only called on manual click')
+                                          : t('已全面鎖定，不會耗用 API 額度', '已全面锁定，不会消耗 API 额度', 'Locked — zero API spend')}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <StretchToggle
+                                    checked={aiEnabled}
+                                    onChange={(next) => {
+                                      setAiEnabled(next);
+                                      showToast(
+                                        next
+                                          ? t('已允許手動觸發 Gemini AI 功能', '已允许手动触发 Gemini AI 功能', 'Manual Gemini AI calls enabled')
+                                          : t('已鎖定所有 Gemini AI 呼叫', '已锁定所有 Gemini AI 调用', 'All Gemini AI calls locked'),
+                                        'info'
+                                      );
+                                    }}
+                                    ariaLabel={t('Gemini AI 功能授權', 'Gemini AI 功能授权', 'Gemini AI Access')}
                                     className="shrink-0"
                                   />
                                 </div>

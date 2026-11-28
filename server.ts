@@ -27,6 +27,13 @@ interface CachedWeather {
 const weatherCache = new Map<string, CachedWeather>();
 let openMeteoBlockedUntil = 0;
 
+// Cost-protection caches & in-flight deduplication for flights and AI endpoints
+const flightLookupCache = new Map<string, { expiresAt: number; data: Record<string, unknown> }>();
+const aiPlanCache = new Map<string, { expiresAt: number; data: unknown }>();
+const aiPlanInFlight = new Map<string, Promise<unknown>>();
+const aiExploreCache = new Map<string, { expiresAt: number; data: unknown }>();
+const aiExploreInFlight = new Map<string, Promise<unknown>>();
+
 // Global destination photo cache (7 days TTL, persisted to disk)
 interface CachedPhotoMeta {
   expiresAt: number;
@@ -1415,6 +1422,7 @@ async function startServer() {
       .toUpperCase()
       .replace(/\s+/g, '');
     const date = String(req.body?.date || '').trim() || new Date().toISOString().slice(0, 10);
+    const allowAiFallback = req.body?.allowAiFallback === true && req.headers['x-waynote-ai-consent'] === '1';
     if (!flightNumber || flightNumber.length < 3) {
       res.status(400).json({
         error: tr(
@@ -1424,6 +1432,13 @@ async function startServer() {
           'Please enter a valid flight number (e.g. BR198, CX504)'
         ),
       });
+      return;
+    }
+
+    const flightCacheKey = `${flightNumber}::${date}`;
+    const cachedFlight = flightLookupCache.get(flightCacheKey);
+    if (cachedFlight && cachedFlight.expiresAt > Date.now()) {
+      res.json(cachedFlight.data);
       return;
     }
 
@@ -1581,8 +1596,9 @@ async function startServer() {
           }
         }
 
-        res.json({
+        const publicPayload = {
           found: true,
+          source: 'public',
           airline: info?.airline || adsb?.airline?.name || '',
           flightNumber: info?.flightNumber || adsb?.callsign_iata || flightNumber,
           departureCode,
@@ -1593,13 +1609,18 @@ async function startServer() {
           arrivalOffsetHours,
           nextDay: arrivalDayDelta > 0,
           arrivalDayDelta,
+        };
+        flightLookupCache.set(flightCacheKey, {
+          expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+          data: publicPayload,
         });
+        res.json(publicPayload);
         return;
       }
 
-      // Secondary fallback: Gemini Google Search grounding (if API key & search quota available)
+      // Secondary fallback: Gemini Google Search grounding ONLY when explicitly requested by user click
       const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
-      if (apiKey) {
+      if (allowAiFallback && apiKey) {
         const ai = new GoogleGenAI({
           apiKey,
           httpOptions: { headers: { 'User-Agent': 'aistudio-build' } },
@@ -1634,19 +1655,26 @@ async function startServer() {
             const aCode = parsed.arrivalCode.trim().toUpperCase();
             const dTz = AIRPORT_IANA_MAP[dCode] ? getOffsetHoursForDate(AIRPORT_IANA_MAP[dCode], date) : null;
             const aTz = AIRPORT_IANA_MAP[aCode] ? getOffsetHoursForDate(AIRPORT_IANA_MAP[aCode], date) : null;
-            res.json({
+            const aiFlightPayload = {
               ...parsed,
+              source: 'ai',
               departureCode: dCode,
               arrivalCode: aCode,
               departureOffsetHours: dTz ?? parsed.departureOffsetHours ?? 8,
               arrivalOffsetHours: aTz ?? parsed.arrivalOffsetHours ?? 8,
+            };
+            flightLookupCache.set(flightCacheKey, {
+              expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+              data: aiFlightPayload,
             });
+            res.json(aiFlightPayload);
             return;
           }
         }
       }
 
       res.status(404).json({
+        canTryAiFallback: Boolean(apiKey) && !allowAiFallback,
         error: tr(
           lang,
           `找不到航班「${flightNumber}」的公開班表資訊，請確認航班編號或手動填寫。`,
@@ -1695,6 +1723,20 @@ async function startServer() {
       }
     };
 
+    const hasExplicitAiConsent = req.headers['x-waynote-ai-consent'] === '1';
+    if (!hasExplicitAiConsent) {
+      sendError(
+        403,
+        tr(
+          lang,
+          'AI 行程規劃僅限手動點擊啟用。',
+          'AI 行程规划仅限手动点击启用。',
+          'AI itinerary planning requires an explicit user trigger.'
+        )
+      );
+      return;
+    }
+
     const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
     if (!apiKey) {
       sendError(
@@ -1737,6 +1779,36 @@ async function startServer() {
       ? body.hotels.map((h) => String(h).trim()).filter(Boolean).slice(0, 5)
       : [];
     const existingSummary = String(body.existingSummary || '').trim().slice(0, 320);
+
+    const planCacheKey = `${destination}::${mode}::${daysCount}::${body.pace || 'balanced'}::${lang}::${userPrompt}::${hotelList.join(',')}`;
+    const cachedPlan = aiPlanCache.get(planCacheKey);
+    if (cachedPlan && cachedPlan.expiresAt > Date.now()) {
+      if (wantsNdjson) {
+        res.status(200).setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+        res.write(JSON.stringify({ type: 'result', data: cachedPlan.data }) + '\n');
+        res.end();
+      } else {
+        res.json(cachedPlan.data);
+      }
+      return;
+    }
+
+    const activePlanPromise = aiPlanInFlight.get(planCacheKey);
+    if (activePlanPromise) {
+      try {
+        const sharedResult = await activePlanPromise;
+        if (wantsNdjson) {
+          res.status(200).setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+          res.write(JSON.stringify({ type: 'result', data: sharedResult }) + '\n');
+          res.end();
+        } else {
+          res.json(sharedResult);
+        }
+        return;
+      } catch {
+        // fall through if shared attempt failed
+      }
+    }
 
     const ai = new GoogleGenAI({
       apiKey,
@@ -1901,6 +1973,14 @@ async function startServer() {
       return { status, message: cleanMsg };
     };
 
+    let resolvePlanFlight!: (val: unknown) => void;
+    let rejectPlanFlight!: (err: unknown) => void;
+    const planFlightPromise = new Promise((resolve, reject) => {
+      resolvePlanFlight = resolve;
+      rejectPlanFlight = reject;
+    });
+    aiPlanInFlight.set(planCacheKey, planFlightPromise);
+
     try {
       let response;
       try {
@@ -1921,7 +2001,9 @@ async function startServer() {
         .trim();
 
       if (!rawText) {
-        sendError(502, tr(lang, 'AI 未回傳有效行程內容，請重試。', 'AI 未返回有效行程内容，请重试。', 'AI did not return a valid itinerary. Please try again.'));
+        const emptyErr = new Error(tr(lang, 'AI 未回傳有效行程內容，請重試。', 'AI 未返回有效行程内容，请重试。', 'AI did not return a valid itinerary. Please try again.'));
+        rejectPlanFlight(emptyErr);
+        sendError(502, emptyErr.message);
         return;
       }
 
@@ -1981,6 +2063,9 @@ async function startServer() {
         days: normalizedDays,
       };
 
+      aiPlanCache.set(planCacheKey, { expiresAt: Date.now() + 20 * 60 * 1000, data: resultPayload });
+      resolvePlanFlight(resultPayload);
+
       if (wantsNdjson) {
         res.write(JSON.stringify({ type: 'result', data: resultPayload }) + '\n');
         res.end();
@@ -1989,12 +2074,14 @@ async function startServer() {
       }
     } catch (err: unknown) {
       console.error('[Waynote AI Planner] Error:', err);
+      rejectPlanFlight(err);
       const parsedErr = parseGeminiUpstreamError(
         err,
         tr(lang, 'AI 行程規劃請求失敗，請稍後再試。', 'AI 行程规划请求失败，请稍后再试。', 'AI planning request failed. Please try again shortly.')
       );
       sendError(parsedErr.status, parsedErr.message);
     } finally {
+      aiPlanInFlight.delete(planCacheKey);
       if (keepaliveTimer) {
         clearInterval(keepaliveTimer);
         keepaliveTimer = null;
@@ -2011,6 +2098,18 @@ async function startServer() {
       lang?: string;
     };
     const lang = normalizeAppLanguage(body.lang);
+
+    if (req.headers['x-waynote-ai-consent'] !== '1') {
+      res.status(403).json({
+        error: tr(
+          lang,
+          'AI 探索推薦僅限手動點擊啟用。',
+          'AI 探索推荐仅限手动点击启用。',
+          'AI Explore requires an explicit user click.'
+        ),
+      });
+      return;
+    }
 
     const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
     if (!apiKey) {
@@ -2051,6 +2150,22 @@ async function startServer() {
         .trim();
 
     const excludedKeys = new Set(excludeNames.map(normalizeSpotKey).filter(Boolean));
+    const exploreCacheKey = `${destination}::${focusCategory}::${lang}::${batchSeed}::${excludeNames.slice(-10).join(',')}`;
+    const cachedExplore = aiExploreCache.get(exploreCacheKey);
+    if (cachedExplore && cachedExplore.expiresAt > Date.now()) {
+      res.json(cachedExplore.data);
+      return;
+    }
+    const activeExplorePromise = aiExploreInFlight.get(exploreCacheKey);
+    if (activeExplorePromise) {
+      try {
+        const sharedExplore = await activeExplorePromise;
+        res.json(sharedExplore);
+        return;
+      } catch {
+        // proceed to fresh request if shared failed
+      }
+    }
 
     const ai = new GoogleGenAI({
       apiKey,
@@ -2152,6 +2267,14 @@ async function startServer() {
       return true;
     };
 
+    let resolveExploreFlight!: (val: unknown) => void;
+    let rejectExploreFlight!: (err: unknown) => void;
+    const exploreFlightPromise = new Promise((resolve, reject) => {
+      resolveExploreFlight = resolve;
+      rejectExploreFlight = reject;
+    });
+    aiExploreInFlight.set(exploreCacheKey, exploreFlightPromise);
+
     try {
       let response;
       try {
@@ -2172,9 +2295,9 @@ async function startServer() {
         .trim();
 
       if (!rawText) {
-        res.status(502).json({
-          error: tr(lang, 'AI 未回傳推薦地點，請重試。', 'AI 未返回推荐地点，请重试。', 'AI returned no recommendations. Please try again.'),
-        });
+        const emptyErr = new Error(tr(lang, 'AI 未回傳推薦地點，請重試。', 'AI 未返回推荐地点，请重试。', 'AI returned no recommendations. Please try again.'));
+        rejectExploreFlight(emptyErr);
+        res.status(502).json({ error: emptyErr.message });
         return;
       }
 
@@ -2212,9 +2335,14 @@ async function startServer() {
 
       const strictFiltered = dedupedCandidates.filter(matchesStrictCategory);
       const spots = (strictFiltered.length >= 6 ? strictFiltered : dedupedCandidates).slice(0, 10);
+      const explorePayload = { spots };
+      aiExploreCache.set(exploreCacheKey, { expiresAt: Date.now() + 20 * 60 * 1000, data: explorePayload });
+      resolveExploreFlight(explorePayload);
 
-      res.json({ spots });
+      res.json(explorePayload);
     } catch (err: unknown) {
+      rejectExploreFlight(err);
+      aiExploreInFlight.delete(exploreCacheKey);
       console.error('[Waynote AI Explore] Error:', err);
       const e = err as { status?: number; message?: string };
       let status = typeof e?.status === 'number' && e.status >= 400 && e.status < 600 ? e.status : 502;
@@ -2281,6 +2409,8 @@ async function startServer() {
         );
       }
       res.status(status).json({ error: cleanMsg });
+    } finally {
+      aiExploreInFlight.delete(exploreCacheKey);
     }
   });
 

@@ -12,10 +12,16 @@ import {
 import { useI18n } from '../hooks/useI18n';
 import { getDaySpanUtc, addDaysUtc } from './DateRangeCalendar';
 import { LiquidModal, ConfirmSheet, SlidingSegmentedControl } from './LiquidPrimitives';
-import { BookmarkBurstButton, StampButton } from './TactileButtons';
+import {
+  BookmarkBurstButton,
+  StampButton,
+  MovingBorderBeamButton,
+  NeonOutlineButton,
+} from './TactileButtons';
 import { AiPlannerWorkspace, ApplyAiPlanOptions } from './AiPlannerModal';
 import { RouteMapModal } from './RouteMapModal';
 import { tactileAudio } from '../services/tactileAudio';
+import { useAiAccess } from '../hooks/useAiAccess';
 import {
   CompassIcon,
   PlusIcon,
@@ -82,6 +88,7 @@ const ExploreTool: React.FC<Props> = ({
   focusSectionSignal,
 }) => {
   const { lang, t } = useI18n();
+  const { aiEnabled, setAiEnabled } = useAiAccess();
   const intel = useMemo(() => detectDestinationIntel(trip.destination, lang), [trip.destination, lang]);
   const savedPlaces = trip.savedPlaces || [];
 
@@ -477,6 +484,14 @@ const ExploreTool: React.FC<Props> = ({
   };
 
   const handleFetchAiSpots = async (overrideCategory: AiFocusCategory = aiFocusCategory) => {
+    if (!aiEnabled) {
+      onShowToast(
+        t('目前已在設定中停用 Gemini AI 功能', '目前已在设置中停用 Gemini AI 功能', 'Gemini AI is currently disabled in Settings'),
+        'info'
+      );
+      return;
+    }
+
     setAiLoading(true);
     setAiError(null);
     const nextBatch = aiBatchSeedRef.current + 1;
@@ -491,7 +506,10 @@ const ExploreTool: React.FC<Props> = ({
     try {
       const res = await fetch('/api/ai/explore-spots', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Waynote-Ai-Consent': '1',
+        },
         body: JSON.stringify({
           destination: intel.displayCity || trip.destination,
           focusCategory: overrideCategory,
@@ -814,11 +832,11 @@ const ExploreTool: React.FC<Props> = ({
                     {t('重置紀錄', '重置记录', 'Reset')}
                   </button>
                 )}
-                <button
-                  type="button"
-                  disabled={aiLoading}
+                <NeonOutlineButton
+                  tone="rose"
+                  size="sm"
+                  disabled={aiLoading || !aiEnabled}
                   onClick={() => void handleFetchAiSpots(aiFocusCategory)}
-                  className="h-9 px-4 rounded-full bg-zinc-900 dark:bg-white/14 text-white text-xs font-semibold disabled:opacity-50 cursor-pointer shrink-0 flex items-center gap-1.5 whitespace-nowrap active:scale-[0.98] transition-all"
                 >
                   {aiSuggestions.length > 0 ? (
                     <RefreshIcon className={`w-3.5 h-3.5 ${aiLoading ? 'animate-spin' : ''}`} />
@@ -832,7 +850,7 @@ const ExploreTool: React.FC<Props> = ({
                         ? t('換一批', '换一批', 'Refresh')
                         : t('開始探索', '开始探索', 'Discover')}
                   </span>
-                </button>
+                </NeonOutlineButton>
               </div>
             </div>
           )}
@@ -995,20 +1013,31 @@ const ExploreTool: React.FC<Props> = ({
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => void handleFetchAiSpots(aiFocusCategory)}
-                      className="min-h-[44px] px-5 rounded-full bg-gradient-to-r from-[#E11D48] to-[#F97316] text-white text-xs sm:text-sm font-semibold inline-flex items-center gap-1.5 cursor-pointer shadow-[0_10px_22px_-8px_rgba(225,29,72,0.5)] active:scale-[0.98] transition-all"
-                    >
-                      <SparklesIcon className="w-4 h-4" />
-                      <span>
-                        {t(
-                          `開始 AI 探索「${categoryMeta[aiFocusCategory].label}」`,
-                          `开始 AI 探索「${categoryMeta[aiFocusCategory].label}」`,
-                          `Explore ${categoryMeta[aiFocusCategory].label} with AI`
-                        )}
-                      </span>
-                    </button>
+                    {aiEnabled ? (
+                      <MovingBorderBeamButton
+                        beamFrom="#E11D48"
+                        beamTo="#F97316"
+                        onClick={() => void handleFetchAiSpots(aiFocusCategory)}
+                      >
+                        <SparklesIcon className="w-4 h-4 text-[#E11D48] dark:text-orange-400" />
+                        <span>
+                          {t(
+                            `開始 AI 探索「${categoryMeta[aiFocusCategory].label}」`,
+                            `开始 AI 探索「${categoryMeta[aiFocusCategory].label}」`,
+                            `Explore ${categoryMeta[aiFocusCategory].label} with AI`
+                          )}
+                        </span>
+                      </MovingBorderBeamButton>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setAiEnabled(true)}
+                        className="min-h-[44px] px-5 rounded-full bg-zinc-900 dark:bg-white/15 text-white text-xs sm:text-sm font-semibold inline-flex items-center gap-1.5 cursor-pointer hover:opacity-90 transition-opacity"
+                      >
+                        <SparklesIcon className="w-4 h-4" />
+                        <span>{t('AI 已鎖定 — 點此暫時啟用', 'AI 已锁定 — 点此暂时启用', 'AI Locked — Tap to Enable')}</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               )}

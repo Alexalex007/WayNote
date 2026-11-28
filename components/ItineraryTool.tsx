@@ -21,8 +21,9 @@ import { WeatherModal, WeatherGlyph, useLiveWeather } from './WeatherModal';
 import { RouteMapModal, PreviousStopOption } from './RouteMapModal';
 import { DateRangeCalendar, getDaySpanUtc } from './DateRangeCalendar';
 import { LiquidModal, ConfirmSheet, SlidingSegmentedControl } from './LiquidPrimitives';
-import { RouteSwapButton } from './TactileButtons';
+import { RouteSwapButton, NeonOutlineButton, SplitFlapBoard } from './TactileButtons';
 import { tactileAudio } from '../services/tactileAudio';
+import { useAiAccess } from '../hooks/useAiAccess';
 import {
   PlusIcon,
   CoffeeIcon,
@@ -393,6 +394,7 @@ const ItineraryTool: React.FC<Props> = ({
   focusDateSignal,
 }) => {
   const { lang, t } = useI18n();
+  const { aiEnabled, setAiEnabled } = useAiAccess();
   const [selectedDate, setSelectedDate] = useState<string>(trip.startDate);
   const [dates, setDates] = useState<string[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -457,6 +459,7 @@ const ItineraryTool: React.FC<Props> = ({
   });
   const [flightLookupLoading, setFlightLookupLoading] = useState(false);
   const [flightLookupNote, setFlightLookupNote] = useState<string | null>(null);
+  const [flightCanTryAi, setFlightCanTryAi] = useState(false);
   const flightLookupSeedRef = useRef<string | null>(null);
   const flightLookupAbortRef = useRef<AbortController | null>(null);
 
@@ -706,19 +709,26 @@ const ItineraryTool: React.FC<Props> = ({
       duration: '',
     });
     setFlightLookupNote(null);
+    setFlightCanTryAi(false);
     setFlightLookupLoading(false);
   };
 
-  const handleLookupFlight = async (overrideCode?: string, overrideDate?: string, silent = false) => {
-    const code = (overrideCode ?? newFlight.flightNumber).trim().toUpperCase().replace(/\s+/g, '');
-    const depDate = (overrideDate ?? newFlight.departureDate).trim();
+  const handleLookupFlight = async (useAiFallback = false) => {
+    const code = newFlight.flightNumber.trim().toUpperCase().replace(/\s+/g, '');
+    const depDate = newFlight.departureDate.trim();
     if (code.length < 3) {
-      if (!silent) {
-        onShowToast(
-          t('請先輸入航班編號（例如 BR198、CX504）', '请先输入航班号（例如 BR198、CX504）', 'Enter a flight number first (e.g. BR198, CX504)'),
-          'error'
-        );
-      }
+      onShowToast(
+        t('請先輸入航班編號（例如 BR198、CX504）', '请先输入航班号（例如 BR198、CX504）', 'Enter a flight number first (e.g. BR198, CX504)'),
+        'error'
+      );
+      return;
+    }
+
+    if (useAiFallback && !aiEnabled) {
+      onShowToast(
+        t('目前已在設定中停用 Gemini AI 功能', '目前已在设置中停用 Gemini AI 功能', 'Gemini AI is currently disabled in Settings'),
+        'info'
+      );
       return;
     }
 
@@ -730,17 +740,23 @@ const ItineraryTool: React.FC<Props> = ({
 
     flightLookupSeedRef.current = `${code}::${depDate}`;
     setFlightLookupLoading(true);
-    if (!silent) setFlightLookupNote(null);
+    setFlightLookupNote(null);
+    setFlightCanTryAi(false);
 
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (useAiFallback && aiEnabled) {
+        headers['X-Waynote-Ai-Consent'] = '1';
+      }
       const res = await fetch('/api/flights/lookup', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         signal: controller.signal,
         body: JSON.stringify({
           flightNumber: code,
           date: depDate,
           lang,
+          allowAiFallback: Boolean(useAiFallback && aiEnabled),
         }),
       });
       const ct = (res.headers.get('content-type') || '').toLowerCase();
@@ -755,6 +771,9 @@ const ItineraryTool: React.FC<Props> = ({
       }
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if ((data as { canTryAiFallback?: boolean })?.canTryAiFallback) {
+          setFlightCanTryAi(true);
+        }
         throw new Error(
           (data as { error?: string })?.error ||
             t('查無此航班資訊，請手動輸入。', '查无此航班信息，请手动输入。', 'Flight not found. Please enter details manually.')
@@ -803,12 +822,12 @@ const ItineraryTool: React.FC<Props> = ({
         `Auto-filled ${routeDetail}`
       );
       setFlightLookupNote(note);
-      if (!silent) onShowToast(note, 'success');
+      onShowToast(note, 'success');
     } catch (err) {
       if ((err as { name?: string })?.name === 'AbortError') return;
       const msg = err instanceof Error ? err.message : t('航班查詢失敗', '航班查询失败', 'Flight lookup failed');
       setFlightLookupNote(msg);
-      if (!silent) onShowToast(msg, 'error');
+      onShowToast(msg, 'error');
     } finally {
       if (flightLookupAbortRef.current === controller) {
         flightLookupAbortRef.current = null;
@@ -816,21 +835,6 @@ const ItineraryTool: React.FC<Props> = ({
       }
     }
   };
-
-  useEffect(() => {
-    if (!showAddModal || modalMode !== 'FLIGHT') return;
-    const cleanCode = newFlight.flightNumber.trim().toUpperCase().replace(/\s+/g, '');
-    const depDate = newFlight.departureDate.trim();
-    const isLikelyFlightCode = /^[A-Z0-9]{2,3}\d{1,4}[A-Z]?$/.test(cleanCode) && /[A-Z]/.test(cleanCode) && /\d/.test(cleanCode);
-    if (!isLikelyFlightCode || !depDate) return;
-    const seedKey = `${cleanCode}::${depDate}`;
-    if (flightLookupSeedRef.current === seedKey) return;
-
-    const timer = window.setTimeout(() => {
-      void handleLookupFlight(cleanCode, depDate, true);
-    }, 550);
-    return () => window.clearTimeout(timer);
-  }, [showAddModal, modalMode, newFlight.flightNumber, newFlight.departureDate]);
 
   const getNextStartTime = () => {
     if (!currentActivities || currentActivities.length === 0) return '09:00';
@@ -1986,30 +1990,60 @@ const ItineraryTool: React.FC<Props> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between gap-2 px-1">
-                  <p className="text-[11px] font-medium text-sky-600 dark:text-sky-400 truncate">
-                    {flightLookupLoading
-                      ? t('正在依航班號與日期自動抓取起降機場與時區...', '正在按航班号与日期自动获取起降机场与时区...', 'Looking up airports, schedule & timezones...')
-                      : flightLookupNote ||
-                        t(
-                          '輸入航班號與日期後將自動配對航線、時間與時區',
-                          '输入航班号与日期后将自动匹配航线、时间与时区',
-                          'Enter flight number & date to auto-fill route & timezones'
-                        )}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => void handleLookupFlight()}
-                    disabled={flightLookupLoading || newFlight.flightNumber.trim().length < 3}
-                    className="h-7 px-2.5 rounded-full bg-sky-500/12 hover:bg-sky-500/20 disabled:opacity-45 text-sky-600 dark:text-sky-300 text-[11px] font-semibold flex items-center gap-1 shrink-0 cursor-pointer transition-colors whitespace-nowrap"
-                  >
-                    <SparklesIcon className={`w-3 h-3 ${flightLookupLoading ? 'animate-spin' : ''}`} />
-                    <span>
+                <div className="space-y-2 px-0.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] font-medium text-sky-600 dark:text-sky-400 truncate">
                       {flightLookupLoading
-                        ? t('抓取中', '获取中', 'Fetching')
-                        : t('重新抓取', '重新获取', 'Fetch')}
-                    </span>
-                  </button>
+                        ? t('正在查詢公開班表與機場時區...', '正在查询公开班表与机场时区...', 'Looking up public schedule & timezones...')
+                        : flightLookupNote ||
+                          t(
+                            '點擊右側按鈕查詢公開班表（免費不耗用 AI 額度）',
+                            '点击右侧按钮查询公开班表（免费不耗用 AI 额度）',
+                            'Tap Lookup for free public schedule (no AI quota used)'
+                          )}
+                    </p>
+                    <NeonOutlineButton
+                      tone="sky"
+                      size="sm"
+                      onClick={() => void handleLookupFlight(false)}
+                      disabled={flightLookupLoading || newFlight.flightNumber.trim().length < 3}
+                    >
+                      <PlaneIcon className={`w-3.5 h-3.5 ${flightLookupLoading ? 'animate-pulse' : ''}`} />
+                      <span>
+                        {flightLookupLoading
+                          ? t('查詢中', '查询中', 'Searching')
+                          : t('查詢班表', '查询班表', 'Lookup')}
+                      </span>
+                    </NeonOutlineButton>
+                  </div>
+
+                  {flightCanTryAi && !flightLookupLoading && (
+                    <div className="flex items-center justify-between gap-2 rounded-2xl bg-sky-500/8 border border-sky-500/20 px-3 py-2">
+                      <span className="text-[11px] text-zinc-600 dark:text-zinc-300 truncate">
+                        {aiEnabled
+                          ? t('公開資料庫未收錄此班次，可改用 AI 搜尋', '公开资料库未收录此班次，可改用 AI 搜索', 'Not in public feed — try AI search?')
+                          : t('AI 功能目前已於設定停用，請手動填寫', 'AI 功能当前已于设置停用，请手动填写', 'AI is disabled in Settings — enter manually')}
+                      </span>
+                      {aiEnabled ? (
+                        <button
+                          type="button"
+                          onClick={() => void handleLookupFlight(true)}
+                          className="h-7 px-3 rounded-full bg-sky-500 text-white text-[11px] font-semibold shrink-0 cursor-pointer flex items-center gap-1 hover:bg-sky-600 transition-colors whitespace-nowrap"
+                        >
+                          <SparklesIcon className="w-3 h-3" />
+                          <span>{t('用 AI 搜尋', '用 AI 搜索', 'AI Search')}</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setAiEnabled(true)}
+                          className="h-7 px-3 rounded-full bg-zinc-200 dark:bg-white/10 text-zinc-800 dark:text-zinc-200 text-[11px] font-semibold shrink-0 cursor-pointer whitespace-nowrap"
+                        >
+                          {t('啟用 AI', '启用 AI', 'Enable AI')}
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2282,10 +2316,15 @@ const ItineraryTool: React.FC<Props> = ({
               {detailActivity.type === 'flight' && detailActivity.flightInfo ? (
                 <div className="ink-card rounded-2xl p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <div className="text-2xl font-display font-bold font-num text-white">
-                        {detailActivity.flightInfo.departureCode}
-                      </div>
+                    <div className="space-y-1.5">
+                      <SplitFlapBoard
+                        size="sm"
+                        words={[
+                          detailActivity.flightInfo.departureCode || 'DEP',
+                          detailActivity.flightInfo.flightNumber || 'FLT',
+                        ]}
+                        ariaLabel={t('切換出發機場與航班翻牌', '切换出发机场与航班翻牌', 'Flip departure airport & flight board')}
+                      />
                       <div className="text-[11px] text-zinc-400">
                         {resolveAirportByCode(detailActivity.flightInfo.departureCode, lang)?.name}
                       </div>
@@ -2298,10 +2337,15 @@ const ItineraryTool: React.FC<Props> = ({
                         </span>
                       )}
                     </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-display font-bold font-num text-white">
-                        {detailActivity.flightInfo.arrivalCode}
-                      </div>
+                    <div className="text-right space-y-1.5 flex flex-col items-end">
+                      <SplitFlapBoard
+                        size="sm"
+                        words={[
+                          detailActivity.flightInfo.arrivalCode || 'ARR',
+                          detailActivity.flightInfo.arrivalTime || 'GATE',
+                        ]}
+                        ariaLabel={t('切換抵達機場與時間翻牌', '切换抵达机场与时间翻牌', 'Flip arrival airport & time board')}
+                      />
                       <div className="text-[11px] text-zinc-400">
                         {resolveAirportByCode(detailActivity.flightInfo.arrivalCode, lang)?.name}
                       </div>

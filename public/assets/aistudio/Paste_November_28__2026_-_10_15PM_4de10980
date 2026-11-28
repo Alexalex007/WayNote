@@ -1,0 +1,5683 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>UI Moments — Interactive Button Gallery</title>
+<style>
+  :root {
+    --bg: #09090b;
+    --surface: #111114;
+    --surface-hover: #151519;
+    --surface-elevated: #1c1c21;
+    --border: rgba(255, 255, 255, 0.08);
+    --border-hover: rgba(255, 255, 255, 0.18);
+    --text: #f4f4f5;
+    --text-muted: #71717a;
+    --text-dim: #52525b;
+    --accent: #ffffff;
+    --accent-ink: #09090b;
+    --danger: #ef4444;
+    --success: #22c55e;
+    --rose: #f43f5e;
+    --radius-card: 14px;
+    --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  button {
+    font-family: inherit;
+    color: inherit;
+    background: none;
+    border: none;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Top Navbar */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    background: rgba(9, 9, 11, 0.82);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar-inner {
+    max-width: 1360px;
+    margin: 0 auto;
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: -0.01em;
+  }
+  .brand-mark {
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+    background: linear-gradient(135deg, #fff 0%, #a1a1aa 100%);
+    display: grid;
+    place-items: center;
+    color: #09090b;
+    font-weight: 800;
+    font-size: 12px;
+  }
+  .topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .pill-btn {
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: #d4d4d8;
+    font-size: 12px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: border-color 0.2s, background 0.2s, color 0.2s;
+  }
+  .pill-btn:hover {
+    border-color: var(--border-hover);
+    color: #fff;
+    background: var(--surface-elevated);
+  }
+  .pill-btn.active {
+    background: #fff;
+    color: #09090b;
+    border-color: #fff;
+  }
+
+  /* Hero */
+  .container {
+    max-width: 1360px;
+    margin: 0 auto;
+    padding: 36px 24px 64px;
+  }
+  .hero {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+  .hero h1 {
+    font-size: clamp(26px, 3.6vw, 38px);
+    font-weight: 650;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+  }
+  .hero p {
+    margin-top: 8px;
+    font-size: 14px;
+    color: var(--text-muted);
+  }
+
+  /* Toolbar / Filter Bar */
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 0 20px;
+    border-top: 1px solid var(--border);
+    margin-bottom: 8px;
+  }
+  .tabs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+  .tab-btn {
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid transparent;
+    transition: all 0.18s ease;
+  }
+  .tab-btn:hover {
+    color: var(--text);
+    background: rgba(255,255,255,0.04);
+  }
+  .tab-btn.active {
+    background: #fff;
+    color: #09090b;
+  }
+  .tab-count {
+    font-size: 11px;
+    opacity: 0.65;
+  }
+
+  .toolbar-right {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .search-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  .search-wrap svg {
+    position: absolute;
+    left: 11px;
+    width: 14px;
+    height: 14px;
+    color: var(--text-muted);
+    pointer-events: none;
+  }
+  .search-input {
+    height: 32px;
+    width: 190px;
+    padding: 0 12px 0 32px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 12.5px;
+    outline: none;
+    transition: border-color 0.2s, width 0.2s;
+  }
+  .search-input:focus {
+    border-color: rgba(255,255,255,0.28);
+    width: 220px;
+  }
+  .search-input::placeholder { color: var(--text-dim); }
+
+  /* Grid */
+  .gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(235px, 1fr));
+    gap: 14px;
+  }
+  .gallery-grid.cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .gallery-grid.cols-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  @media (max-width: 960px) {
+    .gallery-grid.cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .gallery-grid.cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 580px) {
+    .gallery-grid,
+    .gallery-grid.cols-3,
+    .gallery-grid.cols-4 { grid-template-columns: 1fr; }
+    .container { padding: 24px 14px 48px; }
+    .topbar-inner { padding: 10px 14px; }
+  }
+
+  /* Card */
+  .card {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: border-color 0.22s ease, background 0.22s ease, transform 0.22s ease;
+  }
+  .card:hover {
+    border-color: var(--border-hover);
+    background: var(--surface-hover);
+  }
+  .card-fav {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 5;
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    color: var(--text-dim);
+    background: rgba(255,255,255,0.02);
+    transition: color 0.18s, background 0.18s, transform 0.18s;
+  }
+  .card-fav:hover {
+    color: #fff;
+    background: rgba(255,255,255,0.08);
+  }
+  .card-fav.saved {
+    color: #facc15;
+  }
+  .card-fav:active { transform: scale(0.86); }
+
+  .card-stage {
+    position: relative;
+    min-height: 158px;
+    padding: 24px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  .card-footer {
+    padding: 11px 14px 12px;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: rgba(0,0,0,0.16);
+  }
+  .card-meta {
+    min-width: 0;
+  }
+  .card-title {
+    font-size: 13px;
+    font-weight: 550;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .card-cat {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+  .details-btn {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 4px 7px;
+    border-radius: 6px;
+    transition: color 0.16s, background 0.16s;
+    flex-shrink: 0;
+  }
+  .details-btn:hover {
+    color: #fff;
+    background: rgba(255,255,255,0.06);
+  }
+
+  .empty-state {
+    grid-column: 1 / -1;
+    padding: 56px 20px;
+    text-align: center;
+    color: var(--text-muted);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-card);
+  }
+
+  /* ==================== COMPONENT STYLES ==================== */
+
+  /* 1. Squash Play Key */
+  .squash-key {
+    width: 66px;
+    height: 66px;
+    border-radius: 18px;
+    background: linear-gradient(180deg, #ffffff 0%, #e4e4e7 100%);
+    color: #09090b;
+    display: grid;
+    place-items: center;
+    box-shadow: 0 7px 0 #71717a, 0 12px 24px rgba(0,0,0,0.5);
+    transition: transform 0.14s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.14s ease;
+  }
+  .squash-key:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 9px 0 #71717a, 0 16px 28px rgba(0,0,0,0.55);
+  }
+  .squash-key:active, .squash-key.squashed {
+    transform: translateY(6px) scaleX(1.12) scaleY(0.84);
+    box-shadow: 0 1px 0 #71717a, 0 4px 10px rgba(0,0,0,0.4);
+  }
+
+  /* 2. Open Settings (Drawer) */
+  .open-settings-btn {
+    padding: 10px 18px;
+    border-radius: 10px;
+    background: #1b1b20;
+    border: 1px solid rgba(255,255,255,0.14);
+    color: #f4f4f5;
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+    transition: transform 0.16s, background 0.16s, border-color 0.16s;
+  }
+  .open-settings-btn:hover {
+    background: #232329;
+    border-color: rgba(255,255,255,0.26);
+  }
+  .open-settings-btn:active { transform: scale(0.96); }
+  .mini-drawer {
+    position: absolute;
+    inset: 0;
+    background: rgba(9, 9, 11, 0.65);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.22s ease;
+    z-index: 4;
+  }
+  .mini-drawer.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .mini-drawer-sheet {
+    width: 100%;
+    background: #1c1c22;
+    border-top: 1px solid rgba(255,255,255,0.15);
+    border-radius: 14px 14px 0 0;
+    padding: 10px 14px 14px;
+    transform: translateY(100%);
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .mini-drawer.open .mini-drawer-sheet { transform: translateY(0); }
+  .drawer-handle {
+    width: 28px; height: 3px; border-radius: 99px;
+    background: rgba(255,255,255,0.25);
+    margin: 0 auto 10px;
+  }
+  .drawer-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    padding: 5px 0;
+    color: #d4d4d8;
+  }
+  .drawer-close {
+    font-size: 11px;
+    padding: 3px 9px;
+    border-radius: 6px;
+    background: #fff;
+    color: #09090b;
+    font-weight: 600;
+  }
+
+  /* 3. Like Burst */
+  .like-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 16px;
+    border-radius: 999px;
+    background: #1a1a1f;
+    border: 1px solid rgba(255,255,255,0.12);
+    font-size: 13px;
+    font-weight: 550;
+    transition: border-color 0.2s, background 0.2s, transform 0.15s;
+  }
+  .like-btn:hover { border-color: rgba(255,255,255,0.24); }
+  .like-btn.liked {
+    border-color: rgba(244, 63, 94, 0.5);
+    background: rgba(244, 63, 94, 0.12);
+    color: #fda4af;
+  }
+  .like-btn svg {
+    width: 17px; height: 17px;
+    transition: transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1), fill 0.2s, stroke 0.2s;
+  }
+  .like-btn.liked svg {
+    fill: var(--rose);
+    stroke: var(--rose);
+    transform: scale(1.22);
+  }
+  .burst-particle {
+    position: absolute;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    pointer-events: none;
+    left: 22px;
+    top: 50%;
+    animation: burstFly 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  @keyframes burstFly {
+    0% { transform: translate(0, 0) scale(1); opacity: 1; }
+    100% { transform: translate(var(--dx), var(--dy)) scale(0); opacity: 0; }
+  }
+
+  /* 4. Download Ring */
+  .dl-btn {
+    position: relative;
+    height: 40px;
+    width: 132px;
+    min-width: 44px;
+    padding: 0 18px;
+    overflow: visible;
+    border-radius: 999px;
+    background: #1b1b20;
+    border: 1px solid rgba(255,255,255,0.14);
+    color: #f4f4f5;
+    font-size: 13px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.32s cubic-bezier(0.34, 1.35, 0.64, 1);
+  }
+  .dl-btn:hover { border-color: rgba(255,255,255,0.28); }
+  .dl-btn.loading {
+    min-width: 44px;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border-color: rgba(255,255,255,0.08);
+  }
+  .dl-btn.done {
+    width: 118px;
+    background: #fff;
+    color: #09090b;
+    border-color: #fff;
+  }
+  .dl-ring-svg {
+    position: absolute;
+    inset: -2px;
+    width: calc(100% + 4px);
+    height: calc(100% + 4px);
+    transform: rotate(-90deg);
+    pointer-events: none;
+  }
+
+  /* 5. Cart Badge */
+  .cart-btn {
+    position: relative;
+    width: 52px;
+    height: 52px;
+    border-radius: 15px;
+    background: #1b1b20;
+    border: 1px solid rgba(255,255,255,0.14);
+    display: grid;
+    place-items: center;
+    color: #f4f4f5;
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s;
+  }
+  .cart-btn:hover { border-color: rgba(255,255,255,0.28); }
+  .cart-btn.bump { animation: cartBump 0.38s cubic-bezier(0.34, 1.56, 0.64, 1); }
+  @keyframes cartBump {
+    0% { transform: scale(1); }
+    35% { transform: scale(0.88) rotate(-6deg); }
+    70% { transform: scale(1.1) rotate(4deg); }
+    100% { transform: scale(1) rotate(0); }
+  }
+  .cart-badge-num {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: #fff;
+    color: #09090b;
+    font-size: 11px;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.45);
+    transition: transform 0.24s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .cart-badge-num.pop { transform: scale(1.35); }
+  .cart-fly {
+    position: absolute;
+    top: -12px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    pointer-events: none;
+    animation: flyUp 0.55s ease-out forwards;
+  }
+  @keyframes flyUp {
+    0% { opacity: 1; transform: translateY(0) scale(0.8); }
+    100% { opacity: 0; transform: translateY(-28px) scale(1.15); }
+  }
+
+  /* 6. Magnetic Button */
+  .mag-wrap {
+    width: 100%;
+    height: 110px;
+    display: grid;
+    place-items: center;
+  }
+  .mag-btn {
+    padding: 11px 22px;
+    border-radius: 999px;
+    background: #fff;
+    color: #09090b;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 8px 24px rgba(255,255,255,0.12);
+    transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s;
+    will-change: transform;
+  }
+  .mag-btn:active { filter: brightness(0.9); }
+
+  /* 7. Hold to Confirm */
+  .hold-btn {
+    position: relative;
+    overflow: hidden;
+    padding: 10px 18px;
+    border-radius: 999px;
+    background: #1a1a1f;
+    border: 1px solid rgba(255,255,255,0.14);
+    color: #e4e4e7;
+    font-size: 12.5px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    user-select: none;
+    touch-action: none;
+    transition: border-color 0.2s, transform 0.15s;
+  }
+  .hold-btn:active { transform: scale(0.97); }
+  .hold-fill {
+    position: absolute;
+    inset: 0;
+    background: rgba(239, 68, 68, 0.28);
+    transform: scaleX(0);
+    transform-origin: left center;
+    pointer-events: none;
+  }
+  .hold-btn.confirmed {
+    border-color: rgba(239, 68, 68, 0.65);
+    color: #fca5a5;
+  }
+  .hold-content {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  /* 8. Bookmark Button */
+  .bookmark-btn {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    background: #1a1a1f;
+    border: 1px solid rgba(255,255,255,0.13);
+    display: grid;
+    place-items: center;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .bookmark-btn:hover { border-color: rgba(255,255,255,0.28); }
+  .bookmark-btn svg {
+    width: 20px; height: 20px;
+    stroke: #d4d4d8;
+    fill: transparent;
+    transition: transform 0.34s cubic-bezier(0.34, 1.56, 0.64, 1), fill 0.2s, stroke 0.2s;
+  }
+  .bookmark-btn.saved {
+    background: rgba(255,255,255,0.1);
+    border-color: rgba(255,255,255,0.35);
+  }
+  .bookmark-btn.saved svg {
+    fill: #fff;
+    stroke: #fff;
+    transform: scaleY(1.22) scaleX(0.94);
+  }
+
+  /* 9. Paper Plane Send */
+  .send-btn {
+    position: relative;
+    overflow: hidden;
+    height: 40px;
+    min-width: 112px;
+    padding: 0 20px;
+    border-radius: 999px;
+    background: #fff;
+    color: #09090b;
+    font-size: 13px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background 0.25s, color 0.25s, transform 0.15s;
+  }
+  .send-btn:active { transform: scale(0.95); }
+  .send-btn svg {
+    width: 15px; height: 15px;
+    transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.35s;
+  }
+  .send-btn.sending svg {
+    transform: translate(36px, -28px) rotate(18deg) scale(0.75);
+    opacity: 0;
+  }
+  .send-btn.sent {
+    background: #22c55e;
+    color: #052e16;
+  }
+
+  /* 10. Copy Button */
+  .copy-btn {
+    height: 38px;
+    padding: 0 16px;
+    border-radius: 10px;
+    background: #1b1b20;
+    border: 1px solid rgba(255,255,255,0.14);
+    color: #f4f4f5;
+    font-size: 12.5px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+  }
+  .copy-btn:hover { border-color: rgba(255,255,255,0.28); background: #222228; }
+  .copy-btn.copied {
+    background: rgba(34, 197, 94, 0.14);
+    border-color: rgba(34, 197, 94, 0.5);
+    color: #86efac;
+  }
+
+  /* 11. Stretch Toggle */
+  .stretch-toggle {
+    position: relative;
+    width: 68px;
+    height: 36px;
+    border-radius: 999px;
+    background: #27272a;
+    border: 1px solid rgba(255,255,255,0.1);
+    padding: 4px;
+    transition: background 0.28s ease;
+  }
+  .stretch-toggle.on { background: #fff; }
+  .stretch-thumb {
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    background: #fff;
+    transition: transform 0.34s cubic-bezier(0.34, 1.4, 0.64, 1), width 0.18s ease, background 0.25s;
+  }
+  .stretch-toggle.on .stretch-thumb {
+    background: #09090b;
+    transform: translateX(32px);
+  }
+  .stretch-toggle.stretching .stretch-thumb {
+    width: 40px;
+  }
+  .stretch-toggle.on.stretching .stretch-thumb {
+    transform: translateX(18px);
+  }
+
+  /* 12. Ink Switch */
+  .ink-switch {
+    position: relative;
+    width: 68px;
+    height: 36px;
+    border-radius: 999px;
+    background: #1f1f24;
+    border: 1px solid rgba(255,255,255,0.14);
+    overflow: hidden;
+    padding: 4px;
+  }
+  .ink-flood {
+    position: absolute;
+    left: 17px;
+    top: 17px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #fff;
+    transform: translate(-50%, -50%) scale(0);
+    transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .ink-switch.on .ink-flood {
+    transform: translate(-50%, -50%) scale(14);
+  }
+  .ink-thumb {
+    position: relative;
+    z-index: 2;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.36s cubic-bezier(0.34, 1.45, 0.64, 1), background 0.25s;
+  }
+  .ink-switch.on .ink-thumb {
+    transform: translateX(32px);
+    background: #09090b;
+  }
+
+  /* 13. Rocker Switch */
+  .rocker-shell {
+    width: 78px;
+    height: 40px;
+    padding: 4px;
+    border-radius: 10px;
+    background: #0b0b0d;
+    border: 1px solid rgba(255,255,255,0.12);
+    perspective: 260px;
+  }
+  .rocker-plate {
+    width: 100%;
+    height: 100%;
+    border-radius: 6px;
+    background: linear-gradient(90deg, #2b2b31 0%, #1c1c21 50%, #34343c 100%);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #a1a1aa;
+    transform: rotateY(-16deg);
+    box-shadow: -4px 0 10px rgba(0,0,0,0.6), inset 1px 0 0 rgba(255,255,255,0.12);
+    transition: transform 0.24s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.24s;
+  }
+  .rocker-shell.on .rocker-plate {
+    transform: rotateY(16deg);
+    box-shadow: 4px 0 10px rgba(0,0,0,0.6), inset -1px 0 0 rgba(255,255,255,0.2);
+  }
+  .rocker-shell.on .rocker-i { color: #fff; text-shadow: 0 0 8px rgba(255,255,255,0.65); }
+  .rocker-shell:not(.on) .rocker-o { color: #fff; }
+
+  /* 14. Blank Toggle */
+  .blank-toggle {
+    width: 64px;
+    height: 34px;
+    border-radius: 8px;
+    background: #1c1c21;
+    border: 1px solid rgba(255,255,255,0.14);
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .blank-toggle.on {
+    background: #f4f4f5;
+    border-color: #f4f4f5;
+  }
+  .blank-knob {
+    width: 24px;
+    height: 24px;
+    border-radius: 5px;
+    background: #f4f4f5;
+    transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s;
+  }
+  .blank-toggle.on .blank-knob {
+    transform: translateX(30px);
+    background: #09090b;
+  }
+
+  /* 15. Ball Toggle */
+  .ball-toggle {
+    width: 72px;
+    height: 30px;
+    border-radius: 999px;
+    background: #18181c;
+    border: 1px solid rgba(255,255,255,0.12);
+    position: relative;
+    box-shadow: inset 0 2px 6px rgba(0,0,0,0.75);
+  }
+  .ball-sphere {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #ffffff, #a1a1aa);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+    transition: transform 0.42s cubic-bezier(0.34, 1.4, 0.64, 1);
+  }
+  .ball-toggle.on .ball-sphere {
+    transform: translateX(42px) rotate(360deg);
+  }
+
+  /* 16. Alignment Switch */
+  .align-switch {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(3, 40px);
+    padding: 4px;
+    border-radius: 11px;
+    background: #1a1a1f;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .align-indicator {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    width: 40px;
+    height: 32px;
+    border-radius: 7px;
+    background: #fff;
+    transition: transform 0.28s cubic-bezier(0.34, 1.35, 0.64, 1);
+    pointer-events: none;
+  }
+  .align-opt {
+    position: relative;
+    z-index: 1;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    color: #a1a1aa;
+    transition: color 0.2s;
+  }
+  .align-opt.active { color: #09090b; }
+
+  /* 17. Gooey Tab Bar */
+  .gooey-bar {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px;
+    border-radius: 999px;
+    background: #18181c;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .gooey-blobs {
+    position: absolute;
+    inset: 0;
+    filter: url(#gooey-filter);
+    pointer-events: none;
+  }
+  .gooey-pill {
+    position: absolute;
+    top: 6px;
+    left: 8px;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.42s cubic-bezier(0.34, 1.38, 0.64, 1);
+  }
+  .gooey-trail {
+    position: absolute;
+    top: 8px;
+    left: 10px;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.56s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .gooey-tab {
+    position: relative;
+    z-index: 2;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    color: #a1a1aa;
+    transition: color 0.24s;
+  }
+  .gooey-tab.active { color: #09090b; }
+
+  /* 18-26. Click Effects ("Try it" buttons) */
+  .try-btn {
+    position: relative;
+    padding: 10px 22px;
+    border-radius: 10px;
+    background: #1d1d22;
+    border: 1px solid rgba(255,255,255,0.16);
+    color: #f4f4f5;
+    font-size: 13px;
+    font-weight: 550;
+    transition: background 0.16s, border-color 0.16s;
+  }
+  .try-btn:hover {
+    background: #26262d;
+    border-color: rgba(255,255,255,0.3);
+  }
+  .fx-bounce { animation: fxBounce 0.65s cubic-bezier(0.28, 0.84, 0.42, 1); }
+  @keyframes fxBounce {
+    0%   { transform: translateY(0) scale(1); }
+    20%  { transform: translateY(-20px) scale(1.06); }
+    45%  { transform: translateY(0) scale(1.08, 0.9); }
+    65%  { transform: translateY(-10px) scale(1.02); }
+    82%  { transform: translateY(0) scale(1.03, 0.96); }
+    100% { transform: translateY(0) scale(1); }
+  }
+  .fx-pop { animation: fxPop 0.42s cubic-bezier(0.34, 1.56, 0.64, 1); }
+  @keyframes fxPop {
+    0% { transform: scale(1); }
+    35% { transform: scale(0.84); }
+    70% { transform: scale(1.18); }
+    100% { transform: scale(1); }
+  }
+  .fx-jelly { animation: fxJelly 0.72s ease; }
+  @keyframes fxJelly {
+    0%   { transform: scale(1, 1); }
+    25%  { transform: scale(1.24, 0.76); }
+    45%  { transform: scale(0.82, 1.18); }
+    65%  { transform: scale(1.12, 0.88); }
+    82%  { transform: scale(0.95, 1.05); }
+    100% { transform: scale(1, 1); }
+  }
+  .fx-swing {
+    transform-origin: top center;
+    animation: fxSwing 0.72s ease;
+  }
+  @keyframes fxSwing {
+    0%   { transform: rotate(0deg); }
+    20%  { transform: rotate(16deg); }
+    40%  { transform: rotate(-12deg); }
+    60%  { transform: rotate(7deg); }
+    80%  { transform: rotate(-4deg); }
+    100% { transform: rotate(0deg); }
+  }
+  .fx-squeeze { animation: fxSqueeze 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }
+  @keyframes fxSqueeze {
+    0%   { transform: scale(1, 1); }
+    35%  { transform: scale(0.74, 1.22); }
+    70%  { transform: scale(1.1, 0.92); }
+    100% { transform: scale(1, 1); }
+  }
+  .fx-shake { animation: fxShake 0.48s ease; }
+  @keyframes fxShake {
+    0%, 100% { transform: translateX(0); }
+    18% { transform: translateX(-9px); }
+    36% { transform: translateX(8px); }
+    54% { transform: translateX(-6px); }
+    72% { transform: translateX(4px); }
+    88% { transform: translateX(-2px); }
+  }
+  .fx-tada { animation: fxTada 0.72s ease; }
+  @keyframes fxTada {
+    0%   { transform: scale(1) rotate(0); }
+    15%  { transform: scale(0.9) rotate(-4deg); }
+    30%, 50%, 70% { transform: scale(1.14) rotate(5deg); }
+    40%, 60%, 80% { transform: scale(1.14) rotate(-5deg); }
+    100% { transform: scale(1) rotate(0); }
+  }
+  .fx-flicker { animation: fxFlicker 0.55s linear; }
+  @keyframes fxFlicker {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 rgba(255,255,255,0); }
+    15% { opacity: 0.25; }
+    30% { opacity: 1; box-shadow: 0 0 18px rgba(255,255,255,0.45); }
+    45% { opacity: 0.2; }
+    65% { opacity: 1; box-shadow: 0 0 14px rgba(255,255,255,0.35); }
+    80% { opacity: 0.55; }
+  }
+  .fx-jerk { animation: fxJerk 0.46s cubic-bezier(0.22, 1, 0.36, 1); }
+  @keyframes fxJerk {
+    0% { transform: translate(0, 0) rotate(0); }
+    22% { transform: translate(-10px, -6px) rotate(-7deg); }
+    55% { transform: translate(6px, 2px) rotate(3deg); }
+    100% { transform: translate(0, 0) rotate(0); }
+  }
+  .pop-float {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    font-size: 13px;
+    pointer-events: none;
+    animation: popFloat 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  @keyframes popFloat {
+    0% { transform: translate(-50%, -50%) scale(0.4); opacity: 1; }
+    100% { transform: translate(calc(-50% + var(--px)), calc(-50% + var(--py))) scale(1.15); opacity: 0; }
+  }
+
+  /* 27. Swipe to Confirm */
+  .swipe-track {
+    position: relative;
+    width: 176px;
+    height: 44px;
+    border-radius: 999px;
+    background: #1a1a1f;
+    border: 1px solid rgba(255,255,255,0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    touch-action: none;
+  }
+  .swipe-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .swipe-fill {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 44px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 999px;
+    pointer-events: none;
+  }
+  .swipe-thumb {
+    position: absolute;
+    left: 4px;
+    top: 4px;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: #fff;
+    color: #09090b;
+    display: grid;
+    place-items: center;
+    cursor: grab;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.45);
+    z-index: 2;
+  }
+  .swipe-thumb:active { cursor: grabbing; }
+  .swipe-track.confirmed {
+    background: rgba(34, 197, 94, 0.16);
+    border-color: rgba(34, 197, 94, 0.45);
+  }
+  .swipe-track.confirmed .swipe-label { color: #86efac; }
+
+  /* 28. Elastic Slider */
+  .elastic-slider {
+    position: relative;
+    width: 170px;
+    padding-top: 28px;
+    touch-action: none;
+  }
+  .elastic-badge {
+    position: absolute;
+    top: 0;
+    left: 63%;
+    transform: translateX(-50%);
+    min-width: 34px;
+    height: 22px;
+    padding: 0 7px;
+    border-radius: 999px;
+    background: #fff;
+    color: #09090b;
+    font-size: 11px;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+    transition: transform 0.14s ease;
+    pointer-events: none;
+  }
+  .elastic-rail {
+    position: relative;
+    height: 8px;
+    border-radius: 999px;
+    background: #27272a;
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform 0.22s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .elastic-progress {
+    height: 100%;
+    width: 63%;
+    background: #fff;
+    border-radius: 999px;
+    pointer-events: none;
+  }
+
+  /* 29. Plan Picker */
+  .plan-picker {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    width: 100%;
+    max-width: 196px;
+  }
+  .plan-card {
+    padding: 10px 10px 9px;
+    border-radius: 10px;
+    background: #18181c;
+    border: 1px solid rgba(255,255,255,0.1);
+    text-align: left;
+    transition: border-color 0.2s, background 0.2s, transform 0.16s;
+  }
+  .plan-card:hover { border-color: rgba(255,255,255,0.22); }
+  .plan-card.active {
+    background: #222228;
+    border-color: #fff;
+    transform: translateY(-2px);
+  }
+  .plan-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #e4e4e7;
+  }
+  .plan-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    border: 1.5px solid #71717a;
+    transition: all 0.2s;
+  }
+  .plan-card.active .plan-dot {
+    border-color: #fff;
+    background: #fff;
+    box-shadow: 0 0 0 2px #222228 inset;
+  }
+  .plan-price {
+    margin-top: 5px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+  }
+  .plan-price span {
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--text-muted);
+  }
+
+  /* 30. Pebble Rating */
+  .pebble-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .pebble-dot {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #27272a;
+    border: 1px solid rgba(255,255,255,0.1);
+    transition: transform 0.24s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s, border-color 0.2s;
+  }
+  .pebble-dot:hover { transform: scale(1.26) translateY(-3px); }
+  .pebble-dot.filled {
+    background: #fff;
+    border-color: #fff;
+    transform: scale(1.1);
+  }
+  .pebble-dot.wave { transform: scale(1.22) translateY(-3px); }
+
+
+  /* ==================== DATA VIZ COMPONENTS ==================== */
+  /* 31. Live Telemetry Pill */
+  .live-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 38px;
+    padding: 0 15px;
+    border-radius: 999px;
+    background: rgba(34, 197, 94, 0.12);
+    border: 1px solid rgba(34, 197, 94, 0.42);
+    color: #86efac;
+    font-size: 12.5px;
+    font-weight: 600;
+    transition: all 0.22s ease;
+  }
+  .live-pill.paused {
+    background: #1b1b20;
+    border-color: rgba(255,255,255,0.14);
+    color: #a1a1aa;
+  }
+  .live-dot {
+    position: relative;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #22c55e;
+  }
+  .live-dot::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 1.5px solid #22c55e;
+    animation: livePulse 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
+  .live-pill.paused .live-dot {
+    background: #71717a;
+  }
+  .live-pill.paused .live-dot::after {
+    animation: none;
+    opacity: 0;
+  }
+  @keyframes livePulse {
+    0% { transform: scale(0.7); opacity: 0.9; }
+    100% { transform: scale(2.1); opacity: 0; }
+  }
+  .live-rate {
+    font-variant-numeric: tabular-nums;
+    font-size: 11px;
+    opacity: 0.8;
+    padding-left: 6px;
+    border-left: 1px solid rgba(255,255,255,0.15);
+  }
+
+  /* 32. Timeframe Switcher */
+  .tf-switch {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(5, 34px);
+    padding: 3px;
+    border-radius: 10px;
+    background: #18181c;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .tf-pill {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 34px;
+    height: 28px;
+    border-radius: 7px;
+    background: #fff;
+    transition: transform 0.24s cubic-bezier(0.34, 1.38, 0.64, 1);
+    pointer-events: none;
+  }
+  .tf-btn {
+    position: relative;
+    z-index: 1;
+    height: 28px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #a1a1aa;
+    transition: color 0.18s;
+  }
+  .tf-btn.active { color: #09090b; }
+
+  /* 33. Export CSV */
+  .export-btn {
+    position: relative;
+    overflow: hidden;
+    height: 40px;
+    min-width: 132px;
+    padding: 0 16px;
+    border-radius: 10px;
+    background: #1a1a1f;
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #f4f4f5;
+    font-size: 12.5px;
+    font-weight: 550;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: border-color 0.2s, background 0.2s, color 0.2s;
+  }
+  .export-btn:hover { border-color: rgba(255,255,255,0.3); }
+  .export-bar {
+    position: absolute;
+    left: 0; bottom: 0;
+    height: 3px;
+    width: 0%;
+    background: #38bdf8;
+    transition: width 0.08s linear;
+  }
+  .export-btn.done {
+    background: rgba(56, 189, 248, 0.14);
+    border-color: rgba(56, 189, 248, 0.55);
+    color: #7dd3fc;
+  }
+
+  /* 34. Chart Type Morph */
+  .chart-morph-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    height: 44px;
+    padding: 0 16px 0 12px;
+    border-radius: 12px;
+    background: #1a1a1f;
+    border: 1px solid rgba(255,255,255,0.14);
+    color: #f4f4f5;
+    font-size: 12.5px;
+    font-weight: 550;
+    transition: border-color 0.2s, transform 0.15s;
+  }
+  .chart-morph-btn:hover { border-color: rgba(255,255,255,0.28); }
+  .chart-morph-btn:active { transform: scale(0.95); }
+  .chart-icon-box {
+    width: 26px; height: 26px;
+    border-radius: 7px;
+    background: rgba(255,255,255,0.08);
+    display: grid;
+    place-items: center;
+    transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .chart-morph-btn.spin .chart-icon-box { transform: scale(0.75) rotate(-18deg); }
+
+  /* 35. Metric Compare Toggle */
+  .compare-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    height: 40px;
+    padding: 0 14px;
+    border-radius: 999px;
+    background: #1a1a1f;
+    border: 1px solid rgba(255,255,255,0.14);
+    font-size: 12.5px;
+    font-weight: 600;
+    transition: all 0.24s ease;
+  }
+  .compare-btn.active {
+    background: rgba(34, 197, 94, 0.12);
+    border-color: rgba(34, 197, 94, 0.45);
+  }
+  .compare-badge {
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    background: rgba(255,255,255,0.08);
+    color: #a1a1aa;
+    transition: all 0.24s ease;
+  }
+  .compare-btn.active .compare-badge {
+    background: #22c55e;
+    color: #052e16;
+  }
+
+  /* ==================== TRAVEL PLANNING COMPONENTS ==================== */
+  /* 36. Route Swap Button */
+  .route-swap {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: #18181c;
+    border: 1px solid rgba(255,255,255,0.13);
+  }
+  .airport-code {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    min-width: 34px;
+    text-align: center;
+    transition: transform 0.24s ease, opacity 0.2s ease;
+  }
+  .airport-code.flip {
+    transform: translateY(-4px);
+    opacity: 0.35;
+  }
+  .swap-circle {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #fff;
+    color: #09090b;
+    display: grid;
+    place-items: center;
+    transition: transform 0.38s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .swap-circle:active { transform: scale(0.9); }
+
+  /* 37. Traveler Counter */
+  .stepper-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 5px 7px;
+    border-radius: 999px;
+    background: #18181c;
+    border: 1px solid rgba(255,255,255,0.12);
+  }
+  .step-op {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #27272a;
+    color: #f4f4f5;
+    font-size: 15px;
+    font-weight: 600;
+    display: grid;
+    place-items: center;
+    transition: background 0.16s, transform 0.14s;
+  }
+  .step-op:hover { background: #3f3f46; }
+  .step-op:active { transform: scale(0.86); }
+  .step-op:disabled { opacity: 0.35; cursor: not-allowed; }
+  .step-val {
+    min-width: 64px;
+    text-align: center;
+    font-size: 12.5px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .step-val.bump { transform: scale(1.18); }
+
+  /* 38. Itinerary Save Stamp */
+  .stamp-btn {
+    position: relative;
+    height: 40px;
+    min-width: 130px;
+    padding: 0 18px;
+    border-radius: 10px;
+    background: #1b1b20;
+    border: 1.5px dashed rgba(255,255,255,0.24);
+    color: #f4f4f5;
+    font-size: 12.5px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    transition: all 0.24s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .stamp-btn:hover { border-color: rgba(255,255,255,0.42); }
+  .stamp-btn.stamped {
+    background: #fff;
+    color: #09090b;
+    border-style: solid;
+    border-color: #fff;
+    transform: rotate(-2.5deg) scale(1.03);
+    box-shadow: 0 6px 20px rgba(255,255,255,0.16);
+  }
+
+  /* 39. Map / List View Pill */
+  .view-pill {
+    position: relative;
+    display: grid;
+    grid-template-columns: 74px 74px;
+    padding: 4px;
+    border-radius: 999px;
+    background: #18181c;
+    border: 1px solid rgba(255,255,255,0.12);
+  }
+  .view-pill-bg {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    width: 74px;
+    height: 30px;
+    border-radius: 999px;
+    background: #fff;
+    transition: transform 0.28s cubic-bezier(0.34, 1.38, 0.64, 1);
+    pointer-events: none;
+  }
+  .view-pill-opt {
+    position: relative;
+    z-index: 1;
+    height: 30px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #a1a1aa;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    transition: color 0.2s;
+  }
+  .view-pill-opt.active { color: #09090b; }
+
+  /* 40. Price Alert Bell */
+  .alert-bell-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 16px;
+    border-radius: 999px;
+    background: #1a1a1f;
+    border: 1px solid rgba(255,255,255,0.14);
+    color: #e4e4e7;
+    font-size: 12.5px;
+    font-weight: 550;
+    transition: all 0.22s ease;
+  }
+  .alert-bell-btn:hover { border-color: rgba(255,255,255,0.28); }
+  .alert-bell-btn.active {
+    background: rgba(250, 204, 21, 0.14);
+    border-color: rgba(250, 204, 21, 0.55);
+    color: #fde047;
+  }
+  .alert-bell-btn svg.ringing {
+    transform-origin: top center;
+    animation: bellRing 0.55s ease;
+  }
+  @keyframes bellRing {
+    0%, 100% { transform: rotate(0); }
+    20% { transform: rotate(18deg); }
+    40% { transform: rotate(-16deg); }
+    60% { transform: rotate(12deg); }
+    80% { transform: rotate(-8deg); }
+  }
+
+
+  /* ==================== HOVER & GLOW (18) ==================== */
+  .beam-btn {
+    position: relative;
+    padding: 2px;
+    border-radius: 999px;
+    overflow: hidden;
+    display: inline-flex;
+  }
+  .beam-btn::before {
+    content: "";
+    position: absolute;
+    inset: -120%;
+    background: conic-gradient(from 0deg, transparent 0 260deg, #38bdf8 300deg, #a855f7 330deg, #ffffff 360deg);
+    animation: spinBeam 2.8s linear infinite;
+  }
+  .beam-btn-inner {
+    position: relative;
+    z-index: 1;
+    padding: 9px 20px;
+    border-radius: 999px;
+    background: #121216;
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 550;
+    transition: background 0.2s;
+  }
+  .beam-btn:hover .beam-btn-inner { background: #1a1a22; }
+  @keyframes spinBeam { to { transform: rotate(360deg); } }
+
+  .spot-btn {
+    position: relative;
+    overflow: hidden;
+    padding: 10px 22px;
+    border-radius: 12px;
+    background: #17171c;
+    border: 1px solid rgba(255,255,255,0.14);
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 550;
+  }
+  .spot-glow {
+    position: absolute;
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,0.28) 0%, transparent 70%);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .spot-btn:hover .spot-glow { opacity: 1; }
+
+  .liquid-glass-btn {
+    position: relative;
+    overflow: hidden;
+    padding: 10px 22px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.06) 100%);
+    border: 1px solid rgba(255,255,255,0.26);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.45), 0 8px 24px rgba(0,0,0,0.4);
+    backdrop-filter: blur(12px);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 550;
+    transition: transform 0.22s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.22s;
+  }
+  .liquid-glass-btn::after {
+    content: "";
+    position: absolute;
+    top: -50%; left: -70%;
+    width: 45%; height: 200%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.45), transparent);
+    transform: rotate(24deg);
+    transition: left 0.55s ease;
+  }
+  .liquid-glass-btn:hover::after { left: 130%; }
+  .liquid-glass-btn:hover { transform: translateY(-2px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), 0 12px 28px rgba(0,0,0,0.5); }
+  .liquid-glass-btn:active { transform: scale(0.95); }
+
+  .shimmer-btn {
+    position: relative;
+    overflow: hidden;
+    padding: 10px 22px;
+    border-radius: 10px;
+    background: #18181d;
+    border: 1px solid rgba(255,255,255,0.16);
+    color: #f4f4f5;
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  .shimmer-btn::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(110deg, transparent 25%, rgba(255,255,255,0.22) 50%, transparent 75%);
+    background-size: 220% 100%;
+    animation: shimmerSlide 2.6s ease-in-out infinite;
+  }
+  @keyframes shimmerSlide {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  .aurora-btn {
+    position: relative;
+    padding: 10px 22px;
+    border-radius: 999px;
+    background: #121216;
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 600;
+    border: 1px solid rgba(255,255,255,0.18);
+    transition: transform 0.2s, box-shadow 0.3s;
+  }
+  .aurora-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: -8px 0 22px rgba(56,189,248,0.4), 8px 0 22px rgba(168,85,247,0.45), 0 0 20px rgba(244,63,94,0.25);
+  }
+  .aurora-btn:active { transform: scale(0.95); }
+
+  .curtain-btn {
+    position: relative;
+    overflow: hidden;
+    padding: 10px 22px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.22);
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 600;
+    z-index: 1;
+    transition: color 0.3s ease;
+  }
+  .curtain-btn::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: #fff;
+    z-index: -1;
+    transition: transform 0.32s cubic-bezier(0.22,1,0.36,1);
+  }
+  .curtain-left::before { transform: scaleX(0); transform-origin: left; }
+  .curtain-left:hover::before { transform: scaleX(1); }
+  .curtain-up::before { transform: scaleY(0); transform-origin: bottom; }
+  .curtain-up:hover::before { transform: scaleY(1); }
+  .curtain-center::before { transform: scaleX(0); transform-origin: center; }
+  .curtain-center:hover::before { transform: scaleX(1); }
+  .curtain-btn:hover { color: #09090b; }
+
+  .morph-rad-btn {
+    padding: 10px 22px;
+    border-radius: 999px;
+    background: #fff;
+    color: #09090b;
+    font-size: 12.5px;
+    font-weight: 650;
+    transition: border-radius 0.32s cubic-bezier(0.34,1.56,0.64,1), transform 0.2s, letter-spacing 0.25s;
+  }
+  .morph-rad-btn:hover {
+    border-radius: 8px;
+    letter-spacing: 0.04em;
+    transform: scale(1.04);
+  }
+  .morph-rad-btn:active { transform: scale(0.94); }
+
+  .kinetic-btn {
+    position: relative;
+    overflow: hidden;
+    height: 38px;
+    padding: 0 22px;
+    border-radius: 999px;
+    background: #1b1b21;
+    border: 1px solid rgba(255,255,255,0.16);
+    font-size: 12.5px;
+    font-weight: 600;
+    display: inline-block;
+  }
+  .kinetic-track {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transition: transform 0.34s cubic-bezier(0.22,1,0.36,1);
+  }
+  .kinetic-track span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 38px;
+    line-height: 38px;
+    flex-shrink: 0;
+  }
+  .kinetic-btn:hover .kinetic-track { transform: translateY(-38px); }
+
+  .arrow-expand-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    padding: 10px 20px;
+    border-radius: 999px;
+    background: #fff;
+    color: #09090b;
+    font-size: 12.5px;
+    font-weight: 650;
+    transition: gap 0.26s ease, padding 0.26s ease;
+  }
+  .arrow-expand-btn .arr {
+    width: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: width 0.26s ease, opacity 0.22s ease, transform 0.26s ease;
+    transform: translateX(-6px);
+  }
+  .arrow-expand-btn:hover { gap: 8px; padding: 10px 18px 10px 22px; }
+  .arrow-expand-btn:hover .arr { width: 14px; opacity: 1; transform: translateX(0); }
+
+  .bracket-btn {
+    position: relative;
+    padding: 10px 22px;
+    color: #f4f4f5;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    background: rgba(255,255,255,0.03);
+    transition: background 0.2s;
+  }
+  .bracket-btn span.bk {
+    position: absolute;
+    width: 9px; height: 9px;
+    border-color: #fff;
+    border-style: solid;
+    transition: all 0.24s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .bracket-btn .tl { top: -3px; left: -3px; border-width: 2px 0 0 2px; }
+  .bracket-btn .tr { top: -3px; right: -3px; border-width: 2px 2px 0 0; }
+  .bracket-btn .bl { bottom: -3px; left: -3px; border-width: 0 0 2px 2px; }
+  .bracket-btn .br { bottom: -3px; right: -3px; border-width: 0 2px 2px 0; }
+  .bracket-btn:hover .tl { top: 2px; left: 2px; }
+  .bracket-btn:hover .tr { top: 2px; right: 2px; }
+  .bracket-btn:hover .bl { bottom: 2px; left: 2px; }
+  .bracket-btn:hover .br { bottom: 2px; right: 2px; }
+  .bracket-btn:hover { background: rgba(255,255,255,0.08); }
+
+  .offset-btn {
+    padding: 10px 22px;
+    border-radius: 8px;
+    background: #fff;
+    color: #09090b;
+    font-size: 12.5px;
+    font-weight: 700;
+    border: 1.5px solid #fff;
+    box-shadow: 5px 5px 0 #3f3f46;
+    transition: transform 0.14s ease, box-shadow 0.14s ease;
+  }
+  .offset-btn:hover { transform: translate(-1px, -1px); box-shadow: 6px 6px 0 #52525b; }
+  .offset-btn:active { transform: translate(4px, 4px); box-shadow: 0 0 0 #3f3f46; }
+
+  .neon-btn {
+    padding: 10px 22px;
+    border-radius: 10px;
+    background: rgba(56,189,248,0.08);
+    border: 1.5px solid #38bdf8;
+    color: #7dd3fc;
+    font-size: 12.5px;
+    font-weight: 600;
+    box-shadow: 0 0 12px rgba(56,189,248,0.22), inset 0 0 8px rgba(56,189,248,0.12);
+    transition: all 0.22s ease;
+  }
+  .neon-btn:hover {
+    background: #38bdf8;
+    color: #082f49;
+    box-shadow: 0 0 26px rgba(56,189,248,0.65);
+  }
+
+  .holo-btn {
+    padding: 10px 22px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #27272a 0%, #3f3f46 30%, #a5f3fc 50%, #f0abfc 70%, #27272a 100%);
+    background-size: 240% 240%;
+    color: #fff;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.65);
+    font-size: 12.5px;
+    font-weight: 650;
+    border: 1px solid rgba(255,255,255,0.25);
+    transition: background-position 0.25s ease, transform 0.18s;
+  }
+  .holo-btn:active { transform: scale(0.95); }
+
+  .ripple-btn {
+    position: relative;
+    overflow: hidden;
+    padding: 10px 22px;
+    border-radius: 12px;
+    background: #1c1c22;
+    border: 1px solid rgba(255,255,255,0.16);
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  .ripple-wave {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.38);
+    transform: scale(0);
+    animation: rippleOut 0.6s ease-out forwards;
+    pointer-events: none;
+  }
+  @keyframes rippleOut { to { transform: scale(4); opacity: 0; } }
+
+  .pixel-btn {
+    padding: 10px 20px;
+    background: #18181c;
+    color: #f4f4f5;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    font-weight: 700;
+    border: 2px solid #fff;
+    box-shadow: 4px 4px 0 #fff;
+    transition: transform 0.1s steps(2), box-shadow 0.1s steps(2), background 0.15s;
+  }
+  .pixel-btn:hover { background: #27272a; }
+  .pixel-btn:active { transform: translate(4px, 4px); box-shadow: 0 0 0 #fff; }
+
+  .halo-wrap {
+    position: relative;
+    width: 100%;
+    height: 96px;
+    display: grid;
+    place-items: center;
+  }
+  .halo-ring {
+    position: absolute;
+    width: 118px;
+    height: 46px;
+    border-radius: 999px;
+    border: 1.5px solid rgba(255,255,255,0.35);
+    pointer-events: none;
+    transition: transform 0.26s cubic-bezier(0.22,1,0.36,1), border-color 0.2s;
+  }
+  .halo-core {
+    position: relative;
+    z-index: 1;
+    padding: 9px 20px;
+    border-radius: 999px;
+    background: #1c1c22;
+    border: 1px solid rgba(255,255,255,0.18);
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+
+  /* ==================== 3D & TACTILE (14) ==================== */
+  .mech-key {
+    padding: 10px 18px;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #2b2b32 0%, #1d1d22 100%);
+    border: 1px solid rgba(255,255,255,0.18);
+    box-shadow: 0 6px 0 #0b0b0e, 0 8px 16px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.18);
+    color: #f4f4f5;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 13px;
+    font-weight: 700;
+    transition: transform 0.08s ease, box-shadow 0.08s ease;
+  }
+  .mech-key:active, .mech-key.down {
+    transform: translateY(5px);
+    box-shadow: 0 1px 0 #0b0b0e, 0 2px 6px rgba(0,0,0,0.4);
+  }
+
+  .iso-btn {
+    padding: 10px 22px;
+    border-radius: 10px;
+    background: #fff;
+    color: #09090b;
+    font-size: 12.5px;
+    font-weight: 700;
+    transform: rotateX(28deg) rotateZ(-10deg);
+    box-shadow: -5px 7px 0 #71717a, -8px 12px 20px rgba(0,0,0,0.55);
+    transition: transform 0.14s ease, box-shadow 0.14s ease;
+  }
+  .iso-btn:active, .iso-btn.down {
+    transform: rotateX(28deg) rotateZ(-10deg) translate(-4px, 5px);
+    box-shadow: -1px 2px 0 #71717a;
+  }
+
+  .cube-flip-wrap { perspective: 500px; }
+  .cube-flip-btn {
+    display: block;
+    width: 126px;
+    height: 40px;
+    padding: 0;
+  }
+  .cube-inner {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    transition: transform 0.48s cubic-bezier(0.34,1.38,0.64,1);
+  }
+  .cube-flip-btn.flipped .cube-inner { transform: rotateX(90deg); }
+  .cube-face {
+    position: absolute;
+    inset: 0;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    font-size: 12.5px;
+    font-weight: 600;
+    backface-visibility: hidden;
+  }
+  .cube-front {
+    background: #1d1d23;
+    border: 1px solid rgba(255,255,255,0.16);
+    color: #fff;
+    transform: translateZ(20px);
+  }
+  .cube-bottom {
+    background: #22c55e;
+    color: #052e16;
+    transform: rotateX(-90deg) translateZ(20px);
+  }
+
+  .tilt3d-btn {
+    padding: 11px 22px;
+    border-radius: 12px;
+    background: linear-gradient(145deg, #27272e, #15151a);
+    border: 1px solid rgba(255,255,255,0.16);
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 600;
+    box-shadow: 0 10px 24px rgba(0,0,0,0.45);
+    transition: transform 0.12s ease;
+    will-change: transform;
+  }
+
+  .neuro-btn {
+    padding: 11px 22px;
+    border-radius: 12px;
+    background: #141418;
+    color: #d4d4d8;
+    font-size: 12.5px;
+    font-weight: 600;
+    box-shadow: 6px 6px 14px #070709, -5px -5px 12px #202026;
+    transition: box-shadow 0.16s ease, color 0.16s;
+  }
+  .neuro-btn:active, .neuro-btn.pressed {
+    color: #fff;
+    box-shadow: inset 5px 5px 10px #070709, inset -4px -4px 10px #202026;
+  }
+
+  .arcade-btn {
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #fb7185, #e11d48 65%, #9f1239);
+    border: 3px solid #27272a;
+    box-shadow: 0 6px 0 #881337, 0 10px 22px rgba(225,29,72,0.42);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    transition: transform 0.09s ease, box-shadow 0.09s ease;
+  }
+  .arcade-btn:active, .arcade-btn.down {
+    transform: translateY(5px) scale(0.97);
+    box-shadow: 0 1px 0 #881337, 0 3px 10px rgba(225,29,72,0.3);
+  }
+
+  .dial-knob {
+    position: relative;
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, #27272a, #18181c, #3f3f46, #18181c, #27272a);
+    border: 2px solid rgba(255,255,255,0.16);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.6), inset 0 1px 2px rgba(255,255,255,0.2);
+    transition: transform 0.22s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .dial-notch {
+    position: absolute;
+    top: 6px; left: 50%;
+    width: 3px; height: 12px;
+    margin-left: -1.5px;
+    border-radius: 99px;
+    background: #fff;
+  }
+
+  .flap-btn {
+    display: inline-flex;
+    gap: 4px;
+    padding: 6px 8px;
+    border-radius: 10px;
+    background: #0d0d10;
+    border: 1px solid rgba(255,255,255,0.14);
+    perspective: 240px;
+  }
+  .flap-char {
+    width: 24px; height: 30px;
+    border-radius: 5px;
+    background: linear-gradient(180deg, #27272c 0%, #1c1c21 49%, #111114 50%, #222228 100%);
+    display: grid;
+    place-items: center;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    transition: transform 0.22s ease;
+  }
+  .flap-char.flipping { transform: rotateX(75deg); }
+
+  .lever-box {
+    width: 44px;
+    height: 66px;
+    border-radius: 12px;
+    background: #16161a;
+    border: 1px solid rgba(255,255,255,0.14);
+    padding: 6px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    box-shadow: inset 0 4px 10px rgba(0,0,0,0.7);
+  }
+  .lever-arm {
+    width: 24px;
+    height: 26px;
+    border-radius: 7px;
+    background: linear-gradient(180deg, #e4e4e7, #a1a1aa);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.6);
+    transition: transform 0.24s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .lever-box.on .lever-arm { transform: translateY(-26px); background: linear-gradient(180deg, #ffffff, #d4d4d8); }
+
+  .metal-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 18px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #3f3f46 0%, #27272a 50%, #1f1f23 100%);
+    border: 1px solid rgba(255,255,255,0.22);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.35), 0 4px 12px rgba(0,0,0,0.45);
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  .metal-led {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #52525b;
+    transition: all 0.2s;
+  }
+  .metal-btn.on .metal-led { background: #22c55e; box-shadow: 0 0 10px #22c55e; }
+
+  .glass-key {
+    padding: 11px 18px;
+    border-radius: 11px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.28);
+    box-shadow: 0 5px 0 rgba(255,255,255,0.14), inset 0 1px 1px rgba(255,255,255,0.4);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    transition: transform 0.09s ease, box-shadow 0.09s ease;
+  }
+  .glass-key:active { transform: translateY(4px); box-shadow: 0 1px 0 rgba(255,255,255,0.14); }
+
+  .float-lift-btn {
+    padding: 10px 22px;
+    border-radius: 12px;
+    background: #1b1b22;
+    border: 1px solid rgba(255,255,255,0.14);
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 600;
+    transition: transform 0.28s cubic-bezier(0.22,1,0.36,1), box-shadow 0.28s ease;
+  }
+  .float-lift-btn:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 16px 32px rgba(255,255,255,0.14);
+  }
+  .float-lift-btn:active { transform: translateY(-1px); }
+
+  .rubber-btn {
+    padding: 10px 22px;
+    border-radius: 999px;
+    background: #27272a;
+    border: 1px solid rgba(255,255,255,0.16);
+    color: #f4f4f5;
+    font-size: 12.5px;
+    font-weight: 600;
+    transition: transform 0.34s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .rubber-btn:active, .rubber-btn.down { transform: scaleX(1.18) scaleY(0.82); }
+
+  .tally-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 16px;
+    border-radius: 12px;
+    background: #1a1a20;
+    border: 1px solid rgba(255,255,255,0.14);
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  .tally-num {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: #09090b;
+    color: #fff;
+    font-size: 13px;
+  }
+
+  /* ==================== STATEFUL & MORPHING (12) ==================== */
+  .state-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 40px;
+    min-width: 124px;
+    padding: 0 18px;
+    border-radius: 999px;
+    background: #fff;
+    color: #09090b;
+    font-size: 12.5px;
+    font-weight: 650;
+    transition: all 0.28s cubic-bezier(0.34,1.35,0.64,1);
+  }
+  .state-pill.dark {
+    background: #1b1b21;
+    color: #f4f4f5;
+    border: 1px solid rgba(255,255,255,0.16);
+  }
+  .state-pill.success { background: #22c55e; color: #052e16; border-color: #22c55e; }
+  .state-pill.danger { background: rgba(239,68,68,0.16); color: #fca5a5; border: 1px solid rgba(239,68,68,0.5); }
+  .spin-ring {
+    width: 14px; height: 14px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spinBeam 0.65s linear infinite;
+  }
+
+  .split-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .mini-pill {
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    background: #1d1d23;
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #e4e4e7;
+    transition: transform 0.16s, background 0.16s;
+  }
+  .mini-pill:active { transform: scale(0.94); }
+  .mini-pill.confirm-red { background: #ef4444; border-color: #ef4444; color: #fff; }
+
+  .exp-search {
+    display: inline-flex;
+    align-items: center;
+    height: 38px;
+    width: 38px;
+    padding: 0;
+    border-radius: 999px;
+    background: #1b1b21;
+    border: 1px solid rgba(255,255,255,0.16);
+    overflow: hidden;
+    transition: width 0.34s cubic-bezier(0.22,1,0.36,1), border-color 0.2s;
+  }
+  .exp-search.open { width: 178px; border-color: rgba(255,255,255,0.38); padding-right: 12px; }
+  .exp-search-trigger {
+    width: 36px; height: 36px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    color: #e4e4e7;
+  }
+  .exp-search input {
+    width: 100%;
+    min-width: 0;
+    background: none;
+    border: none;
+    outline: none;
+    color: #fff;
+    font-size: 12px;
+  }
+
+  .mic-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 16px;
+    border-radius: 999px;
+    background: #1b1b21;
+    border: 1px solid rgba(255,255,255,0.16);
+    font-size: 12.5px;
+    font-weight: 600;
+    transition: all 0.22s;
+  }
+  .mic-btn.rec {
+    background: rgba(244,63,94,0.16);
+    border-color: rgba(244,63,94,0.55);
+    color: #fda4af;
+  }
+  .wave-bars { display: inline-flex; align-items: center; gap: 2px; height: 14px; }
+  .wave-bars i {
+    display: block; width: 2.5px; height: 5px; border-radius: 99px; background: currentColor;
+  }
+  .mic-btn.rec .wave-bars i { animation: waveBounce 0.6s ease-in-out infinite alternate; }
+  .mic-btn.rec .wave-bars i:nth-child(2) { animation-delay: 0.15s; }
+  .mic-btn.rec .wave-bars i:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes waveBounce { from { height: 4px; } to { height: 14px; } }
+
+  .theme-orb {
+    width: 46px; height: 46px;
+    border-radius: 50%;
+    background: #1e1b4b;
+    border: 1px solid rgba(165,180,252,0.4);
+    color: #e0e7ff;
+    display: grid;
+    place-items: center;
+    font-size: 18px;
+    transition: all 0.36s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .theme-orb.day {
+    background: #fef08a;
+    border-color: #fde047;
+    color: #854d0e;
+    transform: rotate(180deg);
+  }
+
+  .confetti-dot {
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 6px; height: 4px;
+    border-radius: 2px;
+    pointer-events: none;
+    animation: confFly 0.72s cubic-bezier(0.16,1,0.3,1) forwards;
+  }
+  @keyframes confFly {
+    0% { transform: translate(-50%,-50%) rotate(0deg) scale(1); opacity: 1; }
+    100% { transform: translate(calc(-50% + var(--cx)), calc(-50% + var(--cy))) rotate(var(--cr)) scale(0.4); opacity: 0; }
+  }
+
+  /* Extra Data Viz & Travel compact styles */
+  .ticket-btn {
+    position: relative;
+    height: 40px;
+    padding: 0 20px;
+    border-radius: 8px;
+    background: #1b1b22;
+    border: 1px solid rgba(255,255,255,0.18);
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.25s ease;
+  }
+  .ticket-btn::before, .ticket-btn::after {
+    content: "";
+    position: absolute;
+    top: 50%; width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--surface);
+    transform: translateY(-50%);
+  }
+  .ticket-btn::before { left: -6px; }
+  .ticket-btn::after { right: -6px; }
+  .ticket-btn.checked { background: #22c55e; color: #052e16; border-color: #22c55e; }
+
+  .day-tabs {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(4, 44px);
+    padding: 3px;
+    border-radius: 10px;
+    background: #18181c;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .day-tabs-bg {
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 44px; height: 28px;
+    border-radius: 7px;
+    background: #fff;
+    transition: transform 0.25s cubic-bezier(0.34,1.38,0.64,1);
+    pointer-events: none;
+  }
+  .day-tab-opt {
+    position: relative;
+    z-index: 1;
+    height: 28px;
+    font-size: 11px;
+    font-weight: 650;
+    color: #a1a1aa;
+  }
+  .day-tab-opt.active { color: #09090b; }
+
+  /* Modal */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(8px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal-box {
+    width: 100%;
+    max-width: 520px;
+    background: #121216;
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.7);
+    animation: modalIn 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  @keyframes modalIn {
+    from { opacity: 0; transform: scale(0.95) translateY(8px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  .modal-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .modal-title { font-size: 16px; font-weight: 600; }
+  .modal-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .modal-close {
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    color: var(--text-muted);
+    background: rgba(255,255,255,0.04);
+  }
+  .modal-close:hover { color: #fff; background: rgba(255,255,255,0.1); }
+  .modal-preview {
+    min-height: 170px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at center, rgba(255,255,255,0.035) 0%, transparent 70%);
+    border-bottom: 1px solid var(--border);
+    padding: 24px;
+    position: relative;
+  }
+  .modal-preview-inner {
+    transform: scale(1.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+  }
+  .modal-body {
+    padding: 16px 20px 20px;
+  }
+  .modal-desc {
+    font-size: 13px;
+    line-height: 1.55;
+    color: #d4d4d8;
+    margin-bottom: 14px;
+  }
+  .code-block {
+    background: #09090b;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11.5px;
+    color: #a1a1aa;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 150px;
+    overflow-y: auto;
+    margin-bottom: 12px;
+  }
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .toast {
+    position: fixed;
+    bottom: 22px;
+    left: 50%;
+    transform: translateX(-50%) translateY(16px);
+    background: #fff;
+    color: #09090b;
+    padding: 8px 16px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 600;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+    z-index: 200;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+</style>
+</head>
+<body>
+
+<!-- Hidden SVG Gooey Filter -->
+<svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+  <defs>
+    <filter id="gooey-filter">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur" />
+      <feColorMatrix in="blur" mode="matrix" values="
+        1 0 0 0 0
+        0 1 0 0 0
+        0 0 1 0 0
+        0 0 0 22 -9" result="goo" />
+      <feComposite in="SourceGraphic" in2="goo" operator="atop" />
+    </filter>
+  </defs>
+</svg>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="brand-mark">UI</div>
+      <span>UI Moments</span>
+    </div>
+    <div class="topbar-actions">
+      <button id="soundToggle" class="pill-btn active" type="button" title="切換互動音效">
+        <span id="soundIcon">🔊</span>
+        <span id="soundLabel">Sound On</span>
+      </button>
+      <button id="favFilterBtn" class="pill-btn" type="button">
+        <span>★</span>
+        <span>Favorites (<span id="favCount">0</span>)</span>
+      </button>
+      <button id="colsToggle" class="pill-btn" type="button">Columns: Auto</button>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+  <section class="hero">
+    <div>
+      <h1>Interactive Button Gallery</h1>
+      <p>收錄 104 款絲滑互動按鈕與微互動元件 — 涵蓋影片原版 30 款、現代高質感 Hover/3D/狀態變形特效，以及數據顯示與旅行規劃專屬元件。</p>
+    </div>
+  </section>
+
+  <section class="toolbar" aria-label="Filters">
+    <div class="tabs" id="categoryTabs"></div>
+    <div class="toolbar-right">
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="7"></circle>
+          <path d="M20 20l-3.5-3.5"></path>
+        </svg>
+        <input id="searchInput" class="search-input" type="text" placeholder="Search buttons..." aria-label="Search buttons" />
+      </div>
+    </div>
+  </section>
+
+  <section class="gallery-grid" id="galleryGrid"></section>
+</main>
+
+<!-- Details Modal -->
+<div class="modal-backdrop" id="detailsModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="modalTitle">Component</div>
+        <div class="modal-sub" id="modalSub">Category</div>
+      </div>
+      <button class="modal-close" id="modalCloseBtn" type="button" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-preview">
+      <div class="modal-preview-inner" id="modalPreview"></div>
+    </div>
+    <div class="modal-body">
+      <p class="modal-desc" id="modalDesc"></p>
+      <pre class="code-block" id="modalCode"></pre>
+      <div class="modal-actions">
+        <button class="pill-btn active" id="modalCopyBtn" type="button">Copy Snippet</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  // Rich Web Audio Tactile Foley Engine
+  let audioCtx = null;
+  let soundEnabled = true;
+
+  function getCtx() {
+    if (!soundEnabled) return null;
+    try {
+      if (!audioCtx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return null;
+        audioCtx = new AC();
+      }
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      return audioCtx;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function playClick(freq = 520, dur = 0.045, type = 'sine') {
+    const ctx = getCtx();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, now);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(40, freq * 0.62), now + dur);
+    gain.gain.setValueAtTime(0.075, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + dur);
+  }
+
+  // Helper for short filtered noise transient (gives realistic physical click/tap texture)
+  function playNoiseBurst(ctx, dur, freq, q, vol, offset = 0) {
+    const len = Math.max(64, Math.floor(ctx.sampleRate * dur));
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 1.8);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.setValueAtTime(freq, ctx.currentTime + offset);
+    f.Q.value = q;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(vol, ctx.currentTime + offset);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + dur);
+    src.connect(f); f.connect(g); g.connect(ctx.destination);
+    src.start(ctx.currentTime + offset);
+  }
+
+  const SFX = {
+    // 1. Mechanical keycap thock + crisp top-out transient
+    key(high = true) {
+      const ctx = getCtx(); if (!ctx) return;
+      const now = ctx.currentTime;
+      playNoiseBurst(ctx, 0.012, high ? 2800 : 2100, 1.8, 0.09);
+      const osc = ctx.createOscillator();
+      const lp = ctx.createBiquadFilter();
+      const g = ctx.createGain();
+      osc.type = 'triangle';
+      lp.type = 'lowpass'; lp.frequency.value = 950;
+      osc.frequency.setValueAtTime(high ? 290 : 225, now);
+      osc.frequency.exponentialRampToValueAtTime(78, now + 0.042);
+      g.gain.setValueAtTime(0.16, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.048);
+      osc.connect(lp); lp.connect(g); g.connect(ctx.destination);
+      osc.start(now); osc.stop(now + 0.052);
+    },
+    // 2. Tactile hardware rocker/lever toggle (warm filtered dual-click, zero harsh buzz)
+    rocker(on) {
+      const ctx = getCtx(); if (!ctx) return;
+      const now = ctx.currentTime;
+      playNoiseBurst(ctx, 0.01, on ? 2400 : 1800, 2.2, 0.075, 0);
+      playNoiseBurst(ctx, 0.012, on ? 3200 : 1400, 2.0, 0.085, 0.02);
+      [0, 0.02].forEach((off, idx) => {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = 'triangle';
+        const f0 = on ? (idx === 0 ? 210 : 460) : (idx === 0 ? 380 : 190);
+        osc.frequency.setValueAtTime(f0, now + off);
+        osc.frequency.exponentialRampToValueAtTime(110, now + off + 0.022);
+        g.gain.setValueAtTime(0.09, now + off);
+        g.gain.exponentialRampToValueAtTime(0.001, now + off + 0.026);
+        osc.connect(g); g.connect(ctx.destination);
+        osc.start(now + off); osc.stop(now + off + 0.028);
+      });
+    },
+    // 3. Clean airy bubble pop (Like, Pop, Bookmark, Follow)
+    pop(pitch = 1) {
+      const ctx = getCtx(); if (!ctx) return;
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(320 * pitch, now);
+      osc.frequency.exponentialRampToValueAtTime(880 * pitch, now + 0.058);
+      g.gain.setValueAtTime(0.095, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.072);
+      osc.connect(g); g.connect(ctx.destination);
+      osc.start(now); osc.stop(now + 0.076);
+    },
+    // 4. Silky air whoosh (Paper Plane, Drawer, Route Swap, Curtain Fill)
+    whoosh(up = true) {
+      const ctx = getCtx(); if (!ctx) return;
+      const now = ctx.currentTime;
+      const len = Math.floor(ctx.sampleRate * 0.17);
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) {
+        const env = Math.sin((i / len) * Math.PI);
+        d[i] = (Math.random() * 2 - 1) * env;
+      }
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass'; f.Q.value = 1.9;
+      f.frequency.setValueAtTime(up ? 420 : 1650, now);
+      f.frequency.exponentialRampToValueAtTime(up ? 1950 : 390, now + 0.16);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.11, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+      src.connect(f); f.connect(g); g.connect(ctx.destination);
+      src.start(now);
+    },
+    // 5. Warm harmonic two-note success chime (E5 -> B5)
+    chime() {
+      const ctx = getCtx(); if (!ctx) return;
+      const now = ctx.currentTime;
+      [659.25, 987.77].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + i * 0.07);
+        g.gain.setValueAtTime(0.075, now + i * 0.07);
+        g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.07 + 0.24);
+        osc.connect(g); g.connect(ctx.destination);
+        osc.start(now + i * 0.07); osc.stop(now + i * 0.07 + 0.26);
+      });
+    },
+    // 6. Sparkling celebration fanfare (Confetti, Tada)
+    fanfare() {
+      const ctx = getCtx(); if (!ctx) return;
+      const now = ctx.currentTime;
+      [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + i * 0.052);
+        g.gain.setValueAtTime(0.07, now + i * 0.052);
+        g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.052 + 0.22);
+        osc.connect(g); g.connect(ctx.destination);
+        osc.start(now + i * 0.052); osc.stop(now + i * 0.052 + 0.24);
+      });
+    },
+    // 7. Precision Swiss-watch / Digital Crown detent tick
+    tick(pitch = 1) {
+      const ctx = getCtx(); if (!ctx) return;
+      const now = ctx.currentTime;
+      playNoiseBurst(ctx, 0.007, 3600 * pitch, 3.0, 0.055);
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1250 * pitch, now);
+      osc.frequency.exponentialRampToValueAtTime(420 * pitch, now + 0.014);
+      g.gain.setValueAtTime(0.055, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.016);
+      osc.connect(g); g.connect(ctx.destination);
+      osc.start(now); osc.stop(now + 0.018);
+    },
+    // 8. Soft rubbery spring boing (Bounce, Jelly, Squeeze, Stretch Toggle)
+    boing(pitch = 1) {
+      const ctx = getCtx(); if (!ctx) return;
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(220 * pitch, now);
+      osc.frequency.exponentialRampToValueAtTime(510 * pitch, now + 0.065);
+      osc.frequency.exponentialRampToValueAtTime(320 * pitch, now + 0.145);
+      g.gain.setValueAtTime(0.085, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+      osc.connect(g); g.connect(ctx.destination);
+      osc.start(now); osc.stop(now + 0.17);
+    },
+    // 9. Pure water-drop liquid bloop (Ink Switch, Gooey Tabs, Ripple, Liquid Glass)
+    liquid(up = true) {
+      const ctx = getCtx(); if (!ctx) return;
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(up ? 290 : 580, now);
+      osc.frequency.exponentialRampToValueAtTime(up ? 720 : 280, now + 0.095);
+      g.gain.setValueAtTime(0.09, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
+      osc.connect(g); g.connect(ctx.destination);
+      osc.start(now); osc.stop(now + 0.12);
+    },
+    // 10. Warm muted double-thud warning (Shake, Hold Delete, Jerk — no harsh sawtooth!)
+    warn() {
+      const ctx = getCtx(); if (!ctx) return;
+      const now = ctx.currentTime;
+      [0, 0.075].forEach((off, idx) => {
+        const osc = ctx.createOscillator();
+        const lp = ctx.createBiquadFilter();
+        const g = ctx.createGain();
+        osc.type = 'triangle';
+        lp.type = 'lowpass'; lp.frequency.value = 380;
+        osc.frequency.setValueAtTime(idx === 0 ? 185 : 145, now + off);
+        osc.frequency.exponentialRampToValueAtTime(95, now + off + 0.065);
+        g.gain.setValueAtTime(0.11, now + off);
+        g.gain.exponentialRampToValueAtTime(0.001, now + off + 0.07);
+        osc.connect(lp); lp.connect(g); g.connect(ctx.destination);
+        osc.start(now + off); osc.stop(now + off + 0.075);
+      });
+    },
+    // 11. Subtle electric neon spark (Flicker, Neon Outline)
+    zap() {
+      const ctx = getCtx(); if (!ctx) return;
+      const now = ctx.currentTime;
+      [0, 0.045, 0.09].forEach((t, i) => {
+        playNoiseBurst(ctx, 0.018, 4200 - i * 600, 4.0, 0.055, t);
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(980 - i * 180, now + t);
+        g.gain.setValueAtTime(0.035, now + t);
+        g.gain.exponentialRampToValueAtTime(0.001, now + t + 0.024);
+        osc.connect(g); g.connect(ctx.destination);
+        osc.start(now + t); osc.stop(now + t + 0.026);
+      });
+    },
+    // 12. Authentic retro 8-bit beep (Pixel Prompt Key only)
+    pixel() {
+      const ctx = getCtx(); if (!ctx) return;
+      const now = ctx.currentTime;
+      [440, 660].forEach((f, i) => {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(f, now + i * 0.035);
+        g.gain.setValueAtTime(0.038, now + i * 0.035);
+        g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.035 + 0.032);
+        osc.connect(g); g.connect(ctx.destination);
+        osc.start(now + i * 0.035); osc.stop(now + i * 0.035 + 0.035);
+      });
+    },
+    // 13. Crystalline sonar ping (Live Telemetry, HUD Lock, Voice Mic)
+    ping() {
+      const ctx = getCtx(); if (!ctx) return;
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1174.66, now);
+      g.gain.setValueAtTime(0.065, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.26);
+      osc.connect(g); g.connect(ctx.destination);
+      osc.start(now); osc.stop(now + 0.28);
+    },
+    // 14. Shimmering metallic bell (Price Alert Bell, Subscribe)
+    bell() {
+      const ctx = getCtx(); if (!ctx) return;
+      const now = ctx.currentTime;
+      [1396.9, 2093.0, 2793.8].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now);
+        g.gain.setValueAtTime(i === 0 ? 0.07 : 0.025 / i, now);
+        g.gain.exponentialRampToValueAtTime(0.001, now + 0.34 - i * 0.06);
+        osc.connect(g); g.connect(ctx.destination);
+        osc.start(now); osc.stop(now + 0.36);
+      });
+    },
+    // 15. Deep rubber-stamp / dome thump (Itinerary Stamp, Pin KPI, Arcade Dome, Iso Slab)
+    stamp() {
+      const ctx = getCtx(); if (!ctx) return;
+      const now = ctx.currentTime;
+      playNoiseBurst(ctx, 0.018, 900, 1.2, 0.09);
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(175, now);
+      osc.frequency.exponentialRampToValueAtTime(48, now + 0.085);
+      g.gain.setValueAtTime(0.18, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+      osc.connect(g); g.connect(ctx.destination);
+      osc.start(now); osc.stop(now + 0.1);
+    }
+  };
+
+  // Toast helper
+  let toastTimer = null;
+  function showToast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 1800);
+  }
+
+  // Copy text helper with execCommand fallback
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+    } else {
+      fallbackCopy(text);
+    }
+  }
+  function fallbackCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+
+  // Component definitions (30 items matching the video)
+  const COMPONENTS = [
+    // === BUTTONS (10) ===
+    {
+      id: 'squash-play',
+      title: 'Squash Play Key',
+      subtitle: 'Button',
+      category: 'Buttons',
+      desc: '按壓時產生鍵帽擠壓形變（scaleX 放大、scaleY 壓扁）與立體陰影回彈，並切換播放／暫停圖示。',
+      code: `.squash-key:active {\n  transform: translateY(6px) scaleX(1.12) scaleY(0.84);\n  box-shadow: 0 1px 0 #71717a;\n}`,
+      mount(container) {
+        let playing = false;
+        const btn = document.createElement('button');
+        btn.className = 'squash-key';
+        btn.type = 'button';
+        btn.setAttribute('aria-label', 'Play or Pause');
+        const render = () => {
+          btn.innerHTML = playing
+            ? '<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4.5" height="14" rx="1.5"/><rect x="13.5" y="5" width="4.5" height="14" rx="1.5"/></svg>'
+            : '<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg>';
+        };
+        render();
+        btn.addEventListener('click', () => {
+          playing = !playing;
+          btn.classList.add('squashed');
+          SFX.key(playing);
+          setTimeout(() => btn.classList.remove('squashed'), 140);
+          render();
+        });
+        container.appendChild(btn);
+      }
+    },
+    {
+      id: 'drawer-btn',
+      title: 'Drawer',
+      subtitle: 'Button · Open settings',
+      category: 'Buttons',
+      desc: '點擊「Open settings」按鈕後，由底部彈出半透明磨砂設定抽屜面板，可即時切換內部選項或關閉。',
+      code: `.mini-drawer-sheet {\n  transform: translateY(100%);\n  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);\n}\n.mini-drawer.open .mini-drawer-sheet { transform: translateY(0); }`,
+      mount(container) {
+        const btn = document.createElement('button');
+        btn.className = 'open-settings-btn';
+        btn.type = 'button';
+        btn.textContent = 'Open settings';
+
+        const drawer = document.createElement('div');
+        drawer.className = 'mini-drawer';
+        drawer.innerHTML = `
+          <div class="mini-drawer-sheet">
+            <div class="drawer-handle"></div>
+            <div class="drawer-row">
+              <span>Reduced motion</span>
+              <button type="button" class="drawer-close" data-act="toggle">Off</button>
+            </div>
+            <div class="drawer-row">
+              <span>Haptics</span>
+              <button type="button" class="drawer-close" data-act="close">Done</button>
+            </div>
+          </div>
+        `;
+        btn.addEventListener('click', () => {
+          drawer.classList.add('open');
+          SFX.whoosh(true);
+        });
+        drawer.addEventListener('click', (e) => {
+          const act = e.target.getAttribute('data-act');
+          if (act === 'toggle') {
+            e.target.textContent = e.target.textContent === 'Off' ? 'On' : 'Off';
+            playClick(640);
+          } else if (act === 'close' || e.target === drawer) {
+            drawer.classList.remove('open');
+            SFX.whoosh(false);
+          }
+        });
+        container.appendChild(btn);
+        container.appendChild(drawer);
+      }
+    },
+    {
+      id: 'like-burst',
+      title: 'Like Burst',
+      subtitle: 'Button',
+      category: 'Buttons',
+      desc: '點擊愛心時觸發 8 顆徑向擴散微粒子爆裂與彈性縮放，並同步更新按讚數字。',
+      code: `@keyframes burstFly {\n  0% { transform: translate(0,0) scale(1); opacity: 1; }\n  100% { transform: translate(var(--dx), var(--dy)) scale(0); opacity: 0; }\n}`,
+      mount(container) {
+        let liked = false;
+        let count = 128;
+        const btn = document.createElement('button');
+        btn.className = 'like-btn';
+        btn.type = 'button';
+        btn.innerHTML = `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+          </svg>
+          <span class="like-num">128</span>
+        `;
+        btn.addEventListener('click', () => {
+          liked = !liked;
+          count += liked ? 1 : -1;
+          btn.classList.toggle('liked', liked);
+          btn.querySelector('.like-num').textContent = String(count);
+          liked ? SFX.pop(1.15) : playClick(360, 0.04);
+          if (liked) {
+            const colors = ['#f43f5e', '#fb7185', '#ffffff', '#fda4af'];
+            for (let i = 0; i < 8; i++) {
+              const p = document.createElement('span');
+              p.className = 'burst-particle';
+              const angle = (Math.PI * 2 * i) / 8;
+              const dist = 24 + Math.random() * 14;
+              p.style.setProperty('--dx', `${Math.cos(angle) * dist}px`);
+              p.style.setProperty('--dy', `${Math.sin(angle) * dist}px`);
+              p.style.background = colors[i % colors.length];
+              btn.appendChild(p);
+              setTimeout(() => p.remove(), 580);
+            }
+          }
+        });
+        container.appendChild(btn);
+      }
+    },
+    {
+      id: 'download-ring',
+      title: 'Download Ring',
+      subtitle: 'Button',
+      category: 'Buttons',
+      desc: '點擊後膠囊按鈕收縮為圓形進度環，SVG 圓弧即時繪製下載進度，完成後展開成白色勾選狀態。',
+      code: `circle.style.strokeDashoffset = circumference * (1 - progress);`,
+      mount(container) {
+        let state = 'idle';
+        let rafId = null;
+        const btn = document.createElement('button');
+        btn.className = 'dl-btn';
+        btn.type = 'button';
+        const setIdle = () => {
+          state = 'idle';
+          btn.className = 'dl-btn';
+          btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg><span>Download</span>`;
+        };
+        setIdle();
+        btn.addEventListener('click', () => {
+          if (state === 'loading') return;
+          if (state === 'done') { setIdle(); playClick(460); return; }
+          state = 'loading';
+          playClick(560);
+          btn.className = 'dl-btn loading';
+          const r = 20;
+          const circ = 2 * Math.PI * r;
+          btn.innerHTML = `
+            <svg class="dl-ring-svg" viewBox="0 0 48 48">
+              <circle cx="24" cy="24" r="${r}" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="2.5"/>
+              <circle class="dl-arc" cx="24" cy="24" r="${r}" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="${circ}" stroke-dashoffset="${circ}"/>
+            </svg>
+            <span style="font-size:10px;font-weight:700" class="dl-pct">0%</span>
+          `;
+          const arc = btn.querySelector('.dl-arc');
+          const pct = btn.querySelector('.dl-pct');
+          const start = performance.now();
+          const dur = 1150;
+          const step = (now) => {
+            const p = Math.min(1, (now - start) / dur);
+            arc.style.strokeDashoffset = String(circ * (1 - p));
+            pct.textContent = `${Math.round(p * 100)}%`;
+            if (p < 1) {
+              rafId = requestAnimationFrame(step);
+            } else {
+              state = 'done';
+              btn.className = 'dl-btn done';
+              btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg><span>Saved</span>`;
+              SFX.chime();
+            }
+          };
+          rafId = requestAnimationFrame(step);
+        });
+        container.appendChild(btn);
+      }
+    },
+    {
+      id: 'cart-badge',
+      title: 'Cart Badge',
+      subtitle: 'Button',
+      category: 'Buttons',
+      desc: '點擊加入購物車時，按鈕輕微傾斜彈跳、角標數字放大並飄出「+1」動態回饋。',
+      code: `@keyframes cartBump {\n  35% { transform: scale(0.88) rotate(-6deg); }\n  70% { transform: scale(1.1) rotate(4deg); }\n}`,
+      mount(container) {
+        let count = 2;
+        const btn = document.createElement('button');
+        btn.className = 'cart-btn';
+        btn.type = 'button';
+        btn.setAttribute('aria-label', 'Add to cart');
+        btn.innerHTML = `
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+            <circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/>
+            <path d="M2 3h3l2.4 12.2a2 2 0 0 0 2 1.6h8.8a2 2 0 0 0 2-1.6L22 7H6"/>
+          </svg>
+          <span class="cart-badge-num">2</span>
+        `;
+        const badge = btn.querySelector('.cart-badge-num');
+        btn.addEventListener('click', () => {
+          count = count >= 99 ? 1 : count + 1;
+          badge.textContent = String(count);
+          btn.classList.remove('bump');
+          void btn.offsetWidth;
+          btn.classList.add('bump');
+          badge.classList.add('pop');
+          setTimeout(() => badge.classList.remove('pop'), 220);
+          const fly = document.createElement('span');
+          fly.className = 'cart-fly';
+          fly.textContent = '+1';
+          btn.appendChild(fly);
+          setTimeout(() => fly.remove(), 560);
+          SFX.pop(1.05);
+        });
+        container.appendChild(btn);
+      }
+    },
+    {
+      id: 'magnetic-btn',
+      title: 'Magnetic Button',
+      subtitle: 'Button · Pointer pull',
+      category: 'Buttons',
+      desc: '滑鼠靠近按鈕時計算相對偏移量，按鈕會像磁鐵般吸附並跟隨游標移動，離開後平滑彈回中心。',
+      code: `const dx = (e.clientX - cx) * 0.35;\nconst dy = (e.clientY - cy) * 0.35;\nbtn.style.transform = \`translate(\${dx}px, \${dy}px)\`;`,
+      mount(container) {
+        const wrap = document.createElement('div');
+        wrap.className = 'mag-wrap';
+        const btn = document.createElement('button');
+        btn.className = 'mag-btn';
+        btn.type = 'button';
+        btn.textContent = 'Hover me';
+        wrap.addEventListener('pointermove', (e) => {
+          const rect = wrap.getBoundingClientRect();
+          const dx = (e.clientX - (rect.left + rect.width / 2)) * 0.34;
+          const dy = (e.clientY - (rect.top + rect.height / 2)) * 0.34;
+          btn.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
+        });
+        wrap.addEventListener('pointerleave', () => {
+          btn.style.transform = 'translate(0px, 0px)';
+        });
+        btn.addEventListener('click', () => {
+          btn.textContent = 'Pulled!';
+          playClick(600);
+          setTimeout(() => { btn.textContent = 'Hover me'; }, 900);
+        });
+        wrap.appendChild(btn);
+        container.appendChild(wrap);
+      }
+    },
+    {
+      id: 'hold-confirm',
+      title: 'Hold to Confirm',
+      subtitle: 'Button · Long press',
+      category: 'Buttons',
+      desc: '防止誤觸的長按確認按鈕：按住約 0.9 秒填滿紅色進度條才會觸發刪除，放開則立即回退。',
+      code: `fill.style.transform = \`scaleX(\${progress})\`;`,
+      mount(container) {
+        let confirmed = false;
+        let rafId = null;
+        let startT = 0;
+        const dur = 900;
+        const btn = document.createElement('button');
+        btn.className = 'hold-btn';
+        btn.type = 'button';
+        btn.innerHTML = `
+          <span class="hold-fill"></span>
+          <span class="hold-content">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2m-9 4v8m4-8v8m4-8v8M5 6l1 14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-14"/></svg>
+            <span class="hold-label">Hold to delete</span>
+          </span>
+        `;
+        const fill = btn.querySelector('.hold-fill');
+        const label = btn.querySelector('.hold-label');
+
+        const cancelHold = () => {
+          cancelAnimationFrame(rafId);
+          if (!confirmed) {
+            fill.style.transition = 'transform 0.2s ease';
+            fill.style.transform = 'scaleX(0)';
+          }
+        };
+
+        btn.addEventListener('pointerdown', (e) => {
+          e.preventDefault();
+          if (confirmed) {
+            confirmed = false;
+            btn.classList.remove('confirmed');
+            label.textContent = 'Hold to delete';
+            fill.style.transition = 'transform 0.2s ease';
+            fill.style.transform = 'scaleX(0)';
+            playClick(420);
+            return;
+          }
+          fill.style.transition = 'none';
+          startT = performance.now();
+          let lastStep = -1;
+          const tick = (now) => {
+            const p = Math.min(1, (now - startT) / dur);
+            fill.style.transform = `scaleX(${p})`;
+            const step = Math.floor(p * 6);
+            if (step > lastStep && p < 1) { lastStep = step; SFX.tick(0.75 + step * 0.12); }
+            if (p < 1) {
+              rafId = requestAnimationFrame(tick);
+            } else {
+              confirmed = true;
+              btn.classList.add('confirmed');
+              label.textContent = 'Deleted · Tap to reset';
+              SFX.warn();
+            }
+          };
+          rafId = requestAnimationFrame(tick);
+        });
+        btn.addEventListener('pointerup', cancelHold);
+        btn.addEventListener('pointerleave', cancelHold);
+        btn.addEventListener('pointercancel', cancelHold);
+        container.appendChild(btn);
+      }
+    },
+    {
+      id: 'bookmark-btn',
+      title: 'Bookmark Button',
+      subtitle: 'Button',
+      category: 'Buttons',
+      desc: '點擊收藏書籤時，旗標向下彈性伸展並填滿純白高亮，展現俐落的微回饋手感。',
+      code: `.bookmark-btn.saved svg {\n  fill: #fff;\n  transform: scaleY(1.22) scaleX(0.94);\n}`,
+      mount(container) {
+        let saved = false;
+        const btn = document.createElement('button');
+        btn.className = 'bookmark-btn';
+        btn.type = 'button';
+        btn.setAttribute('aria-label', 'Bookmark');
+        btn.innerHTML = `<svg viewBox="0 0 24 24" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`;
+        btn.addEventListener('click', () => {
+          saved = !saved;
+          btn.classList.toggle('saved', saved);
+          saved ? SFX.pop(1.2) : SFX.tick(0.8);
+        });
+        container.appendChild(btn);
+      }
+    },
+    {
+      id: 'paper-plane',
+      title: 'Paper Plane Send',
+      subtitle: 'Button',
+      category: 'Buttons',
+      desc: '純白膠囊發送按鈕：點擊後紙飛機沿對角線飛出邊界，按鈕平滑轉綠顯示「Sent ✓」並自動復位。',
+      code: `.send-btn.sending svg {\n  transform: translate(36px, -28px) rotate(18deg) scale(0.75);\n  opacity: 0;\n}`,
+      mount(container) {
+        let busy = false;
+        const btn = document.createElement('button');
+        btn.className = 'send-btn';
+        btn.type = 'button';
+        const reset = () => {
+          busy = false;
+          btn.className = 'send-btn';
+          btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg><span>Send</span>`;
+        };
+        reset();
+        btn.addEventListener('click', () => {
+          if (busy) return;
+          busy = true;
+          btn.classList.add('sending');
+          SFX.whoosh(true);
+          setTimeout(() => {
+            btn.classList.remove('sending');
+            btn.classList.add('sent');
+            btn.innerHTML = `<span>Sent ✓</span>`;
+            SFX.chime();
+          }, 360);
+          setTimeout(reset, 1800);
+        });
+        container.appendChild(btn);
+      }
+    },
+    {
+      id: 'copy-btn',
+      title: 'Copy Button',
+      subtitle: 'Button',
+      category: 'Buttons',
+      desc: '點擊複製連結到剪貼簿，按鈕圖示與文字即時切換為綠色「Copied!」確認狀態。',
+      code: `copyText("https://uimoments.dev/demo");\nbtn.classList.add("copied");`,
+      mount(container) {
+        let timer = null;
+        const btn = document.createElement('button');
+        btn.className = 'copy-btn';
+        btn.type = 'button';
+        const setDefault = () => {
+          btn.classList.remove('copied');
+          btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg><span>Copy link</span>`;
+        };
+        setDefault();
+        btn.addEventListener('click', () => {
+          copyText('https://uimoments.example/interactive-buttons');
+          btn.classList.add('copied');
+          btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg><span>Copied!</span>`;
+          SFX.chime();
+          clearTimeout(timer);
+          timer = setTimeout(setDefault, 1500);
+        });
+        container.appendChild(btn);
+      }
+    },
+
+    // === SWITCHES (7) ===
+    {
+      id: 'stretch-toggle',
+      title: 'Stretch Toggle',
+      subtitle: 'Switch',
+      category: 'Switches',
+      desc: '影片開頭出現的彈性切換開關：滑塊在切換瞬間會橫向拉長成膠囊，抵達對側再彈性收縮成圓形。',
+      code: `.stretch-toggle.stretching .stretch-thumb { width: 40px; }\n.stretch-toggle.on .stretch-thumb { transform: translateX(32px); }`,
+      mount(container) {
+        let on = false;
+        let t1 = null, t2 = null;
+        const btn = document.createElement('button');
+        btn.className = 'stretch-toggle';
+        btn.type = 'button';
+        btn.setAttribute('aria-label', 'Stretch Toggle');
+        btn.innerHTML = '<div class="stretch-thumb"></div>';
+        btn.addEventListener('click', () => {
+          clearTimeout(t1); clearTimeout(t2);
+          btn.classList.add('stretching');
+          SFX.boing(on ? 0.88 : 1.12);
+          t1 = setTimeout(() => {
+            on = !on;
+            btn.classList.toggle('on', on);
+          }, 65);
+          t2 = setTimeout(() => btn.classList.remove('stretching'), 200);
+        });
+        container.appendChild(btn);
+      }
+    },
+    {
+      id: 'ink-switch',
+      title: 'Ink Switch',
+      subtitle: 'Switch',
+      category: 'Switches',
+      desc: '點擊開關時，純白墨水波紋由內部圓心迅速擴散填滿整個軌道，同時翻轉滑塊色彩。',
+      code: `.ink-switch.on .ink-flood {\n  transform: translate(-50%, -50%) scale(14);\n}`,
+      mount(container) {
+        let on = false;
+        const btn = document.createElement('button');
+        btn.className = 'ink-switch';
+        btn.type = 'button';
+        btn.setAttribute('aria-label', 'Ink Switch');
+        btn.innerHTML = '<span class="ink-flood"></span><div class="ink-thumb"></div>';
+        btn.addEventListener('click', () => {
+          on = !on;
+          btn.classList.toggle('on', on);
+          SFX.liquid(on);
+        });
+        container.appendChild(btn);
+      }
+    },
+    {
+      id: 'rocker-switch',
+      title: 'Rocker Switch',
+      subtitle: 'Switch',
+      category: 'Switches',
+      desc: '模擬實體翹板電源開關（O / I），運用 3D perspective 與 rotateY 呈現左右壓按與光影切換。',
+      code: `.rocker-plate { transform: rotateY(-16deg); }\n.rocker-shell.on .rocker-plate { transform: rotateY(16deg); }`,
+      mount(container) {
+        let on = false;
+        const btn = document.createElement('button');
+        btn.className = 'rocker-shell';
+        btn.type = 'button';
+        btn.setAttribute('aria-label', 'Rocker Switch');
+        btn.innerHTML = '<div class="rocker-plate"><span class="rocker-o">O</span><span class="rocker-i">I</span></div>';
+        btn.addEventListener('click', () => {
+          on = !on;
+          btn.classList.toggle('on', on);
+          SFX.rocker(on);
+        });
+        container.appendChild(btn);
+      }
+    },
+    {
+      id: 'blank-toggle',
+      title: 'Blank Toggle',
+      subtitle: 'Switch',
+      category: 'Switches',
+      desc: '極簡方角高對比開關，黑白反轉配色搭配回彈貝茲曲線，呈現乾脆俐落的切換節奏。',
+      code: `.blank-toggle.on .blank-knob {\n  transform: translateX(30px);\n  background: #09090b;\n}`,
+      mount(container) {
+        let on = false;
+        const btn = document.createElement('button');
+        btn.className = 'blank-toggle';
+        btn.type = 'button';
+        btn.setAttribute('aria-label', 'Blank Toggle');
+        btn.innerHTML = '<div class="blank-knob"></div>';
+        btn.addEventListener('click', () => {
+          on = !on;
+          btn.classList.toggle('on', on);
+          SFX.key(on);
+        });
+        container.appendChild(btn);
+      }
+    },
+    {
+      id: 'ball-toggle',
+      title: 'Ball Toggle',
+      subtitle: 'Switch',
+      category: 'Switches',
+      desc: '立體高光球體在凹槽軌道內滾動 360 度切換狀態，帶有自然的物理慣性回彈。',
+      code: `.ball-toggle.on .ball-sphere {\n  transform: translateX(42px) rotate(360deg);\n}`,
+      mount(container) {
+        let on = false;
+        const btn = document.createElement('button');
+        btn.className = 'ball-toggle';
+        btn.type = 'button';
+        btn.setAttribute('aria-label', 'Ball Toggle');
+        btn.innerHTML = '<span class="ball-sphere"></span>';
+        btn.addEventListener('click', () => {
+          on = !on;
+          btn.classList.toggle('on', on);
+          SFX.boing(on ? 1.05 : 0.85);
+        });
+        container.appendChild(btn);
+      }
+    },
+    {
+      id: 'alignment-switch',
+      title: 'Alignment Switch',
+      subtitle: 'Segmented control',
+      category: 'Switches',
+      desc: '三段式對齊切換器（靠左／置中／靠右），純白指示滑塊以彈性動畫平順滑移至所選項目。',
+      code: `indicator.style.transform = \`translateX(\${index * 40}px)\`;`,
+      mount(container) {
+        let idx = 0;
+        const wrap = document.createElement('div');
+        wrap.className = 'align-switch';
+        const ind = document.createElement('div');
+        ind.className = 'align-indicator';
+        wrap.appendChild(ind);
+
+        const icons = [
+          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h10M4 18h14"/></svg>',
+          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M7 12h10M5 18h14"/></svg>',
+          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M10 12h10M6 18h14"/></svg>'
+        ];
+        const btns = icons.map((svg, i) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'align-opt' + (i === 0 ? ' active' : '');
+          b.innerHTML = svg;
+          b.addEventListener('click', () => {
+            idx = i;
+            ind.style.transform = `translateX(${i * 40}px)`;
+            btns.forEach((x, j) => x.classList.toggle('active', j === idx));
+            SFX.tick(0.9 + i * 0.14);
+          });
+          wrap.appendChild(b);
+          return b;
+        });
+        container.appendChild(wrap);
+      }
+    },
+    {
+      id: 'gooey-tab',
+      title: 'Gooey Tab Bar',
+      subtitle: 'Tabs · Metaball',
+      category: 'Switches',
+      desc: '使用 SVG feGaussianBlur + feColorMatrix 黏液濾鏡，切換頁籤時主圓與尾隨圓產生液態融合拉絲效果。',
+      code: `filter: url(#gooey-filter);\npill.style.transform = \`translateX(\${i * 44}px)\`;`,
+      mount(container) {
+        let active = 0;
+        const bar = document.createElement('div');
+        bar.className = 'gooey-bar';
+        bar.innerHTML = `<div class="gooey-blobs"><div class="gooey-pill"></div><div class="gooey-trail"></div></div>`;
+        const pill = bar.querySelector('.gooey-pill');
+        const trail = bar.querySelector('.gooey-trail');
+
+        const icons = [
+          '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>',
+          '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
+          '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>'
+        ];
+        const tabs = icons.map((svg, i) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'gooey-tab' + (i === 0 ? ' active' : '');
+          b.innerHTML = svg;
+          b.addEventListener('click', () => {
+            active = i;
+            const x = i * 44;
+            pill.style.transform = `translateX(${x}px)`;
+            trail.style.transform = `translateX(${x}px)`;
+            tabs.forEach((t, j) => t.classList.toggle('active', j === active));
+            SFX.liquid(true);
+          });
+          bar.appendChild(b);
+          return b;
+        });
+        container.appendChild(bar);
+      }
+    },
+
+    // === CLICK EFFECTS (9 "Try it" buttons from the video) ===
+    ...[
+      {
+        id: 'fx-bounce',
+        title: 'Bounce',
+        subtitle: 'Click effect',
+        cls: 'fx-bounce',
+        desc: '影片 00:37 實際測試的彈跳點擊特效：按鈕垂直躍起後落地壓扁再二次彈起。',
+        code: `@keyframes fxBounce {\n  20% { transform: translateY(-20px) scale(1.06); }\n  45% { transform: translateY(0) scale(1.08, 0.9); }\n}`
+      },
+      {
+        id: 'fx-pop',
+        title: 'Pop',
+        subtitle: 'Click effect',
+        cls: 'fx-pop',
+        popIcons: true,
+        desc: '影片 00:41 實際測試的爆裂彈出特效：按鈕瞬間縮放彈跳並噴出迷你符號粒子。',
+        code: `@keyframes fxPop {\n  35% { transform: scale(0.84); }\n  70% { transform: scale(1.18); }\n}`
+      },
+      {
+        id: 'fx-jelly',
+        title: 'Jelly',
+        subtitle: 'Click effect',
+        cls: 'fx-jelly',
+        desc: '果凍般的水平與垂直交替壓縮回彈，模擬高彈性橡膠材質。',
+        code: `@keyframes fxJelly {\n  25% { transform: scale(1.24, 0.76); }\n  45% { transform: scale(0.82, 1.18); }\n}`
+      },
+      {
+        id: 'fx-swing',
+        title: 'Swing',
+        subtitle: 'Click effect',
+        cls: 'fx-swing',
+        desc: '以按鈕頂端中心為支點，像吊牌般左右擺盪並逐漸阻尼靜止。',
+        code: `transform-origin: top center;\n@keyframes fxSwing { 20% { transform: rotate(16deg); } 40% { transform: rotate(-12deg); } }`
+      },
+      {
+        id: 'fx-squeeze',
+        title: 'Squeeze',
+        subtitle: 'Click effect',
+        cls: 'fx-squeeze',
+        desc: '點擊瞬間強力向內擠壓拉高，再迅速回彈恢復原狀。',
+        code: `@keyframes fxSqueeze {\n  35% { transform: scale(0.74, 1.22); }\n  70% { transform: scale(1.1, 0.92); }\n}`
+      },
+      {
+        id: 'fx-shake',
+        title: 'Shake',
+        subtitle: 'Click effect',
+        cls: 'fx-shake',
+        desc: '經典水平快速搖晃，適合表單驗證失敗或操作拒絕回饋。',
+        code: `@keyframes fxShake {\n  18% { transform: translateX(-9px); }\n  36% { transform: translateX(8px); }\n}`
+      },
+      {
+        id: 'fx-tada',
+        title: 'Tada',
+        subtitle: 'Click effect',
+        cls: 'fx-tada',
+        desc: '先微幅收縮蓄力，接著放大並快速左右搖擺，帶有慶祝感。',
+        code: `@keyframes fxTada {\n  30%, 50%, 70% { transform: scale(1.14) rotate(5deg); }\n  40%, 60%, 80% { transform: scale(1.14) rotate(-5deg); }\n}`
+      },
+      {
+        id: 'fx-flicker',
+        title: 'Flicker',
+        subtitle: 'Click effect',
+        cls: 'fx-flicker',
+        desc: '霓虹燈般的微閃爍透明度與外發光脈衝效果。',
+        code: `@keyframes fxFlicker {\n  15%, 45% { opacity: 0.2; }\n  30%, 65% { opacity: 1; box-shadow: 0 0 18px rgba(255,255,255,0.45); }\n}`
+      },
+      {
+        id: 'fx-jerk',
+        title: 'Jerk',
+        subtitle: 'Click effect',
+        cls: 'fx-jerk',
+        desc: '突發性的斜向後座力猛拉效果，隨後彈性歸位。',
+        code: `@keyframes fxJerk {\n  22% { transform: translate(-10px, -6px) rotate(-7deg); }\n  55% { transform: translate(6px, 2px) rotate(3deg); }\n}`
+      }
+    ].map((fx) => ({
+      id: fx.id,
+      title: fx.title,
+      subtitle: fx.subtitle,
+      category: 'Click Effects',
+      desc: fx.desc,
+      code: fx.code,
+      mount(container) {
+        const btn = document.createElement('button');
+        btn.className = 'try-btn';
+        btn.type = 'button';
+        btn.textContent = 'Try it';
+        btn.addEventListener('click', () => {
+          btn.classList.remove(fx.cls);
+          void btn.offsetWidth;
+          btn.classList.add(fx.cls);
+          if (fx.id === 'fx-bounce' || fx.id === 'fx-jelly' || fx.id === 'fx-squeeze') SFX.boing(fx.id === 'fx-squeeze' ? 0.88 : 1.05);
+          else if (fx.id === 'fx-pop') SFX.pop(1.2);
+          else if (fx.id === 'fx-shake' || fx.id === 'fx-jerk') SFX.warn();
+          else if (fx.id === 'fx-tada') SFX.fanfare();
+          else if (fx.id === 'fx-flicker') SFX.zap();
+          else SFX.whoosh(true);
+          if (fx.popIcons) {
+            const syms = ['👍', '✦', '●', '★', '✦'];
+            syms.forEach((sym, i) => {
+              const s = document.createElement('span');
+              s.className = 'pop-float';
+              s.textContent = sym;
+              const angle = (-Math.PI / 2) + (i - 2) * 0.55;
+              const dist = 34 + Math.random() * 14;
+              s.style.setProperty('--px', `${Math.cos(angle) * dist}px`);
+              s.style.setProperty('--py', `${Math.sin(angle) * dist}px`);
+              btn.appendChild(s);
+              setTimeout(() => s.remove(), 660);
+            });
+          }
+        });
+        btn.addEventListener('animationend', () => btn.classList.remove(fx.cls));
+        container.appendChild(btn);
+      }
+    })),
+
+    // === CONTROLS (4) ===
+    {
+      id: 'swipe-confirm',
+      title: 'Swipe to Confirm',
+      subtitle: 'Slider · Drag',
+      category: 'Controls',
+      desc: '向右拖曳白色圓鈕超過 80% 即可鎖定確認，點擊已確認軌道可重置。',
+      code: `thumb.style.transform = \`translateX(\${x}px)\`;\nif (x > max * 0.8) lockConfirm();`,
+      mount(container) {
+        let confirmed = false;
+        let justConfirmedAt = 0;
+        let dragging = false;
+        let startX = 0;
+        let curX = 0;
+        const maxX = 134;
+
+        const track = document.createElement('div');
+        track.className = 'swipe-track';
+        track.innerHTML = `
+          <div class="swipe-fill"></div>
+          <span class="swipe-label">Swipe →</span>
+          <div class="swipe-thumb" role="slider" aria-label="Swipe to confirm" tabindex="0">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14m-6-6l6 6-6 6"/></svg>
+          </div>
+        `;
+        const thumb = track.querySelector('.swipe-thumb');
+        const fill = track.querySelector('.swipe-fill');
+        const label = track.querySelector('.swipe-label');
+
+        const setPos = (x, animate = false) => {
+          curX = Math.max(0, Math.min(maxX, x));
+          thumb.style.transition = animate ? 'transform 0.25s cubic-bezier(0.22, 1, 0.36, 1)' : 'none';
+          fill.style.transition = animate ? 'width 0.25s cubic-bezier(0.22, 1, 0.36, 1)' : 'none';
+          thumb.style.transform = `translateX(${curX}px)`;
+          fill.style.width = `${44 + curX}px`;
+        };
+
+        const reset = () => {
+          confirmed = false;
+          track.classList.remove('confirmed');
+          label.textContent = 'Swipe →';
+          thumb.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14m-6-6l6 6-6 6"/></svg>';
+          setPos(0, true);
+        };
+
+        thumb.addEventListener('pointerdown', (e) => {
+          if (confirmed) return;
+          dragging = true;
+          startX = e.clientX - curX;
+          thumb.setPointerCapture(e.pointerId);
+        });
+        thumb.addEventListener('pointermove', (e) => {
+          if (!dragging) return;
+          setPos(e.clientX - startX, false);
+        });
+        const endDrag = () => {
+          if (!dragging) return;
+          dragging = false;
+          if (curX >= maxX * 0.78) {
+            confirmed = true;
+            justConfirmedAt = performance.now();
+            setPos(maxX, true);
+            track.classList.add('confirmed');
+            label.textContent = 'Confirmed ✓';
+            thumb.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M5 13l4 4L19 7"/></svg>';
+            SFX.chime();
+          } else {
+            setPos(0, true);
+            SFX.tick(0.8);
+          }
+        };
+        thumb.addEventListener('pointerup', endDrag);
+        thumb.addEventListener('pointercancel', endDrag);
+        track.addEventListener('click', () => {
+          if (confirmed && performance.now() - justConfirmedAt > 350) { reset(); SFX.tick(0.85); }
+        });
+        container.appendChild(track);
+      }
+    },
+    {
+      id: 'elastic-slider',
+      title: 'Elastic Slider',
+      subtitle: 'Slider · Drag',
+      category: 'Controls',
+      desc: '影片 00:25 測試的彈性滑桿：拖曳時上方數值膠囊會隨移動速度產生慣性傾斜與微幅拉伸。',
+      code: `badge.style.transform = \`translateX(-50%) rotate(\${vel}deg) scale(1.1)\`;`,
+      mount(container) {
+        let val = 63;
+        let dragging = false;
+        let lastX = 0;
+
+        const wrap = document.createElement('div');
+        wrap.className = 'elastic-slider';
+        wrap.innerHTML = `
+          <div class="elastic-badge">63</div>
+          <div class="elastic-rail"><div class="elastic-progress"></div></div>
+        `;
+        const badge = wrap.querySelector('.elastic-badge');
+        const rail = wrap.querySelector('.elastic-rail');
+        const prog = wrap.querySelector('.elastic-progress');
+
+        const updateFromEvent = (e, tilt = 0) => {
+          const rect = rail.getBoundingClientRect();
+          const raw = (e.clientX - rect.left) / rect.width;
+          const ratio = Math.max(0, Math.min(1, raw));
+          val = Math.round(ratio * 100);
+          prog.style.width = `${val}%`;
+          badge.style.left = `${val}%`;
+          badge.textContent = String(val);
+          const clampedTilt = Math.max(-18, Math.min(18, tilt));
+          badge.style.transform = `translateX(-50%) rotate(${clampedTilt}deg) scale(${dragging ? 1.12 : 1})`;
+          // Elastic rubber-band stretch when pulling past left/right edge
+          if (raw < 0) {
+            const stretch = Math.min(0.14, Math.abs(raw) * 0.25);
+            rail.style.transform = `translateX(${-stretch * 36}px) scaleX(${1 + stretch}) scaleY(${1 - stretch * 0.8})`;
+          } else if (raw > 1) {
+            const stretch = Math.min(0.14, (raw - 1) * 0.25);
+            rail.style.transform = `translateX(${stretch * 36}px) scaleX(${1 + stretch}) scaleY(${1 - stretch * 0.8})`;
+          } else {
+            rail.style.transform = 'none';
+          }
+        };
+
+        rail.addEventListener('pointerdown', (e) => {
+          dragging = true;
+          lastX = e.clientX;
+          rail.setPointerCapture(e.pointerId);
+          updateFromEvent(e, 0);
+          playClick(520);
+        });
+        let lastTickVal = val;
+        rail.addEventListener('pointermove', (e) => {
+          if (!dragging) return;
+          const vel = (e.clientX - lastX) * 1.4;
+          lastX = e.clientX;
+          updateFromEvent(e, vel);
+          if (Math.abs(val - lastTickVal) >= 6) {
+            lastTickVal = val;
+            SFX.tick(0.75 + (val / 100) * 0.65);
+          }
+        });
+        const stop = () => {
+          if (!dragging) return;
+          dragging = false;
+          badge.style.transform = 'translateX(-50%) rotate(0deg) scale(1)';
+          rail.style.transform = 'none';
+        };
+        rail.addEventListener('pointerup', stop);
+        rail.addEventListener('pointercancel', stop);
+        container.appendChild(wrap);
+      }
+    },
+    {
+      id: 'plan-picker',
+      title: 'Plan Picker',
+      subtitle: 'Radio cards',
+      category: 'Controls',
+      desc: '影片 00:46 出現的方案選擇卡片（Basic $4/mo vs Pro $19/mo），選中時卡片微幅浮起並點亮純白邊框。',
+      code: `.plan-card.active {\n  border-color: #fff;\n  transform: translateY(-2px);\n}`,
+      mount(container) {
+        let selected = 'pro';
+        const wrap = document.createElement('div');
+        wrap.className = 'plan-picker';
+        const plans = [
+          { key: 'basic', name: 'Basic', price: '$4', unit: '/mo' },
+          { key: 'pro', name: 'Pro', price: '$19', unit: '/mo' }
+        ];
+        const cards = plans.map((p) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'plan-card' + (p.key === selected ? ' active' : '');
+          btn.innerHTML = `
+            <div class="plan-head"><span>${p.name}</span><span class="plan-dot"></span></div>
+            <div class="plan-price">${p.price}<span>${p.unit}</span></div>
+          `;
+          btn.addEventListener('click', () => {
+            selected = p.key;
+            cards.forEach((c, idx) => c.classList.toggle('active', plans[idx].key === selected));
+            playClick(p.key === 'pro' ? 660 : 500);
+          });
+          wrap.appendChild(btn);
+          return btn;
+        });
+        container.appendChild(wrap);
+      }
+    },
+    {
+      id: 'pebble-rating',
+      title: 'Pebble Rating',
+      subtitle: 'Rating',
+      category: 'Controls',
+      desc: '五顆圓潤鵝卵石評分按鈕，滑過時產生波浪式放大預覽，點擊鎖定評分並亮起純白光點。',
+      code: `.pebble-dot:hover { transform: scale(1.26) translateY(-3px); }`,
+      mount(container) {
+        let rating = 3;
+        const row = document.createElement('div');
+        row.className = 'pebble-row';
+        const dots = [];
+        const sync = (val, hovering = false) => {
+          dots.forEach((d, i) => {
+            d.classList.toggle('filled', i < val);
+            d.classList.toggle('wave', hovering && i < val);
+          });
+        };
+        for (let i = 1; i <= 5; i++) {
+          const d = document.createElement('button');
+          d.type = 'button';
+          d.className = 'pebble-dot';
+          d.setAttribute('aria-label', `Rate ${i} of 5`);
+          d.addEventListener('pointerenter', () => sync(i, true));
+          d.addEventListener('click', () => {
+            rating = i;
+            sync(rating);
+            SFX.pop(0.75 + i * 0.14);
+          });
+          dots.push(d);
+          row.appendChild(d);
+        }
+        row.addEventListener('pointerleave', () => sync(rating));
+        sync(rating);
+        container.appendChild(row);
+      }
+    }
+    ,
+    // === DATA VIZ (5) ===
+    {
+      id: 'live-telemetry',
+      title: 'Live Telemetry Pill',
+      subtitle: 'Data Viz · Status',
+      category: 'Data Viz',
+      desc: '數據監控網站專用的即時串流開關：開啟時綠點持續脈衝並顯示即時更新頻率，點擊可暫停／恢復並播放雷達提示音。',
+      code: `.live-dot::after {
+  border: 1.5px solid #22c55e;
+  animation: livePulse 1.5s infinite;
+}`,
+      mount(container) {
+        let live = true;
+        let ticks = 124;
+        const btn = document.createElement('button');
+        btn.className = 'live-pill';
+        btn.type = 'button';
+        btn.innerHTML = `<span class="live-dot"></span><span class="live-text">Live</span><span class="live-rate">124 req/s</span>`;
+        const textEl = btn.querySelector('.live-text');
+        const rateEl = btn.querySelector('.live-rate');
+        const timer = setInterval(() => {
+          if (!document.body.contains(btn)) { clearInterval(timer); return; }
+          if (!live) return;
+          ticks = 112 + Math.floor(Math.random() * 26);
+          rateEl.textContent = `${ticks} req/s`;
+        }, 1200);
+        btn.addEventListener('click', () => {
+          live = !live;
+          btn.classList.toggle('paused', !live);
+          textEl.textContent = live ? 'Live' : 'Paused';
+          if (live) SFX.ping();
+          else SFX.tick(0.75);
+        });
+        container.appendChild(btn);
+      }
+    },
+    {
+      id: 'timeframe-switcher',
+      title: 'Timeframe Switcher',
+      subtitle: 'Data Viz · Range',
+      category: 'Data Viz',
+      desc: '走勢圖與儀表板必備的 1D / 1W / 1M / 1Y / ALL 時間區間滑動選擇器，切換時附帶精密刻度聲。',
+      code: `pill.style.transform = \`translateX(\${index * 34}px)\`;`,
+      mount(container) {
+        const ranges = ['1D', '1W', '1M', '1Y', 'ALL'];
+        let idx = 2;
+        const wrap = document.createElement('div');
+        wrap.className = 'tf-switch';
+        const pill = document.createElement('div');
+        pill.className = 'tf-pill';
+        pill.style.transform = `translateX(${idx * 34}px)`;
+        wrap.appendChild(pill);
+        const btns = ranges.map((label, i) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'tf-btn' + (i === idx ? ' active' : '');
+          b.textContent = label;
+          b.addEventListener('click', () => {
+            idx = i;
+            pill.style.transform = `translateX(${i * 34}px)`;
+            btns.forEach((x, j) => x.classList.toggle('active', j === idx));
+            SFX.tick(0.85 + i * 0.1);
+          });
+          wrap.appendChild(b);
+          return b;
+        });
+        container.appendChild(wrap);
+      }
+    },
+    {
+      id: 'export-csv',
+      title: 'Export CSV',
+      subtitle: 'Data Viz · Action',
+      category: 'Data Viz',
+      desc: '報表匯出按鈕：點擊後底部藍色進度條平滑推進，完成後轉為高亮完成狀態並響起雙音成功提示。',
+      code: `bar.style.width = \`\${Math.round(p * 100)}%\`;`,
+      mount(container) {
+        let state = 'idle';
+        const btn = document.createElement('button');
+        btn.className = 'export-btn';
+        btn.type = 'button';
+        const setIdle = () => {
+          state = 'idle';
+          btn.className = 'export-btn';
+          btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M12 18v-6m-3 3l3 3 3-3"/></svg><span>Export CSV</span><span class="export-bar"></span>`;
+        };
+        setIdle();
+        btn.addEventListener('click', () => {
+          if (state === 'loading') return;
+          if (state === 'done') { setIdle(); SFX.tick(0.85); return; }
+          state = 'loading';
+          SFX.key(true);
+          const bar = btn.querySelector('.export-bar');
+          const span = btn.querySelector('span');
+          span.textContent = 'Exporting...';
+          const start = performance.now();
+          const dur = 950;
+          const step = (now) => {
+            const p = Math.min(1, (now - start) / dur);
+            bar.style.width = `${Math.round(p * 100)}%`;
+            if (p < 1) requestAnimationFrame(step);
+            else {
+              state = 'done';
+              btn.classList.add('done');
+              span.textContent = 'Exported ✓';
+              SFX.chime();
+            }
+          };
+          requestAnimationFrame(step);
+        });
+        container.appendChild(btn);
+      }
+    },
+    {
+      id: 'chart-morph',
+      title: 'Chart Type Morph',
+      subtitle: 'Data Viz · Toggle',
+      category: 'Data Viz',
+      desc: '單鍵循環切換長條圖（Bar）、折線圖（Line）與環形圖（Donut），圖示容器帶有輕盈旋轉縮放轉場。',
+      code: `modes = ['Bar Chart', 'Line Chart', 'Donut'];
+index = (index + 1) % modes.length;`,
+      mount(container) {
+        const modes = [
+          { name: 'Bar Chart', svg: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 20v-7M12 20V6M18 20v-10"/></svg>' },
+          { name: 'Line Chart', svg: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 17l6-6 4 4 8-9"/></svg>' },
+          { name: 'Donut', svg: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>' }
+        ];
+        let idx = 0;
+        const btn = document.createElement('button');
+        btn.className = 'chart-morph-btn';
+        btn.type = 'button';
+        const render = () => {
+          btn.innerHTML = `<span class="chart-icon-box">${modes[idx].svg}</span><span>${modes[idx].name}</span>`;
+        };
+        render();
+        btn.addEventListener('click', () => {
+          idx = (idx + 1) % modes.length;
+          btn.classList.add('spin');
+          SFX.tick(1.0 + idx * 0.15);
+          setTimeout(() => {
+            render();
+            btn.classList.remove('spin');
+          }, 120);
+        });
+        container.appendChild(btn);
+      }
+    },
+    {
+      id: 'metric-compare',
+      title: 'YoY Compare Pill',
+      subtitle: 'Data Viz · Filter',
+      category: 'Data Viz',
+      desc: '同比成長（YoY %）開關按鈕，啟用後立即亮起綠色增幅徽章「+14.8%」，適合 KPI 卡片與數據篩選列。',
+      code: `.compare-btn.active .compare-badge {
+  background: #22c55e; color: #052e16;
+}`,
+      mount(container) {
+        let active = true;
+        const btn = document.createElement('button');
+        btn.className = 'compare-btn active';
+        btn.type = 'button';
+        btn.innerHTML = `<span>YoY</span><span class="compare-badge">+14.8%</span>`;
+        const badge = btn.querySelector('.compare-badge');
+        btn.addEventListener('click', () => {
+          active = !active;
+          btn.classList.toggle('active', active);
+          badge.textContent = active ? '+14.8%' : 'Off';
+          active ? SFX.pop(1.1) : SFX.tick(0.8);
+        });
+        container.appendChild(btn);
+      }
+    },
+
+    // === TRAVEL PLANNING (5) ===
+    {
+      id: 'route-swap',
+      title: 'Route Swap Button',
+      subtitle: 'Travel · Flight',
+      category: 'Travel',
+      desc: '機票與交通搜尋必備的出發地／目的地互換按鈕（HKG ⇄ NRT），點擊中間圓鈕旋轉 180° 並搭配氣流呼嘯聲互換代碼。',
+      code: `rotation += 180;
+swapBtn.style.transform = \`rotate(\${rotation}deg)\`;`,
+      mount(container) {
+        let from = 'HKG';
+        let to = 'NRT';
+        let rot = 0;
+        const wrap = document.createElement('div');
+        wrap.className = 'route-swap';
+        wrap.innerHTML = `
+          <span class="airport-code" data-role="from">HKG</span>
+          <button type="button" class="swap-circle" aria-label="Swap route">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/></svg>
+          </button>
+          <span class="airport-code" data-role="to">NRT</span>
+        `;
+        const fromEl = wrap.querySelector('[data-role="from"]');
+        const toEl = wrap.querySelector('[data-role="to"]');
+        const swapBtn = wrap.querySelector('.swap-circle');
+        swapBtn.addEventListener('click', () => {
+          rot += 180;
+          swapBtn.style.transform = `rotate(${rot}deg)`;
+          fromEl.classList.add('flip');
+          toEl.classList.add('flip');
+          SFX.whoosh(true);
+          setTimeout(() => {
+            [from, to] = [to, from];
+            fromEl.textContent = from;
+            toEl.textContent = to;
+            fromEl.classList.remove('flip');
+            toEl.classList.remove('flip');
+          }, 130);
+        });
+        container.appendChild(wrap);
+      }
+    },
+    {
+      id: 'traveler-stepper',
+      title: 'Traveler Counter',
+      subtitle: 'Travel · Stepper',
+      category: 'Travel',
+      desc: '飯店與機票人數微調器（1–9 位旅客），每次加減都有數字彈跳動畫與不同音高的段落點擊聲。',
+      code: `count = Math.max(1, Math.min(9, count + delta));`,
+      mount(container) {
+        let count = 2;
+        const wrap = document.createElement('div');
+        wrap.className = 'stepper-pill';
+        wrap.innerHTML = `
+          <button type="button" class="step-op" data-d="-1" aria-label="Decrease">−</button>
+          <span class="step-val">2 Guests</span>
+          <button type="button" class="step-op" data-d="1" aria-label="Increase">+</button>
+        `;
+        const valEl = wrap.querySelector('.step-val');
+        const decBtn = wrap.querySelector('[data-d="-1"]');
+        const incBtn = wrap.querySelector('[data-d="1"]');
+        const update = (delta) => {
+          count = Math.max(1, Math.min(9, count + delta));
+          valEl.textContent = `${count} ${count === 1 ? 'Guest' : 'Guests'}`;
+          decBtn.disabled = count <= 1;
+          incBtn.disabled = count >= 9;
+          valEl.classList.remove('bump');
+          void valEl.offsetWidth;
+          valEl.classList.add('bump');
+          setTimeout(() => valEl.classList.remove('bump'), 180);
+          SFX.tick(delta > 0 ? 1.15 : 0.85);
+        };
+        decBtn.addEventListener('click', () => update(-1));
+        incBtn.addEventListener('click', () => update(1));
+        container.appendChild(wrap);
+      }
+    },
+    {
+      id: 'itinerary-stamp',
+      title: 'Itinerary Stamp',
+      subtitle: 'Travel · Action',
+      category: 'Travel',
+      desc: '護照印章風格的「加入行程」按鈕：點擊後以微傾斜角度蓋章固定並發出沉實印章聲，轉為純白「In Trip ✓」。',
+      code: `.stamp-btn.stamped {
+  transform: rotate(-2.5deg) scale(1.03);
+  border-style: solid;
+}`,
+      mount(container) {
+        let added = false;
+        const btn = document.createElement('button');
+        btn.className = 'stamp-btn';
+        btn.type = 'button';
+        const render = () => {
+          btn.classList.toggle('stamped', added);
+          btn.innerHTML = added
+            ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M5 13l4 4L19 7"/></svg><span>In Trip</span>`
+            : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg><span>Add to Trip</span>`;
+        };
+        render();
+        btn.addEventListener('click', () => {
+          added = !added;
+          render();
+          added ? SFX.stamp() : SFX.tick(0.8);
+        });
+        container.appendChild(btn);
+      }
+    },
+    {
+      id: 'map-list-pill',
+      title: 'Map / List Switch',
+      subtitle: 'Travel · View',
+      category: 'Travel',
+      desc: '景點與飯店搜尋頁常見的懸浮地圖／清單切換膠囊，點擊時純白滑塊彈性平順滑動並切換視圖狀態。',
+      code: `bg.style.transform = \`translateX(\${mode === 'list' ? 74 : 0}px)\`;`,
+      mount(container) {
+        let mode = 'map';
+        const wrap = document.createElement('div');
+        wrap.className = 'view-pill';
+        wrap.innerHTML = `
+          <div class="view-pill-bg"></div>
+          <button type="button" class="view-pill-opt active" data-m="map">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/></svg>
+            <span>Map</span>
+          </button>
+          <button type="button" class="view-pill-opt" data-m="list">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+            <span>List</span>
+          </button>
+        `;
+        const bg = wrap.querySelector('.view-pill-bg');
+        const opts = wrap.querySelectorAll('.view-pill-opt');
+        opts.forEach((btn) => {
+          btn.addEventListener('click', () => {
+            mode = btn.getAttribute('data-m');
+            bg.style.transform = `translateX(${mode === 'list' ? 74 : 0}px)`;
+            opts.forEach((o) => o.classList.toggle('active', o.getAttribute('data-m') === mode));
+            SFX.tick(mode === 'map' ? 1.0 : 1.18);
+          });
+        });
+        container.appendChild(wrap);
+      }
+    },
+    {
+      id: 'price-alert-bell',
+      title: 'Price Alert Bell',
+      subtitle: 'Travel · Alert',
+      category: 'Travel',
+      desc: '機票與房價降價追蹤鈴鐺：點擊啟用時鈴鐺左右搖晃並響起清脆雙頻鈴聲，切換為金色追蹤狀態。',
+      code: `@keyframes bellRing {
+  20% { transform: rotate(18deg); }
+  40% { transform: rotate(-16deg); }
+}`,
+      mount(container) {
+        let on = false;
+        const btn = document.createElement('button');
+        btn.className = 'alert-bell-btn';
+        btn.type = 'button';
+        btn.innerHTML = `
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+          <span class="bell-label">Price Alert</span>
+        `;
+        const svg = btn.querySelector('svg');
+        const label = btn.querySelector('.bell-label');
+        btn.addEventListener('click', () => {
+          on = !on;
+          btn.classList.toggle('active', on);
+          label.textContent = on ? 'Tracking' : 'Price Alert';
+          if (on) {
+            svg.classList.remove('ringing');
+            void svg.offsetWidth;
+            svg.classList.add('ringing');
+            SFX.bell();
+          } else {
+            SFX.tick(0.75);
+          }
+        });
+        container.appendChild(btn);
+      }
+    }
+    ,
+    // ==================== HOVER & GLOW (18) ====================
+    {
+      id: 'moving-border-beam',
+      title: 'Moving Border Beam',
+      subtitle: 'Hover & Glow · Conic',
+      category: 'Hover & Glow',
+      desc: '靈感來自 Aceternity UI：以旋轉 conic-gradient 打造持續沿膠囊邊緣流動的雷射光束邊框。',
+      code: `.beam-btn::before {\n  background: conic-gradient(transparent 260deg, #38bdf8, #a855f7, #fff);\n  animation: spinBeam 2.8s linear infinite;\n}`,
+      mount(c) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'beam-btn';
+        b.innerHTML = '<span class="beam-btn-inner">Launch App</span>';
+        b.addEventListener('click', () => { SFX.chime(); b.querySelector('.beam-btn-inner').textContent = 'Launched ✦'; setTimeout(() => b.querySelector('.beam-btn-inner').textContent = 'Launch App', 1100); });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'spotlight-cursor',
+      title: 'Spotlight Cursor',
+      subtitle: 'Hover & Glow · Pointer',
+      category: 'Hover & Glow',
+      desc: '滑鼠在按鈕內移動時，柔光聚光燈即時跟隨游標座標照射表面。',
+      code: `glow.style.left = (e.clientX - rect.left) + 'px';\nglow.style.top = (e.clientY - rect.top) + 'px';`,
+      mount(c) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'spot-btn';
+        b.innerHTML = '<span class="spot-glow"></span><span style="position:relative;z-index:1">Spotlight</span>';
+        const g = b.querySelector('.spot-glow');
+        b.addEventListener('pointermove', (e) => {
+          const r = b.getBoundingClientRect();
+          g.style.left = `${e.clientX - r.left}px`;
+          g.style.top = `${e.clientY - r.top}px`;
+        });
+        b.addEventListener('click', () => SFX.pop(1.1));
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'liquid-glass-btn',
+      title: 'Liquid Glass Pill',
+      subtitle: 'Hover & Glow · Glass',
+      category: 'Hover & Glow',
+      desc: '液態玻璃質感按鈕：頂部高光折射線搭配滑過時的斜向玻璃掃光。',
+      code: `background: linear-gradient(180deg, rgba(255,255,255,0.2), rgba(255,255,255,0.06));\nbackdrop-filter: blur(12px);`,
+      mount(c) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'liquid-glass-btn';
+        b.textContent = 'Liquid Glass';
+        b.addEventListener('click', () => SFX.liquid(true));
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'shimmer-sweep',
+      title: 'Shimmer Sweep',
+      subtitle: 'Hover & Glow · Magic UI',
+      category: 'Hover & Glow',
+      desc: '絲滑光澤持續橫掃按鈕表面，極適合高轉換主行動按鈕（CTA）。',
+      code: `background: linear-gradient(110deg, transparent 25%, rgba(255,255,255,0.22) 50%, transparent 75%);`,
+      mount(c) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'shimmer-btn';
+        b.textContent = 'Get Started';
+        b.addEventListener('click', () => SFX.chime());
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'aurora-glow',
+      title: 'Aurora Glow Pill',
+      subtitle: 'Hover & Glow · Ambient',
+      category: 'Hover & Glow',
+      desc: '滑過時四周綻放藍紫玫三色極光陰影光暈，按壓帶有柔和回彈。',
+      code: `.aurora-btn:hover {\n  box-shadow: -8px 0 22px rgba(56,189,248,0.4), 8px 0 22px rgba(168,85,247,0.45);\n}`,
+      mount(c) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'aurora-btn';
+        b.textContent = 'Aurora CTA';
+        b.addEventListener('click', () => SFX.pop(1.15));
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'curtain-fill-left',
+      title: 'Curtain Fill Left',
+      subtitle: 'Hover & Glow · Wipe',
+      category: 'Hover & Glow',
+      desc: '滑過時純白背景由左側絲滑拉開填滿，文字瞬間反白成高對比黑字。',
+      code: `.curtain-left::before { transform: scaleX(0); transform-origin: left; }\n.curtain-left:hover::before { transform: scaleX(1); }`,
+      mount(c) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'curtain-btn curtain-left';
+        b.textContent = 'Slide Right';
+        b.addEventListener('click', () => SFX.whoosh(true));
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'curtain-fill-up',
+      title: 'Curtain Fill Up',
+      subtitle: 'Hover & Glow · Wipe',
+      category: 'Hover & Glow',
+      desc: '由底部向上湧升的絲滑填色動畫，俐落又有層次。',
+      code: `.curtain-up::before { transform: scaleY(0); transform-origin: bottom; }`,
+      mount(c) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'curtain-btn curtain-up';
+        b.textContent = 'Rise Fill';
+        b.addEventListener('click', () => SFX.whoosh(true));
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'curtain-center',
+      title: 'Center Curtain',
+      subtitle: 'Hover & Glow · Wipe',
+      category: 'Hover & Glow',
+      desc: '由中心向兩側對稱展開的極簡反白填色效果。',
+      code: `.curtain-center::before { transform: scaleX(0); transform-origin: center; }`,
+      mount(c) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'curtain-btn curtain-center';
+        b.textContent = 'Expand';
+        b.addEventListener('click', () => SFX.tick(1.15));
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'morph-radius-cta',
+      title: 'Morph Shape CTA',
+      subtitle: 'Hover & Glow · Shape',
+      category: 'Hover & Glow',
+      desc: '滑過時圓角從膠囊平滑變形為俐落方角並微調字距，帶來有機生命感。',
+      code: `.morph-rad-btn:hover { border-radius: 8px; letter-spacing: 0.04em; }`,
+      mount(c) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'morph-rad-btn';
+        b.textContent = 'Explore';
+        b.addEventListener('click', () => SFX.boing(1.05));
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'kinetic-text-roll',
+      title: 'Kinetic Text Roll',
+      subtitle: 'Hover & Glow · Typography',
+      category: 'Hover & Glow',
+      desc: '雙層文字結構在滑過時如滾輪般垂直無縫上捲切換，極具設計工程感。',
+      code: `.kinetic-btn:hover span { transform: translateY(-38px); }`,
+      mount(c) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'kinetic-btn';
+        b.innerHTML = '<div class="kinetic-track"><span>Book Demo</span><span>Let’s Go →</span></div>';
+        b.addEventListener('click', () => SFX.tick(1.2));
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'arrow-slide-expand',
+      title: 'Arrow Slide Reveal',
+      subtitle: 'Hover & Glow · CTA',
+      category: 'Hover & Glow',
+      desc: '平常維持精簡膠囊，滑過時自動平滑拓寬並滑出箭頭引導點擊。',
+      code: `.arrow-expand-btn:hover .arr { width: 14px; opacity: 1; }`,
+      mount(c) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'arrow-expand-btn';
+        b.innerHTML = '<span>Continue</span><span class="arr">→</span>';
+        b.addEventListener('click', () => SFX.pop(1.05));
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'corner-brackets',
+      title: 'HUD Corner Lock',
+      subtitle: 'Hover & Glow · Sci-Fi',
+      category: 'Hover & Glow',
+      desc: '四個角落的瞄準框線在滑過時往內精準鎖定，適合儀表板與科技風網站。',
+      code: `.bracket-btn:hover .tl { top: 2px; left: 2px; }`,
+      mount(c) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'bracket-btn';
+        b.innerHTML = '<span class="bk tl"></span><span class="bk tr"></span><span class="bk bl"></span><span class="bk br"></span>LOCK TARGET';
+        b.addEventListener('click', () => SFX.ping());
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'offset-shadow-push',
+      title: 'Brutalist Offset',
+      subtitle: 'Hover & Glow · Tactile',
+      category: 'Hover & Glow',
+      desc: '鮮明硬邊偏移陰影，點擊時按鈕完整貼合至陰影底部。',
+      code: `.offset-btn:active { transform: translate(4px, 4px); box-shadow: 0 0 0 #3f3f46; }`,
+      mount(c) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'offset-btn';
+        b.textContent = 'Push Hard';
+        b.addEventListener('click', () => SFX.key(false));
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'neon-cyber-glow',
+      title: 'Neon Cyber Outline',
+      subtitle: 'Hover & Glow · Neon',
+      category: 'Hover & Glow',
+      desc: '冰藍霓虹光框在滑過時瞬間點亮填滿並擴散強烈外發光。',
+      code: `.neon-btn:hover { background: #38bdf8; box-shadow: 0 0 26px rgba(56,189,248,0.65); }`,
+      mount(c) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'neon-btn';
+        b.textContent = 'Activate';
+        b.addEventListener('click', () => SFX.zap());
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'holographic-foil',
+      title: 'Holographic Foil',
+      subtitle: 'Hover & Glow · Iridescent',
+      category: 'Hover & Glow',
+      desc: '全息雷射漸層隨滑鼠橫向移動即時偏移色相反光，如同限量金屬卡。',
+      code: `btn.style.backgroundPosition = \`\${pct}% 50%\`;`,
+      mount(c) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'holo-btn';
+        b.textContent = 'Holo Pass';
+        b.addEventListener('pointermove', (e) => {
+          const r = b.getBoundingClientRect();
+          const pct = Math.round(((e.clientX - r.left) / r.width) * 100);
+          b.style.backgroundPosition = `${pct}% 50%`;
+        });
+        b.addEventListener('click', () => SFX.chime());
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'cursor-ripple-wave',
+      title: 'Water Ripple Click',
+      subtitle: 'Hover & Glow · Ripple',
+      category: 'Hover & Glow',
+      desc: '從精確點擊座標向外擴散的絲滑水波紋，支援連續多次點擊疊加。',
+      code: `wave.style.left = (e.clientX - r.left) + 'px';\nwave.style.top = (e.clientY - r.top) + 'px';`,
+      mount(c) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'ripple-btn';
+        b.textContent = 'Tap Anywhere';
+        b.addEventListener('click', (e) => {
+          const r = b.getBoundingClientRect();
+          const w = document.createElement('span');
+          w.className = 'ripple-wave';
+          const sz = Math.max(r.width, r.height);
+          w.style.width = w.style.height = `${sz}px`;
+          w.style.left = `${e.clientX - r.left - sz / 2}px`;
+          w.style.top = `${e.clientY - r.top - sz / 2}px`;
+          b.appendChild(w);
+          SFX.liquid(true);
+          setTimeout(() => w.remove(), 620);
+        });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'pixel-prompt-btn',
+      title: 'Pixel Prompt Key',
+      subtitle: 'Hover & Glow · Retro',
+      category: 'Hover & Glow',
+      desc: '復古像素風等寬字體按鈕，搭配階梯式按壓位移與清脆 8-bit 聲響。',
+      code: `box-shadow: 4px 4px 0 #fff;\ntransition: transform 0.1s steps(2);`,
+      mount(c) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'pixel-btn';
+        b.textContent = '> RUN_CMD';
+        b.addEventListener('click', () => SFX.pixel());
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'magnetic-halo-ring',
+      title: 'Magnetic Halo Ring',
+      subtitle: 'Hover & Glow · Orbit',
+      category: 'Hover & Glow',
+      desc: '外層光環會以延遲彈性跟隨滑鼠磁吸偏移，核心按鈕保持穩定易點。',
+      code: `ring.style.transform = \`translate(\${dx * 0.45}px, \${dy * 0.45}px)\`;`,
+      mount(c) {
+        const w = document.createElement('div');
+        w.className = 'halo-wrap';
+        w.innerHTML = '<div class="halo-ring"></div><button type="button" class="halo-core">Orbit</button>';
+        const ring = w.querySelector('.halo-ring');
+        w.addEventListener('pointermove', (e) => {
+          const r = w.getBoundingClientRect();
+          const dx = (e.clientX - (r.left + r.width / 2)) * 0.36;
+          const dy = (e.clientY - (r.top + r.height / 2)) * 0.36;
+          ring.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
+        });
+        w.addEventListener('pointerleave', () => { ring.style.transform = 'translate(0,0)'; });
+        w.querySelector('.halo-core').addEventListener('click', () => SFX.pop(1.08));
+        c.appendChild(w);
+      }
+    },
+
+    // ==================== 3D & TACTILE (14) ====================
+    {
+      id: 'mech-cmd-k',
+      title: 'Mechanical ⌘K Key',
+      subtitle: '3D & Tactile · Keycap',
+      category: '3D & Tactile',
+      desc: '客製化機械鍵盤鍵帽，擁有深行程陰影與兩段式軸體敲擊音效。',
+      code: `.mech-key:active { transform: translateY(5px); box-shadow: 0 1px 0 #0b0b0e; }`,
+      mount(c) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'mech-key';
+        b.textContent = '⌘ K';
+        b.addEventListener('click', () => { b.classList.add('down'); SFX.key(true); setTimeout(() => b.classList.remove('down'), 110); });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'isometric-slab',
+      title: 'Isometric 3D Slab',
+      subtitle: '3D & Tactile · Isometric',
+      category: '3D & Tactile',
+      desc: '等距視角 3D 厚方塊按鈕，按壓時沿斜角軸線下壓並壓縮底座厚度。',
+      code: `transform: rotateX(28deg) rotateZ(-10deg);\nbox-shadow: -5px 7px 0 #71717a;`,
+      mount(c) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'iso-btn';
+        b.textContent = 'Deploy';
+        b.addEventListener('click', () => { b.classList.add('down'); SFX.stamp(); setTimeout(() => b.classList.remove('down'), 120); });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'cube-flip-3d',
+      title: '3D Cube Flip',
+      subtitle: '3D & Tactile · Perspective',
+      category: '3D & Tactile',
+      desc: '點擊後整顆按鈕沿 X 軸立體翻轉 90 度，露出底面綠色確認狀態。',
+      code: `.cube-flip-btn.flipped { transform: rotateX(90deg); }`,
+      mount(c) {
+        let f = false;
+        const w = document.createElement('div');
+        w.className = 'cube-flip-wrap';
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'cube-flip-btn';
+        b.innerHTML = '<span class="cube-inner"><span class="cube-face cube-front">Confirm</span><span class="cube-face cube-bottom">Done ✓</span></span>';
+        b.addEventListener('click', () => {
+          f = !f; b.classList.toggle('flipped', f);
+          f ? SFX.chime() : SFX.whoosh(false);
+        });
+        w.appendChild(b); c.appendChild(w);
+      }
+    },
+    {
+      id: 'perspective-tilt-3d',
+      title: '3D Tilt Surface',
+      subtitle: '3D & Tactile · Gyro',
+      category: '3D & Tactile',
+      desc: '按鈕即時計算游標位置，呈現絲滑的 3D 俯仰與左右傾角變化。',
+      code: `btn.style.transform = \`perspective(300px) rotateX(\${rx}deg) rotateY(\${ry}deg)\`;`,
+      mount(c) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'tilt3d-btn';
+        b.textContent = 'Tilt 3D';
+        b.addEventListener('pointermove', (e) => {
+          const r = b.getBoundingClientRect();
+          const rx = -((e.clientY - r.top) / r.height - 0.5) * 26;
+          const ry = ((e.clientX - r.left) / r.width - 0.5) * 26;
+          b.style.transform = `perspective(320px) rotateX(${rx.toFixed(1)}deg) rotateY(${ry.toFixed(1)}deg)`;
+        });
+        b.addEventListener('pointerleave', () => { b.style.transform = 'perspective(320px) rotateX(0) rotateY(0)'; });
+        b.addEventListener('click', () => SFX.key(true));
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'neumorphic-soft',
+      title: 'Dark Neumorphic',
+      subtitle: '3D & Tactile · Soft UI',
+      category: '3D & Tactile',
+      desc: '暗黑新擬態雙向光影按鈕，點擊切換浮起與凹陷鎖定狀態。',
+      code: `.neuro-btn.pressed { box-shadow: inset 5px 5px 10px #070709, inset -4px -4px 10px #202026; }`,
+      mount(c) {
+        let on = false;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'neuro-btn';
+        b.textContent = 'Soft Press';
+        b.addEventListener('click', () => { on = !on; b.classList.toggle('pressed', on); SFX.tick(on ? 1.15 : 0.85); });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'arcade-dome',
+      title: 'Arcade Push Dome',
+      subtitle: '3D & Tactile · Button',
+      category: '3D & Tactile',
+      desc: '復古街機紅色圓頂按鍵，高光立體弧面搭配扎實按壓手感。',
+      code: `.arcade-btn:active { transform: translateY(5px) scale(0.97); }`,
+      mount(c) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'arcade-btn';
+        b.textContent = 'GO';
+        b.addEventListener('click', () => { b.classList.add('down'); SFX.stamp(); setTimeout(() => b.classList.remove('down'), 120); });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'rotary-dial-knob',
+      title: 'Detent Dial Knob',
+      subtitle: '3D & Tactile · Rotary',
+      category: '3D & Tactile',
+      desc: '8 段式精密旋鈕按鈕，每次點擊順時針轉動 45° 並發出機械棘輪刻度聲。',
+      code: `deg += 45;\nknob.style.transform = \`rotate(\${deg}deg)\`;`,
+      mount(c) {
+        let step = 0;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'dial-knob';
+        b.setAttribute('aria-label', 'Rotate dial');
+        b.innerHTML = '<span class="dial-notch"></span>';
+        b.addEventListener('click', () => {
+          step++;
+          b.style.transform = `rotate(${step * 45}deg)`;
+          SFX.tick(0.85 + (step % 8) * 0.08);
+        });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'split-flap-key',
+      title: 'Split-Flap Board',
+      subtitle: '3D & Tactile · Airport',
+      category: '3D & Tactile',
+      desc: '機場翻頁看板風格按鈕，點擊後字卡依序 3D 翻頁切換為下一組狀態詞。',
+      code: `char.classList.add('flipping');`,
+      mount(c) {
+        const words = ['GATE', 'OPEN', 'SYNC', 'LIVE'];
+        let wi = 0;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'flap-btn';
+        const render = (w) => { b.innerHTML = w.split('').map(ch => `<span class="flap-char">${ch}</span>`).join(''); };
+        render(words[0]);
+        b.addEventListener('click', () => {
+          wi = (wi + 1) % words.length;
+          const next = words[wi];
+          const els = b.querySelectorAll('.flap-char');
+          els.forEach((el, i) => {
+            setTimeout(() => {
+              el.classList.add('flipping');
+              SFX.tick(0.95 + i * 0.1);
+              setTimeout(() => { el.textContent = next[i]; el.classList.remove('flipping'); }, 110);
+            }, i * 55);
+          });
+        });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'detent-lever',
+      title: 'Vertical Lever',
+      subtitle: '3D & Tactile · Switch',
+      category: '3D & Tactile',
+      desc: '工業控制台風格垂直撥桿開關，上下切換帶有俐落的金屬卡榫聲。',
+      code: `.lever-box.on .lever-arm { transform: translateY(-26px); }`,
+      mount(c) {
+        let on = false;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'lever-box';
+        b.setAttribute('aria-label', 'Vertical Lever');
+        b.innerHTML = '<div class="lever-arm"></div>';
+        b.addEventListener('click', () => { on = !on; b.classList.toggle('on', on); SFX.rocker(on); });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'metal-led-switch',
+      title: 'Brushed Metal LED',
+      subtitle: '3D & Tactile · Hardware',
+      category: '3D & Tactile',
+      desc: '拉絲鋁合金硬件電源鍵，點擊點亮高亮度翡翠綠 LED 指示燈。',
+      code: `.metal-btn.on .metal-led { background: #22c55e; box-shadow: 0 0 10px #22c55e; }`,
+      mount(c) {
+        let on = true;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'metal-btn on';
+        b.innerHTML = '<span class="metal-led"></span><span>Power</span>';
+        b.addEventListener('click', () => { on = !on; b.classList.toggle('on', on); SFX.rocker(on); });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'smoked-glass-key',
+      title: 'Smoked Glass ESC',
+      subtitle: '3D & Tactile · Keycap',
+      category: '3D & Tactile',
+      desc: '半透明燻黑玻璃鍵帽，具備高光頂邊與短促清脆的按鍵行程。',
+      code: `.glass-key:active { transform: translateY(4px); }`,
+      mount(c) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'glass-key';
+        b.textContent = 'ESC';
+        b.addEventListener('click', () => SFX.key(false));
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'floating-shadow-lift',
+      title: 'Ambient Levitate',
+      subtitle: '3D & Tactile · Elevation',
+      category: '3D & Tactile',
+      desc: '滑過時按鈕輕盈懸浮升起並綻放柔和底光，呈現極簡高雅的空間感。',
+      code: `.float-lift-btn:hover { transform: translateY(-6px); box-shadow: 0 16px 32px rgba(255,255,255,0.14); }`,
+      mount(c) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'float-lift-btn';
+        b.textContent = 'Levitate';
+        b.addEventListener('click', () => SFX.pop(1.05));
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'rubber-squeeze-pill',
+      title: 'Soft Rubber Pill',
+      subtitle: '3D & Tactile · Elastic',
+      category: '3D & Tactile',
+      desc: '按住時呈現如矽膠軟墊般的橫向延展壓縮，放開立即回彈。',
+      code: `.rubber-btn:active { transform: scaleX(1.18) scaleY(0.82); }`,
+      mount(c) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'rubber-btn';
+        b.textContent = 'Squish Me';
+        b.addEventListener('click', () => { b.classList.add('down'); SFX.boing(0.95); setTimeout(() => b.classList.remove('down'), 150); });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'tally-counter-btn',
+      title: 'Mechanical Tally',
+      subtitle: '3D & Tactile · Counter',
+      category: '3D & Tactile',
+      desc: '手按式計數器按鈕，每次按壓即時累加四位數等寬數字並伴隨清脆機械聲。',
+      code: `num.textContent = String(count).padStart(4, '0');`,
+      mount(c) {
+        let n = 42;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'tally-btn';
+        b.innerHTML = '<span>Count</span><span class="tally-num">0042</span>';
+        const el = b.querySelector('.tally-num');
+        b.addEventListener('click', () => {
+          n++; el.textContent = String(n).padStart(4, '0');
+          SFX.key(true);
+        });
+        c.appendChild(b);
+      }
+    },
+
+    // ==================== STATEFUL & MORPHING (12) ====================
+    {
+      id: 'submit-morph-async',
+      title: 'Async Submit Morph',
+      subtitle: 'Stateful · 3-Stage',
+      category: 'Stateful',
+      desc: '完整三段式非同步提交：Submit → 載入轉圈 → 綠色 Saved ✓，並自動重置。',
+      code: `state: 'idle' -> 'loading' -> 'success'`,
+      mount(c) {
+        let st = 'idle';
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'state-pill';
+        const reset = () => { st = 'idle'; b.className = 'state-pill'; b.textContent = 'Submit'; };
+        reset();
+        b.addEventListener('click', () => {
+          if (st !== 'idle') return;
+          st = 'loading'; SFX.key(true);
+          b.innerHTML = '<span class="spin-ring"></span><span>Saving</span>';
+          setTimeout(() => {
+            st = 'done'; b.className = 'state-pill success'; b.textContent = 'Saved ✓';
+            SFX.chime();
+            setTimeout(reset, 1500);
+          }, 900);
+        });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'subscribe-bell-morph',
+      title: 'Subscribe Morph',
+      subtitle: 'Stateful · Toggle',
+      category: 'Stateful',
+      desc: '訂閱按鈕在點擊後轉為深色已訂閱狀態並附上鈴鐺，伴隨輕快提示音。',
+      code: `btn.classList.toggle('dark', subscribed);`,
+      mount(c) {
+        let sub = false;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'state-pill';
+        const render = () => {
+          b.className = 'state-pill' + (sub ? ' dark' : '');
+          b.textContent = sub ? '🔔 Subscribed' : 'Subscribe';
+        };
+        render();
+        b.addEventListener('click', () => { sub = !sub; render(); sub ? SFX.bell() : SFX.tick(0.8); });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'follow-unfollow-hover',
+      title: 'Follow / Unfollow',
+      subtitle: 'Stateful · Hover Swap',
+      category: 'Stateful',
+      desc: '已追蹤狀態下，將游標移上按鈕會自動轉成紅色「Unfollow」警示提示。',
+      code: `btn.addEventListener('pointerenter', () => if(following) showUnfollow());`,
+      mount(c) {
+        let f = false;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'state-pill';
+        const sync = (hover = false) => {
+          if (!f) { b.className = 'state-pill'; b.textContent = '+ Follow'; }
+          else if (hover) { b.className = 'state-pill danger'; b.textContent = 'Unfollow'; }
+          else { b.className = 'state-pill dark'; b.textContent = 'Following ✓'; }
+        };
+        sync();
+        b.addEventListener('pointerenter', () => sync(true));
+        b.addEventListener('pointerleave', () => sync(false));
+        b.addEventListener('click', () => { f = !f; sync(false); f ? SFX.pop(1.15) : SFX.tick(0.8); });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'pay-now-checkout',
+      title: 'Pay Now Checkout',
+      subtitle: 'Stateful · Payment',
+      category: 'Stateful',
+      desc: '結帳付款按鈕：顯示金額 → 驗證授權中 → 綠光付款成功確認。',
+      code: `btn.textContent = 'Pay $29.00' -> 'Authorizing...' -> 'Paid ✓';`,
+      mount(c) {
+        let busy = false;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'state-pill dark';
+        const reset = () => { busy = false; b.className = 'state-pill dark'; b.textContent = '🔒 Pay $29'; };
+        reset();
+        b.addEventListener('click', () => {
+          if (busy) return;
+          busy = true; SFX.key(true);
+          b.innerHTML = '<span class="spin-ring"></span><span>Processing</span>';
+          setTimeout(() => {
+            b.className = 'state-pill success'; b.textContent = 'Paid ✓';
+            SFX.chime();
+            setTimeout(reset, 1600);
+          }, 1000);
+        });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'cloud-upload-lift',
+      title: 'Cloud Upload Lift',
+      subtitle: 'Stateful · Progress',
+      category: 'Stateful',
+      desc: '雲端上傳按鈕：點擊後顯示即時百分比上傳進度並轉為完成狀態。',
+      code: `pct = Math.round(p * 100);`,
+      mount(c) {
+        let busy = false;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'state-pill dark';
+        const reset = () => { busy = false; b.className = 'state-pill dark'; b.textContent = '☁ Upload'; };
+        reset();
+        b.addEventListener('click', () => {
+          if (busy) return;
+          busy = true; SFX.whoosh(true);
+          const t0 = performance.now();
+          const step = (now) => {
+            const p = Math.min(1, (now - t0) / 900);
+            b.textContent = `Uploading ${Math.round(p * 100)}%`;
+            if (p < 1) requestAnimationFrame(step);
+            else {
+              b.className = 'state-pill success'; b.textContent = 'Uploaded ✓';
+              SFX.chime();
+              setTimeout(reset, 1400);
+            }
+          };
+          requestAnimationFrame(step);
+        });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'split-delete-confirm',
+      title: 'Split Confirm Pill',
+      subtitle: 'Stateful · Two-Step',
+      category: 'Stateful',
+      desc: '優雅的二段式防誤刪：點擊「Delete」後原地分裂為「Confirm」與「Cancel」雙按鈕。',
+      code: `mode === 'confirm' ? renderSplitPills() : renderDeleteBtn();`,
+      mount(c) {
+        let mode = 'idle';
+        const w = document.createElement('div');
+        w.className = 'split-wrap';
+        const render = () => {
+          w.innerHTML = '';
+          if (mode === 'idle') {
+            const b = document.createElement('button');
+            b.type = 'button'; b.className = 'mini-pill'; b.textContent = '🗑 Delete';
+            b.addEventListener('click', () => { mode = 'ask'; SFX.tick(1.1); render(); });
+            w.appendChild(b);
+          } else {
+            const yes = document.createElement('button');
+            yes.type = 'button'; yes.className = 'mini-pill confirm-red'; yes.textContent = 'Confirm';
+            yes.addEventListener('click', () => { mode = 'idle'; SFX.warn(); showToast('已確認刪除'); render(); });
+            const no = document.createElement('button');
+            no.type = 'button'; no.className = 'mini-pill'; no.textContent = 'Cancel';
+            no.addEventListener('click', () => { mode = 'idle'; SFX.tick(0.8); render(); });
+            w.appendChild(yes); w.appendChild(no);
+          }
+        };
+        render(); c.appendChild(w);
+      }
+    },
+    {
+      id: 'share-fan-inline',
+      title: 'Inline Share Fan',
+      subtitle: 'Stateful · Expand',
+      category: 'Stateful',
+      desc: '點擊「Share」按鈕後原地展開 X / Link / Mail 三顆快捷分享小鈕。',
+      code: `expanded ? renderChannels() : renderShareBtn();`,
+      mount(c) {
+        let open = false;
+        const w = document.createElement('div');
+        w.className = 'split-wrap';
+        const render = () => {
+          w.innerHTML = '';
+          if (!open) {
+            const b = document.createElement('button');
+            b.type = 'button'; b.className = 'mini-pill'; b.textContent = '↗ Share';
+            b.addEventListener('click', () => { open = true; SFX.whoosh(true); render(); });
+            w.appendChild(b);
+          } else {
+            ['𝕏', '🔗', '✉', '✕'].forEach((sym) => {
+              const b = document.createElement('button');
+              b.type = 'button'; b.className = 'mini-pill'; b.style.padding = '0 10px'; b.textContent = sym;
+              b.addEventListener('click', () => {
+                if (sym === '✕') { open = false; SFX.tick(0.8); render(); }
+                else { SFX.pop(1.15); showToast(`已選擇分享方式 ${sym}`); open = false; render(); }
+              });
+              w.appendChild(b);
+            });
+          }
+        };
+        render(); c.appendChild(w);
+      }
+    },
+    {
+      id: 'expand-search-pill',
+      title: 'Expandable Search',
+      subtitle: 'Stateful · Input Morph',
+      category: 'Stateful',
+      desc: '圓形放大鏡按鈕點擊後絲滑拉長成可輸入的搜尋框，失焦後自動收回。',
+      code: `.exp-search.open { width: 176px; }`,
+      mount(c) {
+        const w = document.createElement('div');
+        w.className = 'exp-search';
+        w.innerHTML = `<button type="button" class="exp-search-trigger" aria-label="Search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></button><input type="text" placeholder="Type here..." />`;
+        const btn = w.querySelector('button');
+        const inp = w.querySelector('input');
+        btn.addEventListener('click', () => {
+          const opening = !w.classList.contains('open');
+          w.classList.toggle('open', opening);
+          SFX.whoosh(opening);
+          if (opening) setTimeout(() => inp.focus(), 120);
+        });
+        inp.addEventListener('blur', () => { if (!inp.value) w.classList.remove('open'); });
+        c.appendChild(w);
+      }
+    },
+    {
+      id: 'voice-mic-pulse',
+      title: 'Voice Mic Wave',
+      subtitle: 'Stateful · Audio',
+      category: 'Stateful',
+      desc: '語音錄製開關按鈕：啟用後亮起玫紅邊框並啟動三柱即時聲波跳動動畫。',
+      code: `.mic-btn.rec .wave-bars i { animation: waveBounce 0.6s infinite alternate; }`,
+      mount(c) {
+        let rec = false;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'mic-btn';
+        b.innerHTML = `<span class="wave-bars"><i></i><i></i><i></i></span><span class="mic-txt">Voice</span>`;
+        const txt = b.querySelector('.mic-txt');
+        b.addEventListener('click', () => {
+          rec = !rec; b.classList.toggle('rec', rec);
+          txt.textContent = rec ? 'Listening...' : 'Voice';
+          rec ? SFX.ping() : SFX.tick(0.8);
+        });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'theme-day-night',
+      title: 'Day / Night Orb',
+      subtitle: 'Stateful · Theme',
+      category: 'Stateful',
+      desc: '日夜主題圓鈕：旋轉 180° 平滑切換星空深藍（月亮）與暖陽淺黃（太陽）。',
+      code: `.theme-orb.day { background: #fef08a; transform: rotate(180deg); }`,
+      mount(c) {
+        let day = false;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'theme-orb';
+        b.textContent = '🌙';
+        b.addEventListener('click', () => {
+          day = !day; b.classList.toggle('day', day);
+          b.textContent = day ? '☀️' : '🌙';
+          SFX.pop(day ? 1.25 : 0.82);
+        });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'undo-countdown',
+      title: 'Undo Countdown',
+      subtitle: 'Stateful · Timer',
+      category: 'Stateful',
+      desc: '送出後的反悔倒數按鈕：點擊進入 5 秒倒數，期間再點可立即撤銷操作。',
+      code: `timer = setInterval(() => sec--, 1000);`,
+      mount(c) {
+        let sec = 0; let timer = null;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'state-pill dark';
+        b.textContent = 'Archive Item';
+        b.addEventListener('click', () => {
+          if (sec > 0) {
+            clearInterval(timer); sec = 0;
+            b.className = 'state-pill dark'; b.textContent = 'Restored ↺';
+            SFX.pop(1.1);
+            setTimeout(() => { if (sec === 0) b.textContent = 'Archive Item'; }, 1000);
+            return;
+          }
+          sec = 5; SFX.tick(1.0);
+          b.className = 'state-pill'; b.textContent = `Undo (${sec}s)`;
+          timer = setInterval(() => {
+            if (!document.body.contains(b)) { clearInterval(timer); return; }
+            sec--;
+            if (sec > 0) b.textContent = `Undo (${sec}s)`;
+            else {
+              clearInterval(timer);
+              b.className = 'state-pill success'; b.textContent = 'Archived ✓';
+              SFX.chime();
+              setTimeout(() => { b.className = 'state-pill dark'; b.textContent = 'Archive Item'; }, 1200);
+            }
+          }, 1000);
+        });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'confetti-trigger',
+      title: 'Confetti Burst',
+      subtitle: 'Stateful · Celebrate',
+      category: 'Stateful',
+      desc: '點擊瞬間從中心炸出 14 片彩色紙花並響起慶祝和弦，適合完成里程碑。',
+      code: `for (let i = 0; i < 14; i++) spawnConfettiDot(angle, dist);`,
+      mount(c) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'state-pill';
+        b.style.position = 'relative';
+        b.textContent = '🎉 Celebrate';
+        const palette = ['#38bdf8', '#a855f7', '#f43f5e', '#facc15', '#22c55e', '#fff'];
+        b.addEventListener('click', () => {
+          SFX.fanfare();
+          for (let i = 0; i < 14; i++) {
+            const d = document.createElement('span');
+            d.className = 'confetti-dot';
+            const ang = (Math.PI * 2 * i) / 14 + Math.random() * 0.3;
+            const dist = 36 + Math.random() * 26;
+            d.style.background = palette[i % palette.length];
+            d.style.setProperty('--cx', `${Math.cos(ang) * dist}px`);
+            d.style.setProperty('--cy', `${Math.sin(ang) * dist}px`);
+            d.style.setProperty('--cr', `${Math.round(Math.random() * 360)}deg`);
+            b.appendChild(d);
+            setTimeout(() => d.remove(), 740);
+          }
+        });
+        c.appendChild(b);
+      }
+    },
+
+    // ==================== EXTRA DATA VIZ (10 -> Total 15) ====================
+    {
+      id: 'dv-refresh-sync',
+      title: 'Refresh Sync Spin',
+      subtitle: 'Data Viz · Sync',
+      category: 'Data Viz',
+      desc: '資料重新整理按鈕：點擊後圖示高速旋轉並更新為「Synced ✓」。',
+      code: `icon.style.transform = \`rotate(\${rot}deg)\`;`,
+      mount(c) {
+        let rot = 0;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'copy-btn';
+        b.innerHTML = `<span class="sync-ic" style="display:inline-block;transition:transform 0.6s ease">↻</span><span class="sync-tx">Sync Data</span>`;
+        const ic = b.querySelector('.sync-ic');
+        const tx = b.querySelector('.sync-tx');
+        b.addEventListener('click', () => {
+          rot += 360; ic.style.transform = `rotate(${rot}deg)`;
+          tx.textContent = 'Syncing...'; SFX.whoosh(true);
+          setTimeout(() => { tx.textContent = 'Synced ✓'; SFX.chime(); }, 550);
+          setTimeout(() => { tx.textContent = 'Sync Data'; }, 1800);
+        });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'dv-anomaly-badge',
+      title: 'Anomaly Alert Pill',
+      subtitle: 'Data Viz · Monitor',
+      category: 'Data Viz',
+      desc: '異常監測篩選按鈕：高亮顯示「3 Anomalies」，點擊後標記為已檢視清除。',
+      code: `btn.classList.toggle('danger', count > 0);`,
+      mount(c) {
+        let alerts = 3;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'state-pill danger';
+        const render = () => {
+          b.className = 'state-pill ' + (alerts > 0 ? 'danger' : 'dark');
+          b.textContent = alerts > 0 ? `⚠ ${alerts} Anomalies` : '✓ All Clear';
+        };
+        render();
+        b.addEventListener('click', () => {
+          alerts = alerts > 0 ? 0 : 3;
+          render();
+          alerts === 0 ? SFX.chime() : SFX.warn();
+        });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'dv-scale-log',
+      title: 'Linear / Log Scale',
+      subtitle: 'Data Viz · Axis',
+      category: 'Data Viz',
+      desc: '金融與科學圖表常用的線性（Linear）與對數（Log₁₀）坐標軸一鍵切換器。',
+      code: `mode = mode === 'Linear' ? 'Log₁₀' : 'Linear';`,
+      mount(c) {
+        let log = false;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'compare-btn';
+        const render = () => {
+          b.classList.toggle('active', log);
+          b.innerHTML = `<span>Scale</span><span class="compare-badge">${log ? 'Log₁₀' : 'Linear'}</span>`;
+        };
+        render();
+        b.addEventListener('click', () => { log = !log; render(); SFX.tick(log ? 1.2 : 0.9); });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'dv-pin-kpi',
+      title: 'Pin KPI Card',
+      subtitle: 'Data Viz · Dashboard',
+      category: 'Data Viz',
+      desc: '將重要指標釘選至儀表板頂部的圖釘按鈕，切換時帶有傾斜鎖定微動畫。',
+      code: `pin.style.transform = pinned ? 'rotate(-35deg) scale(1.15)' : 'none';`,
+      mount(c) {
+        let pinned = false;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'copy-btn';
+        b.innerHTML = `<span class="pin-i" style="display:inline-block;transition:transform 0.25s">📌</span><span class="pin-t">Pin KPI</span>`;
+        const pi = b.querySelector('.pin-i'), pt = b.querySelector('.pin-t');
+        b.addEventListener('click', () => {
+          pinned = !pinned;
+          b.classList.toggle('copied', pinned);
+          pi.style.transform = pinned ? 'rotate(-35deg) scale(1.15)' : 'none';
+          pt.textContent = pinned ? 'Pinned' : 'Pin KPI';
+          pinned ? SFX.stamp() : SFX.tick(0.8);
+        });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'dv-copy-sql',
+      title: 'Copy SQL Query',
+      subtitle: 'Data Viz · Dev',
+      category: 'Data Viz',
+      desc: '數據分析師專用的一鍵複製 SQL 查詢語句按鈕，搭配等寬字體與完成確認。',
+      code: `copyText("SELECT * FROM metrics LIMIT 100;");`,
+      mount(c) {
+        let t = null;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'copy-btn';
+        b.style.fontFamily = 'ui-monospace, monospace';
+        b.textContent = '{ } Copy SQL';
+        b.addEventListener('click', () => {
+          copyText('SELECT date, revenue, yoy_pct FROM kpi_daily ORDER BY date DESC LIMIT 30;');
+          b.classList.add('copied'); b.textContent = '✓ SQL Copied';
+          SFX.chime();
+          clearTimeout(t);
+          t = setTimeout(() => { b.classList.remove('copied'); b.textContent = '{ } Copy SQL'; }, 1500);
+        });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'dv-drilldown',
+      title: 'Drill-Down Expand',
+      subtitle: 'Data Viz · Table',
+      category: 'Data Viz',
+      desc: '表格下鑽展開按鈕，箭頭順滑旋轉 180° 切換細項顯示狀態。',
+      code: `chev.style.transform = open ? 'rotate(180deg)' : 'rotate(0)';`,
+      mount(c) {
+        let open = false;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'copy-btn';
+        b.innerHTML = `<span class="dd-t">Breakdown</span><span class="dd-c" style="display:inline-block;transition:transform 0.25s">▾</span>`;
+        const tt = b.querySelector('.dd-t'), cc = b.querySelector('.dd-c');
+        b.addEventListener('click', () => {
+          open = !open;
+          cc.style.transform = open ? 'rotate(180deg)' : 'rotate(0)';
+          tt.textContent = open ? 'Collapse' : 'Breakdown';
+          SFX.tick(open ? 1.15 : 0.85);
+        });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'dv-heatmap-tier',
+      title: 'Heatmap Threshold',
+      subtitle: 'Data Viz · Filter',
+      category: 'Data Viz',
+      desc: '點擊循環切換熱力圖閥值層級（All / High / Peak），色塊即時變換。',
+      code: `tiers = ['All', 'High', 'Peak'];`,
+      mount(c) {
+        const tiers = [
+          { name: 'All', color: '#a1a1aa' },
+          { name: 'High', color: '#f59e0b' },
+          { name: 'Peak', color: '#ef4444' }
+        ];
+        let i = 0;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'copy-btn';
+        const render = () => {
+          b.innerHTML = `<span style="width:10px;height:10px;border-radius:3px;background:${tiers[i].color}"></span><span>Tier: ${tiers[i].name}</span>`;
+        };
+        render();
+        b.addEventListener('click', () => { i = (i + 1) % tiers.length; render(); SFX.tick(0.9 + i * 0.15); });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'dv-auto-refresh',
+      title: 'Auto-Refresh Cycle',
+      subtitle: 'Data Viz · Interval',
+      category: 'Data Viz',
+      desc: '儀表板自動輪詢週期切換鍵，依序循環 Off → 5s → 15s → 60s。',
+      code: `steps = ['Off', '5s', '15s', '60s'];`,
+      mount(c) {
+        const steps = ['Off', '5s', '15s', '60s'];
+        let i = 1;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'compare-btn active';
+        const render = () => {
+          b.classList.toggle('active', i > 0);
+          b.innerHTML = `<span>⏱ Poll</span><span class="compare-badge">${steps[i]}</span>`;
+        };
+        render();
+        b.addEventListener('click', () => { i = (i + 1) % steps.length; render(); SFX.tick(0.85 + i * 0.12); });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'dv-fullscreen-focus',
+      title: 'Chart Focus Mode',
+      subtitle: 'Data Viz · Viewport',
+      category: 'Data Viz',
+      desc: '圖表全螢幕專注模式切換鍵，點擊時四角框線向外彈跳放大。',
+      code: `btn.classList.toggle('copied', focused);`,
+      mount(c) {
+        let fs = false;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'copy-btn';
+        const render = () => {
+          b.classList.toggle('copied', fs);
+          b.textContent = fs ? '⤡ Exit Focus' : '⤢ Focus Chart';
+        };
+        render();
+        b.addEventListener('click', () => { fs = !fs; render(); SFX.whoosh(fs); });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'dv-filter-chip',
+      title: 'Active Filters Chip',
+      subtitle: 'Data Viz · Reset',
+      category: 'Data Viz',
+      desc: '顯示目前已套用的篩選條件數（Filters 3），點擊可一鍵清空或還原。',
+      code: `count = count > 0 ? 0 : 3;`,
+      mount(c) {
+        let cnt = 3;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'compare-btn active';
+        const render = () => {
+          b.classList.toggle('active', cnt > 0);
+          b.innerHTML = `<span>Filters</span><span class="compare-badge">${cnt > 0 ? cnt + ' ×' : '0'}</span>`;
+        };
+        render();
+        b.addEventListener('click', () => { cnt = cnt > 0 ? 0 : 3; render(); SFX.tick(cnt > 0 ? 1.15 : 0.8); });
+        c.appendChild(b);
+      }
+    },
+
+    // ==================== EXTRA TRAVEL PLANNING (10 -> Total 15) ====================
+    {
+      id: 'tr-boarding-pass',
+      title: 'Boarding Check-In',
+      subtitle: 'Travel · Ticket',
+      category: 'Travel',
+      desc: '登機證缺口造型按鈕：點擊辦理登機後，整張票券亮綠蓋章轉為「Boarded ✓」。',
+      code: `.ticket-btn.checked { background: #22c55e; color: #052e16; }`,
+      mount(c) {
+        let ok = false;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'ticket-btn';
+        const render = () => {
+          b.classList.toggle('checked', ok);
+          b.textContent = ok ? '✈ Boarded ✓' : '🎫 Check In';
+        };
+        render();
+        b.addEventListener('click', () => { ok = !ok; render(); ok ? SFX.chime() : SFX.tick(0.85); });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'tr-cabin-class',
+      title: 'Cabin Class Cycle',
+      subtitle: 'Travel · Flight',
+      category: 'Travel',
+      desc: '機票艙等一鍵循環選擇器（Economy → Prem Eco → Business → First）。',
+      code: `cabins = ['Economy', 'Prem Eco', 'Business', 'First'];`,
+      mount(c) {
+        const cabins = ['Economy', 'Prem Eco', 'Business', 'First'];
+        let i = 2;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'compare-btn active';
+        const render = () => { b.innerHTML = `<span>✈</span><span class="compare-badge">${cabins[i]}</span>`; };
+        render();
+        b.addEventListener('click', () => { i = (i + 1) % cabins.length; render(); SFX.pop(0.95 + i * 0.1); });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'tr-currency-flip',
+      title: 'Currency Switcher',
+      subtitle: 'Travel · FX',
+      category: 'Travel',
+      desc: '旅遊預算幣別快速切換鍵（HKD $ → JPY ¥ → USD $ → EUR €）。',
+      code: `fx = ['HKD $', 'JPY ¥', 'USD $', 'EUR €'];`,
+      mount(c) {
+        const fx = ['HKD $', 'JPY ¥', 'USD $', 'EUR €'];
+        let i = 0;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'copy-btn';
+        const render = () => { b.textContent = `💱 ${fx[i]}`; };
+        render();
+        b.addEventListener('click', () => { i = (i + 1) % fx.length; render(); SFX.tick(0.95 + i * 0.12); });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'tr-direct-flight',
+      title: 'Non-Stop Only',
+      subtitle: 'Travel · Filter',
+      category: 'Travel',
+      desc: '直飛航班快速篩選膠囊，開啟時以翡翠綠高亮顯示「Non-stop」。',
+      code: `btn.classList.toggle('active', directOnly);`,
+      mount(c) {
+        let on = true;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'live-pill';
+        const render = () => {
+          b.classList.toggle('paused', !on);
+          b.innerHTML = `<span>✈</span><span>${on ? 'Non-stop Only' : 'Any Stops'}</span>`;
+        };
+        render();
+        b.addEventListener('click', () => { on = !on; render(); on ? SFX.whoosh(true) : SFX.tick(0.85); });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'tr-hotel-stars',
+      title: 'Hotel Star Tier',
+      subtitle: 'Travel · Stay',
+      category: 'Travel',
+      desc: '飯店星級篩選按鈕，依序循環 3★+ → 4★+ → 5★ Luxury 並亮起金色徽章。',
+      code: `tiers = ['3★+', '4★+', '5★ Luxury'];`,
+      mount(c) {
+        const tiers = ['3★+', '4★+', '5★ Luxury'];
+        let i = 1;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'alert-bell-btn active';
+        const render = () => { b.textContent = `🏨 ${tiers[i]}`; };
+        render();
+        b.addEventListener('click', () => { i = (i + 1) % tiers.length; render(); SFX.pop(0.95 + i * 0.15); });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'tr-baggage-tier',
+      title: 'Baggage Allowance',
+      subtitle: 'Travel · Flight',
+      category: 'Travel',
+      desc: '託運行李額度切換按鈕（Carry-on 7kg → Checked 23kg → Extra 30kg）。',
+      code: `bags = ['7kg Cabin', '23kg Checked', '30kg Extra'];`,
+      mount(c) {
+        const bags = ['7kg Cabin', '23kg Checked', '30kg Extra'];
+        let i = 1;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'copy-btn';
+        const render = () => { b.textContent = `🧳 ${bags[i]}`; };
+        render();
+        b.addEventListener('click', () => { i = (i + 1) % bags.length; render(); SFX.key(true); });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'tr-seat-pref',
+      title: 'Seat Preference',
+      subtitle: 'Travel · Seat Map',
+      category: 'Travel',
+      desc: '選位偏好按鈕：點擊切換靠窗（Window）、靠走道（Aisle）或加大腿部空間。',
+      code: `seats = ['Window 12A', 'Aisle 12C', 'Exit Row 14A'];`,
+      mount(c) {
+        const seats = ['Window 12A', 'Aisle 12C', 'Extra Leg 14A'];
+        let i = 0;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'copy-btn';
+        const render = () => { b.textContent = `💺 ${seats[i]}`; };
+        render();
+        b.addEventListener('click', () => { i = (i + 1) % seats.length; render(); SFX.tick(1.0 + i * 0.12); });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'tr-weather-unit',
+      title: 'Destination Weather',
+      subtitle: 'Travel · Toggle',
+      category: 'Travel',
+      desc: '目的地即時天氣膠囊（Tokyo 12°C ↔ 54°F），點擊絲滑切換攝氏與華氏單位。',
+      code: `temp = celsius ? '12°C' : '54°F';`,
+      mount(c) {
+        let cel = true;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'copy-btn';
+        const render = () => { b.textContent = cel ? '☀ Tokyo · 12°C' : '☀ Tokyo · 54°F'; };
+        render();
+        b.addEventListener('click', () => { cel = !cel; render(); SFX.pop(cel ? 1.1 : 0.9); });
+        c.appendChild(b);
+      }
+    },
+    {
+      id: 'tr-day-tabs',
+      title: 'Itinerary Day Tabs',
+      subtitle: 'Travel · Schedule',
+      category: 'Travel',
+      desc: '多日行程頁籤切換器（D1 / D2 / D3 / D4），白色膠囊隨點擊彈性滑動。',
+      code: `bg.style.transform = \`translateX(\${idx * 44}px)\`;`,
+      mount(c) {
+        let idx = 0;
+        const w = document.createElement('div');
+        w.className = 'day-tabs';
+        const bg = document.createElement('div');
+        bg.className = 'day-tabs-bg';
+        w.appendChild(bg);
+        const opts = ['D1', 'D2', 'D3', 'D4'].map((lbl, i) => {
+          const b = document.createElement('button');
+          b.type = 'button'; b.className = 'day-tab-opt' + (i === 0 ? ' active' : '');
+          b.textContent = lbl;
+          b.addEventListener('click', () => {
+            idx = i; bg.style.transform = `translateX(${i * 44}px)`;
+            opts.forEach((o, j) => o.classList.toggle('active', j === idx));
+            SFX.tick(0.9 + i * 0.12);
+          });
+          w.appendChild(b); return b;
+        });
+        c.appendChild(w);
+      }
+    },
+    {
+      id: 'tr-offline-save',
+      title: 'Save Trip Offline',
+      subtitle: 'Travel · Cache',
+      category: 'Travel',
+      desc: '離線地圖與行程快取按鈕：點擊後模擬下載離線包並顯示「Offline Ready ✓」。',
+      code: `btn.textContent = 'Caching...' -> 'Offline Ready ✓';`,
+      mount(c) {
+        let saved = false; let busy = false;
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'copy-btn';
+        b.textContent = '📍 Save Offline';
+        b.addEventListener('click', () => {
+          if (busy) return;
+          if (saved) { saved = false; b.classList.remove('copied'); b.textContent = '📍 Save Offline'; SFX.tick(0.8); return; }
+          busy = true; b.textContent = 'Caching map...'; SFX.whoosh(true);
+          setTimeout(() => {
+            busy = false; saved = true;
+            b.classList.add('copied'); b.textContent = '✓ Offline Ready';
+            SFX.chime();
+          }, 800);
+        });
+        c.appendChild(b);
+      }
+    }
+
+  ];
+
+  // State
+  let activeCategory = 'All';
+  let searchQuery = '';
+  let onlyFavorites = false;
+  let colsMode = 'auto'; // 'auto' | '3' | '4'
+  const favorites = new Set();
+
+  try {
+    const saved = JSON.parse(localStorage.getItem('ui_moments_favs') || '[]');
+    if (Array.isArray(saved)) saved.forEach((id) => favorites.add(id));
+  } catch (e) {}
+
+  function saveFavs() {
+    try {
+      localStorage.setItem('ui_moments_favs', JSON.stringify(Array.from(favorites)));
+    } catch (e) {}
+    document.getElementById('favCount').textContent = String(favorites.size);
+  }
+
+  // Categories
+  const CATEGORIES = ['All', 'Hover & Glow', '3D & Tactile', 'Stateful', 'Data Viz', 'Travel', 'Buttons', 'Switches', 'Click Effects', 'Controls'];
+
+  function renderTabs() {
+    const tabsEl = document.getElementById('categoryTabs');
+    tabsEl.innerHTML = '';
+    CATEGORIES.forEach((cat) => {
+      const count = cat === 'All'
+        ? COMPONENTS.length
+        : COMPONENTS.filter((c) => c.category === cat).length;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'tab-btn' + (activeCategory === cat ? ' active' : '');
+      btn.innerHTML = `<span>${cat}</span><span class="tab-count">${count}</span>`;
+      btn.addEventListener('click', () => {
+        activeCategory = cat;
+        playClick(540);
+        renderTabs();
+        renderGrid();
+      });
+      tabsEl.appendChild(btn);
+    });
+  }
+
+  function openModal(comp) {
+    document.getElementById('modalTitle').textContent = comp.title;
+    document.getElementById('modalSub').textContent = `${comp.category} · ${comp.subtitle}`;
+    document.getElementById('modalDesc').textContent = comp.desc;
+    document.getElementById('modalCode').textContent = comp.code;
+    const preview = document.getElementById('modalPreview');
+    preview.innerHTML = '';
+    comp.mount(preview);
+    document.getElementById('detailsModal').classList.add('open');
+    document.getElementById('modalCopyBtn').onclick = () => {
+      copyText(comp.code);
+      showToast(`已複製 ${comp.title} 程式碼片段`);
+      playClick(760);
+    };
+  }
+
+  function closeModal() {
+    document.getElementById('detailsModal').classList.remove('open');
+  }
+
+  function renderGrid() {
+    const grid = document.getElementById('galleryGrid');
+    grid.className = 'gallery-grid' + (colsMode === '3' ? ' cols-3' : colsMode === '4' ? ' cols-4' : '');
+    grid.innerHTML = '';
+
+    const q = searchQuery.trim().toLowerCase();
+    const list = COMPONENTS.filter((c) => {
+      if (activeCategory !== 'All' && c.category !== activeCategory) return false;
+      if (onlyFavorites && !favorites.has(c.id)) return false;
+      if (q && !(c.title.toLowerCase().includes(q) || c.subtitle.toLowerCase().includes(q) || c.category.toLowerCase().includes(q))) {
+        return false;
+      }
+      return true;
+    });
+
+    if (list.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.textContent = onlyFavorites
+        ? '目前尚未收藏任何按鈕，點擊卡片右上角 ★ 即可加入收藏。'
+        : '找不到符合條件的按鈕元件。';
+      grid.appendChild(empty);
+      return;
+    }
+
+    list.forEach((comp) => {
+      const card = document.createElement('article');
+      card.className = 'card';
+
+      const favBtn = document.createElement('button');
+      favBtn.type = 'button';
+      favBtn.className = 'card-fav' + (favorites.has(comp.id) ? ' saved' : '');
+      favBtn.setAttribute('aria-label', 'Favorite');
+      favBtn.textContent = favorites.has(comp.id) ? '★' : '☆';
+      favBtn.addEventListener('click', () => {
+        if (favorites.has(comp.id)) favorites.delete(comp.id);
+        else favorites.add(comp.id);
+        saveFavs();
+        favBtn.classList.toggle('saved', favorites.has(comp.id));
+        favBtn.textContent = favorites.has(comp.id) ? '★' : '☆';
+        playClick(favorites.has(comp.id) ? 720 : 420);
+        if (onlyFavorites) renderGrid();
+      });
+
+      const stage = document.createElement('div');
+      stage.className = 'card-stage';
+      comp.mount(stage);
+
+      const footer = document.createElement('div');
+      footer.className = 'card-footer';
+      footer.innerHTML = `
+        <div class="card-meta">
+          <div class="card-title">${comp.title}</div>
+          <div class="card-cat">${comp.subtitle}</div>
+        </div>
+        <button class="details-btn" type="button">Details <span>→</span></button>
+      `;
+      footer.querySelector('.details-btn').addEventListener('click', () => {
+        playClick(580);
+        openModal(comp);
+      });
+
+      card.appendChild(favBtn);
+      card.appendChild(stage);
+      card.appendChild(footer);
+      grid.appendChild(card);
+    });
+  }
+
+  // Toolbar listeners
+  document.getElementById('searchInput').addEventListener('input', (e) => {
+    searchQuery = e.target.value;
+    renderGrid();
+  });
+
+  document.getElementById('favFilterBtn').addEventListener('click', (e) => {
+    onlyFavorites = !onlyFavorites;
+    e.currentTarget.classList.toggle('active', onlyFavorites);
+    playClick(560);
+    renderGrid();
+  });
+
+  document.getElementById('colsToggle').addEventListener('click', (e) => {
+    colsMode = colsMode === 'auto' ? '3' : colsMode === '3' ? '4' : 'auto';
+    e.currentTarget.textContent = `Columns: ${colsMode === 'auto' ? 'Auto' : colsMode}`;
+    playClick(520);
+    renderGrid();
+  });
+
+  document.getElementById('soundToggle').addEventListener('click', (e) => {
+    soundEnabled = !soundEnabled;
+    e.currentTarget.classList.toggle('active', soundEnabled);
+    document.getElementById('soundIcon').textContent = soundEnabled ? '🔊' : '🔇';
+    document.getElementById('soundLabel').textContent = soundEnabled ? 'Sound On' : 'Sound Off';
+    if (soundEnabled) playClick(660);
+  });
+
+  document.getElementById('modalCloseBtn').addEventListener('click', closeModal);
+  document.getElementById('detailsModal').addEventListener('click', (e) => {
+    if (e.target.id === 'detailsModal') closeModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeModal();
+  });
+
+  saveFavs();
+  renderTabs();
+  renderGrid();
+})();
+</script>
+</body>
+</html>

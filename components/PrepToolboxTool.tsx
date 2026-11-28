@@ -5,7 +5,7 @@ import { generateUniqueId } from '../shared/syncMerge';
 import { detectDestinationIntel, getDestinationLocalTime } from '../shared/destinationIntel';
 import { WeatherModal, WeatherGlyph, useLiveWeather } from './WeatherModal';
 import { LiquidModal, ConfirmSheet, SlidingSegmentedControl } from './LiquidPrimitives';
-import { DownloadProgressButton } from './TactileButtons';
+import { DownloadProgressButton, SplitFlapBoard } from './TactileButtons';
 import { tactileAudio } from '../services/tactileAudio';
 import { uploadCloudFile, downloadCloudFileUrl, deleteCloudFile } from '../services/firebaseClient';
 import { useI18n } from '../hooks/useI18n';
@@ -1067,32 +1067,37 @@ const PrepToolboxTool: React.FC<Props> = ({ trip, cloudUserId, onUpdateTrip, onS
                 </div>
               </button>
 
-              {/* 6. Medium-Wide Bottom Bento: Airport Hub */}
-              <a
-                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                  intel.airports[0]?.query || `${intel.cityQuery} airport`
-                )}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="col-span-2 lg:col-span-5 surface-elevated rounded-[22px] sm:rounded-3xl p-3 sm:p-4 flex items-center justify-between gap-2 hover:brightness-[0.98] active:scale-[0.98] transition-all min-h-[68px]"
-              >
+              {/* 6. Medium-Wide Bottom Bento: Airport Hub with Interactive Split-Flap Board */}
+              <div className="col-span-2 lg:col-span-5 surface-elevated rounded-[22px] sm:rounded-3xl p-3 sm:p-4 flex items-center justify-between gap-2.5 min-h-[68px]">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-500/12 flex items-center justify-center shrink-0">
-                    <PlaneIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                  </div>
+                  <SplitFlapBoard
+                    size="sm"
+                    words={intel.airports.length > 0 ? intel.airports.map((a) => a.code) : ['AIR']}
+                    ariaLabel={t('切換當地機場代碼翻牌', '切换当地机场代码翻牌', 'Flip destination airport code')}
+                  />
                   <div className="min-w-0">
-                    <div className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate font-num">
-                      {intel.airports.length > 0
-                        ? intel.airports.map((a) => a.code).slice(0, 2).join(' · ')
-                        : t('機場交通', '机场交通', 'Airport')}
+                    <div className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">
+                      {intel.airports[0]?.name || t('機場交通', '机场交通', 'Airport')}
                     </div>
                     <div className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
-                      {intel.airports[0]?.name || intel.displayCity}
+                      {intel.airports.length > 1
+                        ? t('點擊翻牌切換機場', '点击翻牌切换机场', 'Tap board to switch')
+                        : intel.displayCity}
                     </div>
                   </div>
                 </div>
-                <ArrowUpRightIcon className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-              </a>
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                    intel.airports[0]?.query || `${intel.cityQuery} airport`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={t('在地圖查看機場位置', '在地图查看机场位置', 'View airport on map')}
+                  className="w-10 h-10 rounded-xl bg-indigo-500/12 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 transition-colors"
+                >
+                  <ArrowUpRightIcon className="w-4 h-4" />
+                </a>
+              </div>
 
               {/* 7. Compact Bottom Bento: Direct Emergency SOS Dial */}
               <a
